@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
 import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial } from './recipeCatalog';
+import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, Factory as FactoryIcon, FlaskConical, Gauge, Hammer,
@@ -14,7 +15,7 @@ type ComponentKey = string;
 type ScienceKey = 'automationPack' | 'logisticsPack' | 'researchPack';
 type TrackedKey = string;
 type UpgradeKey = 'manualMining' | 'productionSpeed' | 'storageEfficiency' | 'powerEfficiency';
-type ResearchKey = 'steamPower' | 'solarPower' | 'nuclearPower' | 'steelProcessing' | 'automation';
+type ResearchKey = string;
 type UnitStatus = 'running' | 'starved' | 'blocked';
 
 type Recipe = RecipeCatalogEntry;
@@ -42,6 +43,9 @@ type GameState = {
 const SAVE_KEY = 'factory-production-game-save-v2';
 const rawKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood', 'water', 'uranium'];
 const scienceKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'researchPack'];
+const technologyMap: Record<string, TechnologyDefinition> = Object.fromEntries(technologyCatalog.map((technology) => [technology.name, technology]));
+const legacyResearchAliases: Record<string, string> = { steamPower: 'steam-power', solarPower: 'solar-energy', nuclearPower: 'nuclear-power', steelProcessing: 'steel-processing' };
+const normalizeResearchKey = (key: string) => legacyResearchAliases[key] ?? key;
 const sourceKeyAliases: Record<string, TrackedKey> = {
   'iron-ore': 'iron', 'copper-ore': 'copper', 'uranium-ore': 'uranium',
   'iron-plate': 'ironPlate', 'copper-plate': 'copperPlate', 'steel-plate': 'steel',
@@ -70,6 +74,7 @@ const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ ke
 const trackedKeys: TrackedKey[] = Array.from(new Set([
   ...rawKeys,
   ...recipeCatalog.flatMap((recipe) => [...recipe.ingredients, ...recipe.results].map((material) => keyForSource(material.name))),
+  ...technologyCatalog.flatMap((technology) => technology.scienceCosts.map((cost) => keyForSource(cost.pack))),
 ]));
 const prettyLabel = (key: string) => key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const baseMeta: Record<string, { label: string; short: string; color: string; category: string }> = {
@@ -117,16 +122,8 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
   stone: { label: 'Stone', description: 'Bulk aggregate for foundations and early construction.' },
   coal: { label: 'Coal', description: 'Dense fuel for boilers and high-heat processing.' },
   wood: { label: 'Wood', description: 'Manual-start biomass for early structures.' },
-  water: { label: 'Water', description: 'Pumped fluid required to turn heat into power.', research: 'steamPower', needs: 'Steam Power' },
-  uranium: { label: 'Uranium', description: 'Dense fuel for the late-stage reactor chain.', research: 'nuclearPower', needs: 'Nuclear Power' },
-};
-
-const researchData: Record<ResearchKey, { title: string; copy: string; cost: { pack: ScienceKey; quantity: number }[]; accent: string }> = {
-  automation: { title: 'Basic automation', copy: 'The first assembly machines can repeat component recipes without supervision.', cost: [{ pack: 'automationPack', quantity: 4 }], accent: '#df7165' },
-  steamPower: { title: 'Steam Power', copy: 'Boilers, steam handling, and engine control. Unlocks water pumps and the first power tree.', cost: [{ pack: 'automationPack', quantity: 6 }], accent: '#65afba' },
-  steelProcessing: { title: 'Steel Processing', copy: 'Longer heat cycles convert iron plates into resilient structural steel.', cost: [{ pack: 'automationPack', quantity: 5 }, { pack: 'logisticsPack', quantity: 5 }], accent: '#aabac3' },
-  solarPower: { title: 'Solar Power', copy: 'Quiet daytime generation with no fuel input or moving parts.', cost: [{ pack: 'automationPack', quantity: 8 }, { pack: 'logisticsPack', quantity: 8 }], accent: '#dfb05c' },
-  nuclearPower: { title: 'Nuclear Power', copy: 'A high-density heat loop powered by uranium and sulfuric acid.', cost: [{ pack: 'logisticsPack', quantity: 10 }, { pack: 'researchPack', quantity: 10 }], accent: '#92c86b' },
+  water: { label: 'Water', description: 'Pumped fluid required to turn heat into power.', research: 'steam-power', needs: 'Steam Power' },
+  uranium: { label: 'Uranium', description: 'Dense fuel for the late-stage reactor chain.', research: 'nuclear-power', needs: 'Nuclear Power' },
 };
 
 const upgradeData: { id: UpgradeKey; title: string; copy: string; base: number; unit: string }[] = [
@@ -242,6 +239,7 @@ function loadState() {
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
       upgrades: { ...initialState.upgrades, ...parsed.upgrades },
       queue: parsed.queue ?? [],
+      research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
       lastSeen: parsed.lastSeen ?? Date.now(),
     } as GameState;
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
@@ -317,7 +315,7 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
     const recipe = recipeMap[recipeKey];
     return total + (recipe ? count * 60 / recipe.energyRequired : 0);
   }, 0));
-  const powerProduction = (state.research.includes('steamPower') ? 80 : 0) + (state.research.includes('solarPower') ? 45 : 0) + (state.research.includes('nuclearPower') ? 180 : 0);
+  const powerProduction = (state.research.includes('steam-power') ? 80 : 0) + (state.research.includes('solar-energy') ? 45 : 0) + (state.research.includes('nuclear-power') ? 180 : 0);
   const draw = Math.max(1, Math.floor(active * 7 * (1 - state.upgrades.powerEfficiency * 0.06)));
   const bottleneckRecipe = componentKeys.map((key) => recipeMap[key]).find((recipe) => (state.assemblers[recipe.name] ?? 0) > 0 && !hasInputs(state, recipeInputs(recipe)));
   const bottleneck = keyForSource(bottleneckRecipe?.results[0]?.name ?? 'electronic-circuit');
@@ -334,8 +332,8 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
 function MiningPage({ state, setState, enqueue, notice }: PageProps) {
   const tap = (key: RawKey) => { if (state.miners[key] || key === 'water' || key === 'uranium') return; setState((s) => ({ ...s, raw: { ...s.raw, [key]: Math.min(capFor(s, key), s.raw[key] + 1 + s.upgrades.manualMining) }, totalOutput: s.totalOutput + 1 })); notice(`manual ${rawInfo[key].label.toLowerCase()} extracted`); };
   const build = (key: RawKey) => {
-    if (key === 'water') { if (!state.research.includes('steamPower')) return notice('Steam Power required'); if (state.products.ironPlate < 10 || state.products.gear < 2) return notice('need 10 iron plates + 2 gears'); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 10, gear: s.products.gear - 2 } })); enqueue('pump', 'Water pump', 40); return; }
-    if (key === 'uranium') { if (!state.research.includes('nuclearPower')) return notice('Nuclear Power required'); if (state.products.steel < 20 || state.products.circuit < 8) return notice('need 20 steel + 8 circuits'); setState((s) => ({ ...s, products: { ...s.products, steel: s.products.steel - 20, circuit: s.products.circuit - 8 } })); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90); return; }
+    if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); if (state.products.ironPlate < 10 || state.products.gear < 2) return notice('need 10 iron plates + 2 gears'); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 10, gear: s.products.gear - 2 } })); enqueue('pump', 'Water pump', 40); return; }
+    if (key === 'uranium') { if (!state.research.includes('nuclear-power')) return notice('Nuclear Power required'); if (state.products.steel < 20 || state.products.circuit < 8) return notice('need 20 steel + 8 circuits'); setState((s) => ({ ...s, products: { ...s.products, steel: s.products.steel - 20, circuit: s.products.circuit - 8 } })); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90); return; }
     if (state.raw.coal < 4 || state.products.ironPlate < 5 || state.products.gear < 1) return notice('need 4 coal + 5 iron plates + 1 gear'); setState((s) => ({ ...s, raw: { ...s.raw, coal: s.raw.coal - 4 }, products: { ...s.products, ironPlate: s.products.ironPlate - 5, gear: s.products.gear - 1 } })); enqueue('miner', `${rawInfo[key].label} coal-powered miner`, 45, key);
   };
   return <PageFrame><Header eyebrow="Raw material control" title="Mining" copy="Tap the ground to start. Build one extractor and that resource becomes autonomous — additional miners only deepen the same section." action={<Tag><Pickaxe size={11} /> 7 resource sections</Tag>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{rawKeys.map((key) => { const info = rawInfo[key]; const locked = !!info.research && !state.research.includes(info.research); const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key]; const autonomous = count > 0; const constructionAction = key === 'water' ? 'pump' : key === 'uranium' ? 'uraniumMiner' : 'miner'; const constructionItems = state.queue.filter((item) => item.action === constructionAction && (constructionAction !== 'miner' || item.targetId === key)); const isBuilding = constructionItems.length > 0; const constructionLabel = key === 'water' ? 'Water pump' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} coal-powered miner`; return <section className={`surface rounded-xl p-4 ${locked ? 'locked-wash opacity-75' : ''}`} key={key} data-testid={`section-mining-${key}`}><div className="flex items-start gap-3"><div className="resource-orb"><ResourceIcon item={key} size={29} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">{info.label}</h2>{locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <Tag><span className="status-dot status-running" /> autonomous</Tag> : <Tag tone="amber">manual</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{info.description}</p></div></div><div className="mt-4 flex items-end justify-between"><div><div className="eyebrow">Buffer</div><div className="mono mt-1 text-[18px]">{fmt(state.raw[key])}<span className="text-[10px] text-[hsl(var(--muted-foreground))]"> / {capFor(state, key)}</span></div></div><div className="text-right"><div className="eyebrow">{key === 'water' ? 'pumps' : key === 'uranium' ? 'acid miners' : 'miners'}</div><div className="mono mt-1 text-[18px] text-[hsl(var(--secondary))]">{count}</div></div></div><Progress value={state.raw[key] / capFor(state, key) * 100} /><BuildProgress items={constructionItems} label={constructionLabel} /><div className="mt-4 flex gap-2">{locked ? <button onClick={() => notice(`${info.needs} research required`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-locked-mining-${key}`}><LockKeyhole size={13} /> requires {info.needs}</button> : autonomous ? <button onClick={() => build(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} data-testid={`button-build-more-${key}`}>{isBuilding ? <><Check size={13} /> queued · construct another</> : <><Plus size={13} /> construct {key === 'water' ? 'pump' : 'miner'}</>}</button> : <><button onClick={() => tap(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-tap-${key}`}><Pickaxe size={13} /> tap to mine</button><button onClick={() => build(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${info.label} miner`} data-testid={`button-build-miner-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div></section>; })}</div><div className="mt-5 surface rounded-xl border-[hsl(var(--secondary)/.25)] p-4"><div className="flex items-start gap-3"><div className="text-[hsl(var(--secondary))]"><Lightbulb size={17} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Mining rule</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Manual taps are intentionally useful at the start of a run. After construction finishes, the same section reports its miner count and the tap becomes an autonomous rate.</p></div></div></div></PageFrame>;
@@ -417,7 +415,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
 }
 
 function PowerPage({ state, notice }: PageProps) {
-  const steam = state.research.includes('steamPower'); const solar = state.research.includes('solarPower'); const nuclear = state.research.includes('nuclearPower'); const draw = Math.max(1, Math.floor(totalUnits(state) * 7 * (1 - state.upgrades.powerEfficiency * .06))); const production = (steam ? 80 : 0) + (solar ? 45 : 0) + (nuclear ? 180 : 0);
+  const steam = state.research.includes('steam-power'); const solar = state.research.includes('solar-energy'); const nuclear = state.research.includes('nuclear-power'); const draw = Math.max(1, Math.floor(totalUnits(state) * 7 * (1 - state.upgrades.powerEfficiency * .06))); const production = (steam ? 80 : 0) + (solar ? 45 : 0) + (nuclear ? 180 : 0);
   const Node = ({ title, sub, icon, active, locked }: { title: string; sub: string; icon: ReactNode; active?: boolean; locked?: boolean }) => <div className={`tree-line flex items-center gap-3 rounded-xl border p-3 ${active ? 'border-[hsl(var(--secondary)/.5)] bg-[hsl(174_30%_15%/.7)]' : locked ? 'locked-wash border-[hsl(var(--border))] opacity-65' : 'border-[hsl(var(--border))] bg-[hsl(216_24%_11%/.7)]'}`}><div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${active ? 'bg-[hsl(var(--secondary)/.14)] text-[hsl(var(--secondary))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{locked ? <LockKeyhole size={15} /> : icon}</div><div className="min-w-0"><div className="text-[11px] font-bold">{title}</div><div className="mt-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">{sub}</div></div><div className="ml-auto">{active ? <Tag>online</Tag> : locked ? <Tag tone="muted">research</Tag> : <Tag tone="amber">standby</Tag>}</div></div>;
   return <PageFrame><Header eyebrow="Energy network" title="Power" copy="Power is a dependency tree, not a single number. Research a generation family, then watch its conversion chain come online." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{production} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} /><div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="surface rounded-xl p-4"><div className="eyebrow">Production</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{production} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Factory draw</div><div className="mono mt-2 text-xl">{draw} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Net balance</div><div className={`mono mt-2 text-xl ${production >= draw ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{production - draw} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Efficiency</div><div className="mono mt-2 text-xl">{state.upgrades.powerEfficiency * 6}%</div></div></div><div className="grid gap-5 lg:grid-cols-3"><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={steam ? 'online' : 'locked'}>Steam generation</SectionTitle><div className="space-y-4"><Node title="Boiler" sub="coal + water → heat" icon={<FlameIcon />} active={steam} locked={!steam} /><Node title="Steam" sub="pressurized thermal fluid" icon={<Waves size={16} />} active={steam} locked={!steam} /><Node title="Steam engine" sub="80 MW potential" icon={<Gauge size={16} />} active={steam} locked={!steam} /></div><button onClick={() => notice(steam ? 'steam chain is online' : 'unlock Steam Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-steam">{steam ? 'inspect steam chain' : 'view steam dependency'}</button></section><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={solar ? 'online' : 'locked'}>Solar generation</SectionTitle><div className="space-y-4"><Node title="Solar array" sub="sunlight → current" icon={<Sun size={16} />} active={solar} locked={!solar} /><Node title="Inverter bank" sub="stable daytime output" icon={<Zap size={16} />} active={solar} locked={!solar} /><Node title="Power bus" sub="45 MW potential" icon={<Power size={16} />} active={solar} locked={!solar} /></div><button onClick={() => notice(solar ? 'solar array is online' : 'unlock Solar Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-solar">{solar ? 'inspect solar chain' : 'view solar dependency'}</button></section><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={nuclear ? 'online' : 'locked'}>Nuclear generation</SectionTitle><div className="space-y-4"><Node title="Nuclear reactor" sub="uranium + acid → heat" icon={<Sparkles size={16} />} active={nuclear} locked={!nuclear} /><Node title="Heat exchanger" sub="heat → steam" icon={<Waves size={16} />} active={nuclear} locked={!nuclear} /><Node title="Power turbine" sub="180 MW potential" icon={<Gauge size={16} />} active={nuclear} locked={!nuclear} /></div><button onClick={() => notice(nuclear ? 'nuclear chain is online' : 'unlock Nuclear Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-nuclear">{nuclear ? 'inspect nuclear chain' : 'view nuclear dependency'}</button></section></div><p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Power families are gated by research and represented as a clear production tree before you build them.</p></PageFrame>;
 }
@@ -450,9 +448,67 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
 
 function ResearchArt({ accent }: { accent: string }) { return <div className="grid h-16 w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_25%_10%)]" style={{ color: accent }}><svg width="72" height="56" viewBox="0 0 72 56" aria-hidden="true"><path stroke="currentColor" strokeOpacity=".35" d="M6 43 22 27l10 8 15-21 19 14" /><circle cx="22" cy="27" r="5" fill="currentColor" opacity=".85" /><circle cx="47" cy="14" r="5" fill="currentColor" opacity=".65" /><path fill="currentColor" opacity=".18" d="M7 47h58v3H7zM12 10h3v34h-3zm45 13h3v21h-3z" /></svg></div>; }
 function ResearchPage({ state, setState, notice }: PageProps) {
-  const [selected, setSelected] = useState<ResearchKey>('steamPower');
-  const unlock = (key: ResearchKey) => { const item = researchData[key]; if (state.research.includes(key)) return; if (key === 'nuclearPower' && !state.research.includes('solarPower')) return notice('Solar Power is required first'); if (item.cost.some(({ pack, quantity }) => state.products[pack] < quantity)) return notice('not enough required science packs'); setState((s) => { const products = { ...s.products }; item.cost.forEach(({ pack, quantity }) => { products[pack] -= quantity; }); return { ...s, products, research: [...s.research, key] }; }); notice(`${item.title} research complete`); };
-  return <PageFrame><Header eyebrow="Technology control" title="Research" copy="Choose a research, inspect its science recipe, and make a permanent change to the network. Costs are explicit per node." action={<Tag><Lightbulb size={11} /> {state.research.length} completed</Tag>} /><div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]"><section className="space-y-3">{(Object.keys(researchData) as ResearchKey[]).map((key) => { const item = researchData[key]; const done = state.research.includes(key); const available = item.cost.every(({ pack, quantity }) => state.products[pack] >= quantity); return <button onClick={() => setSelected(key)} className={`surface flex w-full items-center gap-3 rounded-xl p-3 text-left sm:p-4 ${selected === key ? 'border-[hsl(var(--secondary)/.65)] bg-[hsl(174_30%_15%/.7)]' : 'hover:border-[hsl(var(--border))]'}`} key={key} data-testid={`button-research-${key}`}><ResearchArt accent={item.accent} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[12px] font-extrabold">{item.title}</span>{done ? <Tag><Check size={10} /> complete</Tag> : available ? <Tag tone="amber">ready</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> pack low</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{item.copy}</p></div><ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" /></button>; })}</section><aside className="surface h-fit rounded-xl p-5"><div className="eyebrow">Research detail</div>{(() => { const item = researchData[selected]; const done = state.research.includes(selected); const requirementsMet = item.cost.every(({ pack, quantity }) => state.products[pack] >= quantity); return <><h2 className="mt-3 text-lg font-extrabold">{item.title}</h2><p className="mt-2 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">{item.copy}</p><div className="mt-5 border-y border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Required science packs</div><div className="space-y-2">{item.cost.map(({ pack, quantity }) => <div className="flex items-center justify-between text-[11px]" key={pack}><span className="flex items-center gap-2"><ResourceIcon item={pack} size={20} />{meta[pack].label}</span><span className={`mono ${state.products[pack] >= quantity ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{fmt(state.products[pack])} / {quantity}</span></div>)}</div></div><button onClick={() => unlock(selected)} disabled={done || !requirementsMet} className="button-base button-primary mt-5 w-full disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-unlock-research-${selected}`}>{done ? <><Check size={14} /> research complete</> : <><FlaskConical size={14} /> complete research</>}</button><p className="mt-3 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Each node uses equal quantities of the science packs listed for its own research recipe.</p></>; })()}</aside></div></PageFrame>;
+  const [selected, setSelected] = useState<ResearchKey>(technologyCatalog[0]?.name ?? '');
+  const [query, setQuery] = useState('');
+  const accentFor = (name: string) => ['#65afba', '#df7165', '#dfb05c', '#8ea9db', '#92c86b', '#c9d3d0'][name.length % 6];
+  const visibleTechnologies = useMemo(() => technologyCatalog.filter((technology) => {
+    const haystack = `${technology.name} ${technology.prerequisites.join(' ')} ${technology.effects.map((effect) => `${effect.type} ${effect.recipe ?? ''}`).join(' ')}`.toLowerCase();
+    return !query.trim() || haystack.includes(query.trim().toLowerCase());
+  }), [query]);
+  const item = technologyMap[selected] ?? technologyCatalog[0];
+  const unlock = (key: ResearchKey) => {
+    const technology = technologyMap[key];
+    if (!technology || state.research.includes(key)) return;
+    if (!technology.prerequisites.every((prerequisite) => state.research.includes(prerequisite))) return notice('complete the listed prerequisites first');
+    const costsMet = technology.scienceCosts.every((cost) => quantityFor(state, keyForSource(cost.pack)) >= cost.amount);
+    if (!technology.researchTrigger && !costsMet) return notice('not enough required science packs');
+    setState((s) => {
+      const products = { ...s.products };
+      technology.scienceCosts.forEach((cost) => {
+        const costKey = keyForSource(cost.pack);
+        products[costKey] = (products[costKey] ?? 0) - cost.amount;
+      });
+      return { ...s, products, research: [...s.research, key] };
+    });
+    notice(`${prettyLabel(key)} research complete`);
+  };
+  if (!item) return null;
+  const selectedDone = state.research.includes(item.name);
+  const selectedPrerequisitesMet = item.prerequisites.every((prerequisite) => state.research.includes(prerequisite));
+  const selectedCostsMet = item.scienceCosts.every((cost) => quantityFor(state, keyForSource(cost.pack)) >= cost.amount);
+  const selectedReady = selectedPrerequisitesMet && (Boolean(item.researchTrigger) || selectedCostsMet);
+  return <PageFrame>
+    <Header eyebrow="Technology control" title="Research" copy="The official technology definitions drive this tree: prerequisites, science-pack units, research triggers, effects, upgrades, and infinite levels are all visible." action={<Tag><Lightbulb size={11} /> {technologyCatalog.length} technologies · {state.research.length} complete</Tag>} />
+    <section className="surface mb-5 rounded-xl p-3 sm:p-4">
+      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search technologies, prerequisites, or effects" className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search technologies" data-testid="input-search-technologies" />
+      <div className="mt-2 flex items-center justify-between text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source names remain intact for save compatibility and dependency matching.</span><span className="mono">{visibleTechnologies.length} visible</span></div>
+    </section>
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="space-y-3">{visibleTechnologies.map((technology) => {
+        const done = state.research.includes(technology.name);
+        const prerequisitesMet = technology.prerequisites.every((prerequisite) => state.research.includes(prerequisite));
+        const costsMet = technology.scienceCosts.every((cost) => quantityFor(state, keyForSource(cost.pack)) >= cost.amount);
+        const ready = prerequisitesMet && (Boolean(technology.researchTrigger) || costsMet);
+        return <button onClick={() => setSelected(technology.name)} className={`surface flex w-full items-center gap-3 rounded-xl p-3 text-left sm:p-4 ${selected === technology.name ? 'border-[hsl(var(--secondary)/.65)] bg-[hsl(174_30%_15%/.7)]' : 'hover:border-[hsl(var(--border))]'}`} key={technology.name} data-testid={`button-research-${technology.name}`}>
+          <ResearchArt accent={accentFor(technology.name)} />
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[12px] font-extrabold">{prettyLabel(technology.name)}</span>{done ? <Tag><Check size={10} /> complete</Tag> : ready ? <Tag tone="amber">ready</Tag> : !prerequisitesMet ? <Tag tone="muted"><LockKeyhole size={10} /> prerequisite</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> pack low</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{technology.effects.length} effects · {technology.prerequisites.length} prerequisites{technology.upgrade ? ' · upgrade' : ''}</p></div>
+          <ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" />
+        </button>;
+      })}</section>
+      <aside className="surface h-fit rounded-xl p-5">
+        <div className="eyebrow">Technology detail</div>
+        <div className="mt-3 flex items-start justify-between gap-3"><h2 className="text-lg font-extrabold">{prettyLabel(item.name)}</h2><Tag tone={item.upgrade ? 'amber' : 'teal'}>{item.upgrade ? 'upgrade' : 'technology'}</Tag></div>
+        <div className="mt-2 flex flex-wrap gap-1">{item.essential && <Tag>essential</Tag>}{item.maxLevel && <Tag tone="muted">{prettyLabel(item.maxLevel)} levels</Tag>}{item.researchTrigger && <Tag tone="muted">triggered</Tag>}</div>
+        <div className="mt-5 border-y border-[hsl(var(--border))] py-4">
+          <div className="eyebrow mb-3">Prerequisites</div>
+          {item.prerequisites.length ? <div className="flex flex-wrap gap-1.5">{item.prerequisites.map((prerequisite) => <span className={`resource-chip ${state.research.includes(prerequisite) ? 'border-[hsl(var(--secondary)/.55)]' : ''}`} key={prerequisite}><span className={`status-dot ${state.research.includes(prerequisite) ? 'status-running' : 'status-starved'}`} />{prettyLabel(prerequisite)}</span>)}</div> : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No prerequisites · available at the start.</div>}
+        </div>
+        {item.researchTrigger ? <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-2">Research trigger</div><div className="text-[11px]">{prettyLabel(item.researchTrigger.type)}{item.researchTrigger.item ? ` · ${prettyLabel(item.researchTrigger.item)}` : ''}{item.researchTrigger.count ? ` · ${item.researchTrigger.count}` : ''}</div></div> : <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Science unit</div><div className="space-y-2">{item.scienceCosts.map((cost) => { const costKey = keyForSource(cost.pack); const have = quantityFor(state, costKey); return <div className="flex items-center justify-between text-[11px]" key={cost.pack}><span className="flex items-center gap-2"><ResourceIcon item={costKey} size={20} />{meta[costKey].label}</span><span className={`mono ${have >= cost.amount ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{fmt(have)} / {cost.amount}</span></div>; })}</div><div className="mt-3 text-[10px] text-[hsl(var(--muted-foreground))]">Unit time: <span className="mono">{item.time ?? 'formula-defined'}s</span>{item.count ? ` · ${item.count} total units` : item.countFormula ? ` · ${item.countFormula}` : ''}</div></div>}
+        <div className="py-4"><div className="eyebrow mb-3">Effects</div><div className="space-y-2">{item.effects.length ? item.effects.map((effect, index) => <div className="data-row rounded-lg px-3 py-2 text-[10px]" key={`${effect.type}-${index}`}><span className="font-semibold">{effect.recipe ? `Unlock ${prettyLabel(effect.recipe)}` : prettyLabel(effect.type)}</span>{effect.target && <span className="text-[hsl(var(--muted-foreground))]"> · {prettyLabel(effect.target)}</span>}{effect.modifier !== undefined && <span className="mono float-right text-[hsl(var(--secondary))]">{effect.modifier > 0 ? '+' : ''}{effect.modifier}</span>}</div>) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No listed effects.</div>}</div></div>
+        <button onClick={() => unlock(item.name)} disabled={selectedDone || !selectedReady} className="button-base button-primary w-full disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-unlock-research-${item.name}`}>{selectedDone ? <><Check size={14} /> research complete</> : <><FlaskConical size={14} /> complete research</>}</button>
+      </aside>
+    </div>
+  </PageFrame>;
 }
 
 function SettingsPage({ state, setState, saveNow, reset, notice }: PageProps) {
