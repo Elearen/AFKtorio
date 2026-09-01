@@ -24,6 +24,7 @@ A mobile-first incremental factory simulator where players grow a self-funded pr
 
 - `artifacts/factory-production-game/src/App.tsx` — playable factory simulation and production-floor UI
 - `artifacts/factory-production-game/src/recipeCatalog.ts` — normalized catalog of 192 recipes from the attached Lua definitions
+- `artifacts/factory-production-game/src/productTierCatalog.ts` — imported tier 0–12 product order from the attached progression reference
 - `artifacts/factory-production-game/src/technologyCatalog.ts` — normalized catalog of 196 technologies from `wube/factorio-data/base/prototypes/technology.lua`
 - `artifacts/factory-production-game/src/index.css` — industrial control-room theme and responsive layout
 - `attached_assets/Pasted-Factory-Production-Game-Technical-Specification-1-Game-_1788259810206.txt` — product specification
@@ -33,6 +34,7 @@ A mobile-first incremental factory simulator where players grow a self-funded pr
 - The playable slice is frontend-only and persists game state in localStorage so the core idle loop works without a server account.
 - The ten control tabs share one client simulation state so manual actions, construction, production, power, storage, upgrades, science, research, and offline catch-up stay consistent.
 - Recipe simulation uses the attached catalog's generic item/fluid inputs and multi-output results; legacy starter resources remain connected through explicit source-name aliases.
+- Production recipes and storage rows share the imported product-tier ordering; tracked materials not present in the reference are retained after the tiered entries.
 - Research uses the official Factorio technology identifiers as stable dependency keys, with the source helper for follower-robot upgrades expanded into four concrete entries. Legacy custom research identifiers are migrated when local saves load.
 - Resource visuals are original inline illustrations; Factorio is used as a mechanical vocabulary reference, not as a source for copied artwork or interface assets.
 
