@@ -1,4 +1,4 @@
-export type TechnologyEffect = { type: string; recipe?: string; modifier?: number; ammoCategory?: string; target?: string };
+export type TechnologyEffect = { type: string; recipe?: string; modifier?: number | boolean; ammoCategory?: string; target?: string; hidden?: boolean };
 
 export type TechnologyScienceCost = { pack: string; amount: number };
 
@@ -359,6 +359,10 @@ export const technologyCatalog: TechnologyDefinition[] = [
       },
       {
         "pack": "military-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "utility-science-pack",
         "amount": 1
       }
     ],
@@ -1957,6 +1961,52 @@ export const technologyCatalog: TechnologyDefinition[] = [
     "maxLevel": "infinite"
   },
   {
+    "name": "artillery-shell-speed-1",
+    "prerequisites": [
+      "artillery",
+      "space-science-pack"
+    ],
+    "scienceCosts": [
+      {
+        "pack": "automation-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "logistic-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "chemical-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "military-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "utility-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "space-science-pack",
+        "amount": 1
+      }
+    ],
+    "countFormula": "1000+3^(L-1)*1000",
+    "time": 60,
+    "effects": [
+      {
+        "type": "gun-speed",
+        "modifier": 1,
+        "ammoCategory": "artillery-shell"
+      }
+    ],
+    "iconPath": "__base__/graphics/icons/artillery-shell.png",
+    "upgrade": false,
+    "essential": false,
+    "maxLevel": "infinite"
+  },
+  {
     "name": "follower-robot-count-5",
     "prerequisites": [
       "follower-robot-count-4",
@@ -3460,7 +3510,7 @@ export const technologyCatalog: TechnologyDefinition[] = [
       },
       {
         "type": "cliff-deconstruction-enabled",
-        "modifier": null
+        "modifier": true
       }
     ],
     "iconPath": "__base__/graphics/technology/cliff-explosives.png",
@@ -4773,11 +4823,12 @@ export const technologyCatalog: TechnologyDefinition[] = [
       },
       {
         "type": "create-ghost-on-entity-death",
-        "modifier": null
+        "modifier": true
       },
       {
         "type": "unlock-logistic-network",
-        "modifier": null
+        "modifier": true,
+        "hidden": true
       }
     ],
     "iconPath": "__base__/graphics/technology/construction-robotics.png",
@@ -4824,7 +4875,7 @@ export const technologyCatalog: TechnologyDefinition[] = [
       },
       {
         "type": "character-logistic-requests",
-        "modifier": null
+        "modifier": true
       },
       {
         "type": "character-logistic-trash-slots",
@@ -4832,7 +4883,8 @@ export const technologyCatalog: TechnologyDefinition[] = [
       },
       {
         "type": "unlock-logistic-network",
-        "modifier": null
+        "modifier": true,
+        "hidden": true
       }
     ],
     "iconPath": "__base__/graphics/technology/logistic-robotics.png",
@@ -4880,7 +4932,7 @@ export const technologyCatalog: TechnologyDefinition[] = [
       },
       {
         "type": "vehicle-logistics",
-        "modifier": null
+        "modifier": true
       }
     ],
     "iconPath": "__base__/graphics/technology/logistic-system.png",
@@ -6325,7 +6377,7 @@ export const technologyCatalog: TechnologyDefinition[] = [
     "effects": [
       {
         "type": "mining-with-fluid",
-        "modifier": null
+        "modifier": true
       }
     ],
     "iconPath": "__base__/graphics/technology/uranium-mining.png",
@@ -6742,7 +6794,7 @@ export const technologyCatalog: TechnologyDefinition[] = [
     "effects": [
       {
         "type": "unlock-circuit-network",
-        "modifier": null
+        "modifier": true
       },
       {
         "type": "unlock-recipe",
