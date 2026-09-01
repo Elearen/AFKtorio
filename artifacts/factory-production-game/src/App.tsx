@@ -272,16 +272,8 @@ function loadState() {
 }
 
 function ResourceIcon({ item, size = 28 }: { item: TrackedKey; size?: number }) {
-  const color = meta[item].color;
-  if (item === 'water') return <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path fill={color} d="M16 3S7 13 7 19a9 9 0 0 0 18 0c0-6-9-16-9-16Z"/><path fill="#ddf0ed" opacity=".3" d="M11 19a5 5 0 0 0 5 5v-2a3 3 0 0 1-3-3h-2Z"/></svg>;
-  if (item === 'uranium') return <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill={color}/><circle cx="16" cy="16" r="6" fill="#172126"/><path fill={color} d="M14.5 6h3v7h-3zm-8 8.5h7v3h-7zm9 1.5h3v7h-3zm1.5-1h7v3h-7z"/></svg>;
-  if (scienceKeys.includes(item as ScienceKey)) return <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path fill={color} d="M12 4h8v2l-2 4v3l6 10a3 3 0 0 1-2.6 4H10.6A3 3 0 0 1 8 23l6-10v-3l-2-4V4Z"/><path fill="#f8d18e" opacity=".8" d="M10.6 20h10.8l2 3.3a1 1 0 0 1-.9 1.5H9.5a1 1 0 0 1-.9-1.5l2-3.3Z"/><circle cx="14" cy="22" r="1" fill={color}/><circle cx="19" cy="24" r="1" fill={color}/></svg>;
-  if (item === 'gear') return <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path fill={color} d="m12 4 3 2a9 9 0 0 1 2 0l3-2 3 2-1 4a9 9 0 0 1 1 2l4 1v4l-4 1a9 9 0 0 1-1 2l1 4-3 2-3-2a9 9 0 0 1-2 0l-3 2-3-2 1-4a9 9 0 0 1-1-2l-4-1v-4l4-1a9 9 0 0 1 1-2L9 6l3-2Zm4 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>;
-  if (item === 'circuit') return <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="6" width="20" height="20" rx="2" fill={color}/><path fill="#172126" d="M10 10h4v4h-4zm8 0h4v4h-4zm-8 8h4v4h-4zm8 0h4v4h-4z"/><path stroke={color} strokeWidth="1.5" d="M3 12h5m-5 8h5m16-8h5m-5 8h5M12 3v5m8-5v5m-8 16v5m8-5v5"/></svg>;
-  if (item === 'ironPlate' || item === 'copperPlate' || item === 'steel') return <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path fill={color} d="m6 9 14-4 6 4v14l-14 4-6-4V9Z"/><path fill="#f5e6ce" opacity=".22" d="m8 10 12-3 4 3-12 4-4-2v12l4 2V14l12-4v12l-12 4"/></svg>;
-  return <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true"><path fill={color} d="m5 19 5-10 9-3 8 8-4 11-11 2-7-8Z"/><path fill="#f2d6b4" opacity=".3" d="m11 11 7-2 4 5-4 7-7 1-3-4 3-7Z"/></svg>;
+  return <img src={`${import.meta.env.BASE_URL}item-icons/${item}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
 }
-
 function Tag({ children, tone = 'teal' }: { children: ReactNode; tone?: 'teal' | 'amber' | 'red' | 'muted' }) {
   return <span className={`status-tag ${tone === 'teal' ? 'tag-running' : tone === 'amber' ? 'tag-starved' : tone === 'red' ? 'tag-blocked' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{children}</span>;
 }

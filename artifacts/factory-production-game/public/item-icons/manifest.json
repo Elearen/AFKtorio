@@ -1,0 +1,1399 @@
+{
+  "source": "Official Factorio Wiki",
+  "importedAt": "2026-09-01T23:22:13.096Z",
+  "items": [
+    {
+      "key": "accumulator",
+      "internal": "accumulator",
+      "wikiFile": "Accumulator.png",
+      "url": "https://wiki.factorio.com/images/Accumulator.png",
+      "localFile": "accumulator.png"
+    },
+    {
+      "key": "active-provider-chest",
+      "internal": "active-provider-chest",
+      "wikiFile": "Active_provider_chest.png",
+      "url": "https://wiki.factorio.com/images/Active_provider_chest.png",
+      "localFile": "active-provider-chest.png"
+    },
+    {
+      "key": "advanced-circuit",
+      "internal": "advanced-circuit",
+      "wikiFile": "Advanced_circuit.png",
+      "url": "https://wiki.factorio.com/images/Advanced_circuit.png",
+      "localFile": "advanced-circuit.png"
+    },
+    {
+      "key": "arithmetic-combinator",
+      "internal": "arithmetic-combinator",
+      "wikiFile": "Arithmetic_combinator.png",
+      "url": "https://wiki.factorio.com/images/Arithmetic_combinator.png",
+      "localFile": "arithmetic-combinator.png"
+    },
+    {
+      "key": "artillery-shell",
+      "internal": "artillery-shell",
+      "wikiFile": "Artillery_shell.png",
+      "url": "https://wiki.factorio.com/images/Artillery_shell.png",
+      "localFile": "artillery-shell.png"
+    },
+    {
+      "key": "artillery-turret",
+      "internal": "artillery-turret",
+      "wikiFile": "Artillery_turret.png",
+      "url": "https://wiki.factorio.com/images/Artillery_turret.png",
+      "localFile": "artillery-turret.png"
+    },
+    {
+      "key": "artillery-wagon",
+      "internal": "artillery-wagon",
+      "wikiFile": "Artillery_wagon.png",
+      "url": "https://wiki.factorio.com/images/Artillery_wagon.png",
+      "localFile": "artillery-wagon.png"
+    },
+    {
+      "key": "assembling-machine-1",
+      "internal": "assembling-machine-1",
+      "wikiFile": "Assembling_machine_1.png",
+      "url": "https://wiki.factorio.com/images/Assembling_machine_1.png",
+      "localFile": "assembling-machine-1.png"
+    },
+    {
+      "key": "assembling-machine-2",
+      "internal": "assembling-machine-2",
+      "wikiFile": "Assembling_machine_2.png",
+      "url": "https://wiki.factorio.com/images/Assembling_machine_2.png",
+      "localFile": "assembling-machine-2.png"
+    },
+    {
+      "key": "assembling-machine-3",
+      "internal": "assembling-machine-3",
+      "wikiFile": "Assembling_machine_3.png",
+      "url": "https://wiki.factorio.com/images/Assembling_machine_3.png",
+      "localFile": "assembling-machine-3.png"
+    },
+    {
+      "key": "atomic-bomb",
+      "internal": "atomic-bomb",
+      "wikiFile": "Atomic_bomb.png",
+      "url": "https://wiki.factorio.com/images/Atomic_bomb.png",
+      "localFile": "atomic-bomb.png"
+    },
+    {
+      "key": "automationPack",
+      "internal": "automation-science-pack",
+      "wikiFile": "Automation_science_pack.png",
+      "url": "https://wiki.factorio.com/images/Automation_science_pack.png",
+      "localFile": "automationPack.png"
+    },
+    {
+      "key": "barrel",
+      "internal": "barrel",
+      "wikiFile": "Barrel.png",
+      "url": "https://wiki.factorio.com/images/Barrel.png",
+      "localFile": "barrel.png"
+    },
+    {
+      "key": "battery",
+      "internal": "battery",
+      "wikiFile": "Battery.png",
+      "url": "https://wiki.factorio.com/images/Battery.png",
+      "localFile": "battery.png"
+    },
+    {
+      "key": "battery-equipment",
+      "internal": "battery-equipment",
+      "wikiFile": "Personal_battery.png",
+      "url": "https://wiki.factorio.com/images/Personal_battery.png",
+      "localFile": "battery-equipment.png"
+    },
+    {
+      "key": "battery-mk2-equipment",
+      "internal": "battery-mk2-equipment",
+      "wikiFile": "Personal_battery_MK2.png",
+      "url": "https://wiki.factorio.com/images/Personal_battery_MK2.png",
+      "localFile": "battery-mk2-equipment.png"
+    },
+    {
+      "key": "beacon",
+      "internal": "beacon",
+      "wikiFile": "Beacon.png",
+      "url": "https://wiki.factorio.com/images/Beacon.png",
+      "localFile": "beacon.png"
+    },
+    {
+      "key": "belt-immunity-equipment",
+      "internal": "belt-immunity-equipment",
+      "wikiFile": "Belt_immunity_equipment.png",
+      "url": "https://wiki.factorio.com/images/Belt_immunity_equipment.png",
+      "localFile": "belt-immunity-equipment.png"
+    },
+    {
+      "key": "big-electric-pole",
+      "internal": "big-electric-pole",
+      "wikiFile": "Big_electric_pole.png",
+      "url": "https://wiki.factorio.com/images/Big_electric_pole.png",
+      "localFile": "big-electric-pole.png"
+    },
+    {
+      "key": "boiler",
+      "internal": "boiler",
+      "wikiFile": "Boiler.png",
+      "url": "https://wiki.factorio.com/images/Boiler.png",
+      "localFile": "boiler.png"
+    },
+    {
+      "key": "buffer-chest",
+      "internal": "buffer-chest",
+      "wikiFile": "Buffer_chest.png",
+      "url": "https://wiki.factorio.com/images/Buffer_chest.png",
+      "localFile": "buffer-chest.png"
+    },
+    {
+      "key": "bulk-inserter",
+      "internal": "bulk-inserter",
+      "wikiFile": "Bulk_inserter.png",
+      "url": "https://wiki.factorio.com/images/Bulk_inserter.png",
+      "localFile": "bulk-inserter.png"
+    },
+    {
+      "key": "burner-inserter",
+      "internal": "burner-inserter",
+      "wikiFile": "Burner_inserter.png",
+      "url": "https://wiki.factorio.com/images/Burner_inserter.png",
+      "localFile": "burner-inserter.png"
+    },
+    {
+      "key": "burner-mining-drill",
+      "internal": "burner-mining-drill",
+      "wikiFile": "Burner_mining_drill.png",
+      "url": "https://wiki.factorio.com/images/Burner_mining_drill.png",
+      "localFile": "burner-mining-drill.png"
+    },
+    {
+      "key": "cannon-shell",
+      "internal": "cannon-shell",
+      "wikiFile": "Cannon_shell.png",
+      "url": "https://wiki.factorio.com/images/Cannon_shell.png",
+      "localFile": "cannon-shell.png"
+    },
+    {
+      "key": "car",
+      "internal": "car",
+      "wikiFile": "Car.png",
+      "url": "https://wiki.factorio.com/images/Car.png",
+      "localFile": "car.png"
+    },
+    {
+      "key": "cargo-landing-pad",
+      "internal": "cargo-landing-pad",
+      "wikiFile": "Cargo_landing_pad.png",
+      "url": "https://wiki.factorio.com/images/Cargo_landing_pad.png",
+      "localFile": "cargo-landing-pad.png"
+    },
+    {
+      "key": "cargo-wagon",
+      "internal": "cargo-wagon",
+      "wikiFile": "Cargo_wagon.png",
+      "url": "https://wiki.factorio.com/images/Cargo_wagon.png",
+      "localFile": "cargo-wagon.png"
+    },
+    {
+      "key": "centrifuge",
+      "internal": "centrifuge",
+      "wikiFile": "Centrifuge.png",
+      "url": "https://wiki.factorio.com/images/Centrifuge.png",
+      "localFile": "centrifuge.png"
+    },
+    {
+      "key": "chemical-plant",
+      "internal": "chemical-plant",
+      "wikiFile": "Chemical_plant.png",
+      "url": "https://wiki.factorio.com/images/Chemical_plant.png",
+      "localFile": "chemical-plant.png"
+    },
+    {
+      "key": "chemical-science-pack",
+      "internal": "chemical-science-pack",
+      "wikiFile": "Chemical_science_pack.png",
+      "url": "https://wiki.factorio.com/images/Chemical_science_pack.png",
+      "localFile": "chemical-science-pack.png"
+    },
+    {
+      "key": "circuit",
+      "internal": "electronic-circuit",
+      "wikiFile": "Electronic_circuit.png",
+      "url": "https://wiki.factorio.com/images/Electronic_circuit.png",
+      "localFile": "circuit.png"
+    },
+    {
+      "key": "cliff-explosives",
+      "internal": "cliff-explosives",
+      "wikiFile": "Cliff_explosives.png",
+      "url": "https://wiki.factorio.com/images/Cliff_explosives.png",
+      "localFile": "cliff-explosives.png"
+    },
+    {
+      "key": "cluster-grenade",
+      "internal": "cluster-grenade",
+      "wikiFile": "Cluster_grenade.png",
+      "url": "https://wiki.factorio.com/images/Cluster_grenade.png",
+      "localFile": "cluster-grenade.png"
+    },
+    {
+      "key": "coal",
+      "internal": "coal",
+      "wikiFile": "Coal.png",
+      "url": "https://wiki.factorio.com/images/Coal.png",
+      "localFile": "coal.png"
+    },
+    {
+      "key": "combat-shotgun",
+      "internal": "combat-shotgun",
+      "wikiFile": "Combat_shotgun.png",
+      "url": "https://wiki.factorio.com/images/Combat_shotgun.png",
+      "localFile": "combat-shotgun.png"
+    },
+    {
+      "key": "concrete",
+      "internal": "concrete",
+      "wikiFile": "Concrete.png",
+      "url": "https://wiki.factorio.com/images/Concrete.png",
+      "localFile": "concrete.png"
+    },
+    {
+      "key": "constant-combinator",
+      "internal": "constant-combinator",
+      "wikiFile": "Constant_combinator.png",
+      "url": "https://wiki.factorio.com/images/Constant_combinator.png",
+      "localFile": "constant-combinator.png"
+    },
+    {
+      "key": "construction-robot",
+      "internal": "construction-robot",
+      "wikiFile": "Construction_robot.png",
+      "url": "https://wiki.factorio.com/images/Construction_robot.png",
+      "localFile": "construction-robot.png"
+    },
+    {
+      "key": "copper",
+      "internal": "copper-ore",
+      "wikiFile": "Copper_ore.png",
+      "url": "https://wiki.factorio.com/images/Copper_ore.png",
+      "localFile": "copper.png"
+    },
+    {
+      "key": "copper-cable",
+      "internal": "copper-cable",
+      "wikiFile": "Copper_cable.png",
+      "url": "https://wiki.factorio.com/images/Copper_cable.png",
+      "localFile": "copper-cable.png"
+    },
+    {
+      "key": "copperPlate",
+      "internal": "copper-plate",
+      "wikiFile": "Copper_plate.png",
+      "url": "https://wiki.factorio.com/images/Copper_plate.png",
+      "localFile": "copperPlate.png"
+    },
+    {
+      "key": "crude-oil",
+      "internal": "crude-oil",
+      "wikiFile": "Crude_oil.png",
+      "url": "https://wiki.factorio.com/images/Crude_oil.png",
+      "localFile": "crude-oil.png"
+    },
+    {
+      "key": "decider-combinator",
+      "internal": "decider-combinator",
+      "wikiFile": "Decider_combinator.png",
+      "url": "https://wiki.factorio.com/images/Decider_combinator.png",
+      "localFile": "decider-combinator.png"
+    },
+    {
+      "key": "defender-capsule",
+      "internal": "defender-capsule",
+      "wikiFile": "Defender_capsule.png",
+      "url": "https://wiki.factorio.com/images/Defender_capsule.png",
+      "localFile": "defender-capsule.png"
+    },
+    {
+      "key": "depleted-uranium-fuel-cell",
+      "internal": "depleted-uranium-fuel-cell",
+      "wikiFile": "Depleted_uranium_fuel_cell.png",
+      "url": "https://wiki.factorio.com/images/Depleted_uranium_fuel_cell.png",
+      "localFile": "depleted-uranium-fuel-cell.png"
+    },
+    {
+      "key": "destroyer-capsule",
+      "internal": "destroyer-capsule",
+      "wikiFile": "Destroyer_capsule.png",
+      "url": "https://wiki.factorio.com/images/Destroyer_capsule.png",
+      "localFile": "destroyer-capsule.png"
+    },
+    {
+      "key": "discharge-defense-equipment",
+      "internal": "discharge-defense-equipment",
+      "wikiFile": "Discharge_defense.png",
+      "url": "https://wiki.factorio.com/images/Discharge_defense.png",
+      "localFile": "discharge-defense-equipment.png"
+    },
+    {
+      "key": "display-panel",
+      "internal": "display-panel",
+      "wikiFile": "Display_panel.png",
+      "url": "https://wiki.factorio.com/images/Display_panel.png",
+      "localFile": "display-panel.png"
+    },
+    {
+      "key": "distractor-capsule",
+      "internal": "distractor-capsule",
+      "wikiFile": "Distractor_capsule.png",
+      "url": "https://wiki.factorio.com/images/Distractor_capsule.png",
+      "localFile": "distractor-capsule.png"
+    },
+    {
+      "key": "efficiency-module",
+      "internal": "efficiency-module",
+      "wikiFile": "Efficiency_module.png",
+      "url": "https://wiki.factorio.com/images/Efficiency_module.png",
+      "localFile": "efficiency-module.png"
+    },
+    {
+      "key": "efficiency-module-2",
+      "internal": "efficiency-module-2",
+      "wikiFile": "Efficiency_module_2.png",
+      "url": "https://wiki.factorio.com/images/Efficiency_module_2.png",
+      "localFile": "efficiency-module-2.png"
+    },
+    {
+      "key": "efficiency-module-3",
+      "internal": "efficiency-module-3",
+      "wikiFile": "Efficiency_module_3.png",
+      "url": "https://wiki.factorio.com/images/Efficiency_module_3.png",
+      "localFile": "efficiency-module-3.png"
+    },
+    {
+      "key": "electric-engine-unit",
+      "internal": "electric-engine-unit",
+      "wikiFile": "Electric_engine_unit.png",
+      "url": "https://wiki.factorio.com/images/Electric_engine_unit.png",
+      "localFile": "electric-engine-unit.png"
+    },
+    {
+      "key": "electric-furnace",
+      "internal": "electric-furnace",
+      "wikiFile": "Electric_furnace.png",
+      "url": "https://wiki.factorio.com/images/Electric_furnace.png",
+      "localFile": "electric-furnace.png"
+    },
+    {
+      "key": "electric-mining-drill",
+      "internal": "electric-mining-drill",
+      "wikiFile": "Electric_mining_drill.png",
+      "url": "https://wiki.factorio.com/images/Electric_mining_drill.png",
+      "localFile": "electric-mining-drill.png"
+    },
+    {
+      "key": "energy-shield-equipment",
+      "internal": "energy-shield-equipment",
+      "wikiFile": "Energy_shield.png",
+      "url": "https://wiki.factorio.com/images/Energy_shield.png",
+      "localFile": "energy-shield-equipment.png"
+    },
+    {
+      "key": "energy-shield-mk2-equipment",
+      "internal": "energy-shield-mk2-equipment",
+      "wikiFile": "Energy_shield_MK2.png",
+      "url": "https://wiki.factorio.com/images/Energy_shield_MK2.png",
+      "localFile": "energy-shield-mk2-equipment.png"
+    },
+    {
+      "key": "engine-unit",
+      "internal": "engine-unit",
+      "wikiFile": "Engine_unit.png",
+      "url": "https://wiki.factorio.com/images/Engine_unit.png",
+      "localFile": "engine-unit.png"
+    },
+    {
+      "key": "exoskeleton-equipment",
+      "internal": "exoskeleton-equipment",
+      "wikiFile": "Exoskeleton.png",
+      "url": "https://wiki.factorio.com/images/Exoskeleton.png",
+      "localFile": "exoskeleton-equipment.png"
+    },
+    {
+      "key": "explosive-cannon-shell",
+      "internal": "explosive-cannon-shell",
+      "wikiFile": "Explosive_cannon_shell.png",
+      "url": "https://wiki.factorio.com/images/Explosive_cannon_shell.png",
+      "localFile": "explosive-cannon-shell.png"
+    },
+    {
+      "key": "explosive-rocket",
+      "internal": "explosive-rocket",
+      "wikiFile": "Explosive_rocket.png",
+      "url": "https://wiki.factorio.com/images/Explosive_rocket.png",
+      "localFile": "explosive-rocket.png"
+    },
+    {
+      "key": "explosive-uranium-cannon-shell",
+      "internal": "explosive-uranium-cannon-shell",
+      "wikiFile": "Explosive_uranium_cannon_shell.png",
+      "url": "https://wiki.factorio.com/images/Explosive_uranium_cannon_shell.png",
+      "localFile": "explosive-uranium-cannon-shell.png"
+    },
+    {
+      "key": "explosives",
+      "internal": "explosives",
+      "wikiFile": "Explosives.png",
+      "url": "https://wiki.factorio.com/images/Explosives.png",
+      "localFile": "explosives.png"
+    },
+    {
+      "key": "express-loader",
+      "internal": "express-loader",
+      "wikiFile": "Loader.png",
+      "url": "https://wiki.factorio.com/images/Loader.png",
+      "localFile": "express-loader.png"
+    },
+    {
+      "key": "express-splitter",
+      "internal": "express-splitter",
+      "wikiFile": "Express_splitter.png",
+      "url": "https://wiki.factorio.com/images/Express_splitter.png",
+      "localFile": "express-splitter.png"
+    },
+    {
+      "key": "express-transport-belt",
+      "internal": "express-transport-belt",
+      "wikiFile": "Express_transport_belt.png",
+      "url": "https://wiki.factorio.com/images/Express_transport_belt.png",
+      "localFile": "express-transport-belt.png"
+    },
+    {
+      "key": "express-underground-belt",
+      "internal": "express-underground-belt",
+      "wikiFile": "Express_underground_belt.png",
+      "url": "https://wiki.factorio.com/images/Express_underground_belt.png",
+      "localFile": "express-underground-belt.png"
+    },
+    {
+      "key": "fast-inserter",
+      "internal": "fast-inserter",
+      "wikiFile": "Fast_inserter.png",
+      "url": "https://wiki.factorio.com/images/Fast_inserter.png",
+      "localFile": "fast-inserter.png"
+    },
+    {
+      "key": "fast-loader",
+      "internal": "fast-loader",
+      "wikiFile": "Loader.png",
+      "url": "https://wiki.factorio.com/images/Loader.png",
+      "localFile": "fast-loader.png"
+    },
+    {
+      "key": "fast-splitter",
+      "internal": "fast-splitter",
+      "wikiFile": "Fast_splitter.png",
+      "url": "https://wiki.factorio.com/images/Fast_splitter.png",
+      "localFile": "fast-splitter.png"
+    },
+    {
+      "key": "fast-transport-belt",
+      "internal": "fast-transport-belt",
+      "wikiFile": "Fast_transport_belt.png",
+      "url": "https://wiki.factorio.com/images/Fast_transport_belt.png",
+      "localFile": "fast-transport-belt.png"
+    },
+    {
+      "key": "fast-underground-belt",
+      "internal": "fast-underground-belt",
+      "wikiFile": "Fast_underground_belt.png",
+      "url": "https://wiki.factorio.com/images/Fast_underground_belt.png",
+      "localFile": "fast-underground-belt.png"
+    },
+    {
+      "key": "firearm-magazine",
+      "internal": "firearm-magazine",
+      "wikiFile": "Firearm_magazine.png",
+      "url": "https://wiki.factorio.com/images/Firearm_magazine.png",
+      "localFile": "firearm-magazine.png"
+    },
+    {
+      "key": "fission-reactor-equipment",
+      "internal": "fission-reactor-equipment",
+      "wikiFile": "Portable_fission_reactor.png",
+      "url": "https://wiki.factorio.com/images/Portable_fission_reactor.png",
+      "localFile": "fission-reactor-equipment.png"
+    },
+    {
+      "key": "flamethrower",
+      "internal": "flamethrower",
+      "wikiFile": "Flamethrower.png",
+      "url": "https://wiki.factorio.com/images/Flamethrower.png",
+      "localFile": "flamethrower.png"
+    },
+    {
+      "key": "flamethrower-ammo",
+      "internal": "flamethrower-ammo",
+      "wikiFile": "Flamethrower_ammo.png",
+      "url": "https://wiki.factorio.com/images/Flamethrower_ammo.png",
+      "localFile": "flamethrower-ammo.png"
+    },
+    {
+      "key": "flamethrower-turret",
+      "internal": "flamethrower-turret",
+      "wikiFile": "Flamethrower_turret.png",
+      "url": "https://wiki.factorio.com/images/Flamethrower_turret.png",
+      "localFile": "flamethrower-turret.png"
+    },
+    {
+      "key": "fluid-wagon",
+      "internal": "fluid-wagon",
+      "wikiFile": "Fluid_wagon.png",
+      "url": "https://wiki.factorio.com/images/Fluid_wagon.png",
+      "localFile": "fluid-wagon.png"
+    },
+    {
+      "key": "flying-robot-frame",
+      "internal": "flying-robot-frame",
+      "wikiFile": "Flying_robot_frame.png",
+      "url": "https://wiki.factorio.com/images/Flying_robot_frame.png",
+      "localFile": "flying-robot-frame.png"
+    },
+    {
+      "key": "gate",
+      "internal": "gate",
+      "wikiFile": "Gate.png",
+      "url": "https://wiki.factorio.com/images/Gate.png",
+      "localFile": "gate.png"
+    },
+    {
+      "key": "gear",
+      "internal": "iron-gear-wheel",
+      "wikiFile": "Iron_gear_wheel.png",
+      "url": "https://wiki.factorio.com/images/Iron_gear_wheel.png",
+      "localFile": "gear.png"
+    },
+    {
+      "key": "grenade",
+      "internal": "grenade",
+      "wikiFile": "Grenade.png",
+      "url": "https://wiki.factorio.com/images/Grenade.png",
+      "localFile": "grenade.png"
+    },
+    {
+      "key": "gun-turret",
+      "internal": "gun-turret",
+      "wikiFile": "Gun_turret.png",
+      "url": "https://wiki.factorio.com/images/Gun_turret.png",
+      "localFile": "gun-turret.png"
+    },
+    {
+      "key": "hazard-concrete",
+      "internal": "hazard-concrete",
+      "wikiFile": "Hazard_concrete.png",
+      "url": "https://wiki.factorio.com/images/Hazard_concrete.png",
+      "localFile": "hazard-concrete.png"
+    },
+    {
+      "key": "heat-exchanger",
+      "internal": "heat-exchanger",
+      "wikiFile": "Heat_exchanger.png",
+      "url": "https://wiki.factorio.com/images/Heat_exchanger.png",
+      "localFile": "heat-exchanger.png"
+    },
+    {
+      "key": "heat-pipe",
+      "internal": "heat-pipe",
+      "wikiFile": "Heat_pipe.png",
+      "url": "https://wiki.factorio.com/images/Heat_pipe.png",
+      "localFile": "heat-pipe.png"
+    },
+    {
+      "key": "heavy-armor",
+      "internal": "heavy-armor",
+      "wikiFile": "Heavy_armor.png",
+      "url": "https://wiki.factorio.com/images/Heavy_armor.png",
+      "localFile": "heavy-armor.png"
+    },
+    {
+      "key": "heavy-oil",
+      "internal": "heavy-oil",
+      "wikiFile": "Heavy_oil.png",
+      "url": "https://wiki.factorio.com/images/Heavy_oil.png",
+      "localFile": "heavy-oil.png"
+    },
+    {
+      "key": "inserter",
+      "internal": "inserter",
+      "wikiFile": "Inserter.png",
+      "url": "https://wiki.factorio.com/images/Inserter.png",
+      "localFile": "inserter.png"
+    },
+    {
+      "key": "iron",
+      "internal": "iron-ore",
+      "wikiFile": "Iron_ore.png",
+      "url": "https://wiki.factorio.com/images/Iron_ore.png",
+      "localFile": "iron.png"
+    },
+    {
+      "key": "iron-chest",
+      "internal": "iron-chest",
+      "wikiFile": "Iron_chest.png",
+      "url": "https://wiki.factorio.com/images/Iron_chest.png",
+      "localFile": "iron-chest.png"
+    },
+    {
+      "key": "iron-stick",
+      "internal": "iron-stick",
+      "wikiFile": "Iron_stick.png",
+      "url": "https://wiki.factorio.com/images/Iron_stick.png",
+      "localFile": "iron-stick.png"
+    },
+    {
+      "key": "ironPlate",
+      "internal": "iron-plate",
+      "wikiFile": "Iron_plate.png",
+      "url": "https://wiki.factorio.com/images/Iron_plate.png",
+      "localFile": "ironPlate.png"
+    },
+    {
+      "key": "lab",
+      "internal": "lab",
+      "wikiFile": "Lab.png",
+      "url": "https://wiki.factorio.com/images/Lab.png",
+      "localFile": "lab.png"
+    },
+    {
+      "key": "land-mine",
+      "internal": "land-mine",
+      "wikiFile": "Land_mine.png",
+      "url": "https://wiki.factorio.com/images/Land_mine.png",
+      "localFile": "land-mine.png"
+    },
+    {
+      "key": "landfill",
+      "internal": "landfill",
+      "wikiFile": "Landfill.png",
+      "url": "https://wiki.factorio.com/images/Landfill.png",
+      "localFile": "landfill.png"
+    },
+    {
+      "key": "laser-turret",
+      "internal": "laser-turret",
+      "wikiFile": "Laser_turret.png",
+      "url": "https://wiki.factorio.com/images/Laser_turret.png",
+      "localFile": "laser-turret.png"
+    },
+    {
+      "key": "light-armor",
+      "internal": "light-armor",
+      "wikiFile": "Light_armor.png",
+      "url": "https://wiki.factorio.com/images/Light_armor.png",
+      "localFile": "light-armor.png"
+    },
+    {
+      "key": "light-oil",
+      "internal": "light-oil",
+      "wikiFile": "Light_oil.png",
+      "url": "https://wiki.factorio.com/images/Light_oil.png",
+      "localFile": "light-oil.png"
+    },
+    {
+      "key": "loader",
+      "internal": "loader",
+      "wikiFile": "Loader.png",
+      "url": "https://wiki.factorio.com/images/Loader.png",
+      "localFile": "loader.png"
+    },
+    {
+      "key": "locomotive",
+      "internal": "locomotive",
+      "wikiFile": "Locomotive.png",
+      "url": "https://wiki.factorio.com/images/Locomotive.png",
+      "localFile": "locomotive.png"
+    },
+    {
+      "key": "logistic-robot",
+      "internal": "logistic-robot",
+      "wikiFile": "Logistic_robot.png",
+      "url": "https://wiki.factorio.com/images/Logistic_robot.png",
+      "localFile": "logistic-robot.png"
+    },
+    {
+      "key": "logisticsPack",
+      "internal": "logistic-science-pack",
+      "wikiFile": "Logistic_science_pack.png",
+      "url": "https://wiki.factorio.com/images/Logistic_science_pack.png",
+      "localFile": "logisticsPack.png"
+    },
+    {
+      "key": "long-handed-inserter",
+      "internal": "long-handed-inserter",
+      "wikiFile": "Long-handed_inserter.png",
+      "url": "https://wiki.factorio.com/images/Long-handed_inserter.png",
+      "localFile": "long-handed-inserter.png"
+    },
+    {
+      "key": "low-density-structure",
+      "internal": "low-density-structure",
+      "wikiFile": "Low_density_structure.png",
+      "url": "https://wiki.factorio.com/images/Low_density_structure.png",
+      "localFile": "low-density-structure.png"
+    },
+    {
+      "key": "lubricant",
+      "internal": "lubricant",
+      "wikiFile": "Lubricant.png",
+      "url": "https://wiki.factorio.com/images/Lubricant.png",
+      "localFile": "lubricant.png"
+    },
+    {
+      "key": "medium-electric-pole",
+      "internal": "medium-electric-pole",
+      "wikiFile": "Medium_electric_pole.png",
+      "url": "https://wiki.factorio.com/images/Medium_electric_pole.png",
+      "localFile": "medium-electric-pole.png"
+    },
+    {
+      "key": "military-science-pack",
+      "internal": "military-science-pack",
+      "wikiFile": "Military_science_pack.png",
+      "url": "https://wiki.factorio.com/images/Military_science_pack.png",
+      "localFile": "military-science-pack.png"
+    },
+    {
+      "key": "modular-armor",
+      "internal": "modular-armor",
+      "wikiFile": "Modular_armor.png",
+      "url": "https://wiki.factorio.com/images/Modular_armor.png",
+      "localFile": "modular-armor.png"
+    },
+    {
+      "key": "night-vision-equipment",
+      "internal": "night-vision-equipment",
+      "wikiFile": "Night-vision-example-1.png",
+      "url": "https://wiki.factorio.com/images/Night-vision-example-1.png",
+      "localFile": "night-vision-equipment.png"
+    },
+    {
+      "key": "nuclear-fuel",
+      "internal": "nuclear-fuel",
+      "wikiFile": "Nuclear_fuel.png",
+      "url": "https://wiki.factorio.com/images/Nuclear_fuel.png",
+      "localFile": "nuclear-fuel.png"
+    },
+    {
+      "key": "nuclear-reactor",
+      "internal": "nuclear-reactor",
+      "wikiFile": "Nuclear_reactor.png",
+      "url": "https://wiki.factorio.com/images/Nuclear_reactor.png",
+      "localFile": "nuclear-reactor.png"
+    },
+    {
+      "key": "offshore-pump",
+      "internal": "offshore-pump",
+      "wikiFile": "Offshore_pump.png",
+      "url": "https://wiki.factorio.com/images/Offshore_pump.png",
+      "localFile": "offshore-pump.png"
+    },
+    {
+      "key": "oil-refinery",
+      "internal": "oil-refinery",
+      "wikiFile": "Oil_refinery.png",
+      "url": "https://wiki.factorio.com/images/Oil_refinery.png",
+      "localFile": "oil-refinery.png"
+    },
+    {
+      "key": "passive-provider-chest",
+      "internal": "passive-provider-chest",
+      "wikiFile": "Passive_provider_chest.png",
+      "url": "https://wiki.factorio.com/images/Passive_provider_chest.png",
+      "localFile": "passive-provider-chest.png"
+    },
+    {
+      "key": "personal-laser-defense-equipment",
+      "internal": "personal-laser-defense-equipment",
+      "wikiFile": "Personal_laser_defense.png",
+      "url": "https://wiki.factorio.com/images/Personal_laser_defense.png",
+      "localFile": "personal-laser-defense-equipment.png"
+    },
+    {
+      "key": "personal-roboport-equipment",
+      "internal": "personal-roboport-equipment",
+      "wikiFile": "Personal_roboport.png",
+      "url": "https://wiki.factorio.com/images/Personal_roboport.png",
+      "localFile": "personal-roboport-equipment.png"
+    },
+    {
+      "key": "personal-roboport-mk2-equipment",
+      "internal": "personal-roboport-mk2-equipment",
+      "wikiFile": "Personal_roboport_MK2.png",
+      "url": "https://wiki.factorio.com/images/Personal_roboport_MK2.png",
+      "localFile": "personal-roboport-mk2-equipment.png"
+    },
+    {
+      "key": "petroleum-gas",
+      "internal": "petroleum-gas",
+      "wikiFile": "Petroleum_gas.png",
+      "url": "https://wiki.factorio.com/images/Petroleum_gas.png",
+      "localFile": "petroleum-gas.png"
+    },
+    {
+      "key": "piercing-rounds-magazine",
+      "internal": "piercing-rounds-magazine",
+      "wikiFile": "Piercing_rounds_magazine.png",
+      "url": "https://wiki.factorio.com/images/Piercing_rounds_magazine.png",
+      "localFile": "piercing-rounds-magazine.png"
+    },
+    {
+      "key": "piercing-shotgun-shell",
+      "internal": "piercing-shotgun-shell",
+      "wikiFile": "Piercing_shotgun_shells.png",
+      "url": "https://wiki.factorio.com/images/Piercing_shotgun_shells.png",
+      "localFile": "piercing-shotgun-shell.png"
+    },
+    {
+      "key": "pipe",
+      "internal": "pipe",
+      "wikiFile": "Pipe.png",
+      "url": "https://wiki.factorio.com/images/Pipe.png",
+      "localFile": "pipe.png"
+    },
+    {
+      "key": "pipe-to-ground",
+      "internal": "pipe-to-ground",
+      "wikiFile": "Pipe_to_ground.png",
+      "url": "https://wiki.factorio.com/images/Pipe_to_ground.png",
+      "localFile": "pipe-to-ground.png"
+    },
+    {
+      "key": "pistol",
+      "internal": "pistol",
+      "wikiFile": "Pistol.png",
+      "url": "https://wiki.factorio.com/images/Pistol.png",
+      "localFile": "pistol.png"
+    },
+    {
+      "key": "plastic-bar",
+      "internal": "plastic-bar",
+      "wikiFile": "Plastic_bar.png",
+      "url": "https://wiki.factorio.com/images/Plastic_bar.png",
+      "localFile": "plastic-bar.png"
+    },
+    {
+      "key": "poison-capsule",
+      "internal": "poison-capsule",
+      "wikiFile": "Poison_capsule.png",
+      "url": "https://wiki.factorio.com/images/Poison_capsule.png",
+      "localFile": "poison-capsule.png"
+    },
+    {
+      "key": "power-armor",
+      "internal": "power-armor",
+      "wikiFile": "Power_armor.png",
+      "url": "https://wiki.factorio.com/images/Power_armor.png",
+      "localFile": "power-armor.png"
+    },
+    {
+      "key": "power-armor-mk2",
+      "internal": "power-armor-mk2",
+      "wikiFile": "Power_armor_MK2.png",
+      "url": "https://wiki.factorio.com/images/Power_armor_MK2.png",
+      "localFile": "power-armor-mk2.png"
+    },
+    {
+      "key": "power-switch",
+      "internal": "power-switch",
+      "wikiFile": "Power_switch.png",
+      "url": "https://wiki.factorio.com/images/Power_switch.png",
+      "localFile": "power-switch.png"
+    },
+    {
+      "key": "processing-unit",
+      "internal": "processing-unit",
+      "wikiFile": "Processing_unit.png",
+      "url": "https://wiki.factorio.com/images/Processing_unit.png",
+      "localFile": "processing-unit.png"
+    },
+    {
+      "key": "productivity-module",
+      "internal": "productivity-module",
+      "wikiFile": "Productivity_module.png",
+      "url": "https://wiki.factorio.com/images/Productivity_module.png",
+      "localFile": "productivity-module.png"
+    },
+    {
+      "key": "productivity-module-2",
+      "internal": "productivity-module-2",
+      "wikiFile": "Productivity_module_2.png",
+      "url": "https://wiki.factorio.com/images/Productivity_module_2.png",
+      "localFile": "productivity-module-2.png"
+    },
+    {
+      "key": "productivity-module-3",
+      "internal": "productivity-module-3",
+      "wikiFile": "Productivity_module_3.png",
+      "url": "https://wiki.factorio.com/images/Productivity_module_3.png",
+      "localFile": "productivity-module-3.png"
+    },
+    {
+      "key": "programmable-speaker",
+      "internal": "programmable-speaker",
+      "wikiFile": "Programmable_speaker.png",
+      "url": "https://wiki.factorio.com/images/Programmable_speaker.png",
+      "localFile": "programmable-speaker.png"
+    },
+    {
+      "key": "pump",
+      "internal": "pump",
+      "wikiFile": "Pump.png",
+      "url": "https://wiki.factorio.com/images/Pump.png",
+      "localFile": "pump.png"
+    },
+    {
+      "key": "pumpjack",
+      "internal": "pumpjack",
+      "wikiFile": "Pumpjack.png",
+      "url": "https://wiki.factorio.com/images/Pumpjack.png",
+      "localFile": "pumpjack.png"
+    },
+    {
+      "key": "radar",
+      "internal": "radar",
+      "wikiFile": "Radar.png",
+      "url": "https://wiki.factorio.com/images/Radar.png",
+      "localFile": "radar.png"
+    },
+    {
+      "key": "rail",
+      "internal": "rail",
+      "wikiFile": "Straight_rail.png",
+      "url": "https://wiki.factorio.com/images/Straight_rail.png",
+      "localFile": "rail.png"
+    },
+    {
+      "key": "rail-chain-signal",
+      "internal": "rail-chain-signal",
+      "wikiFile": "Rail_chain_signal.png",
+      "url": "https://wiki.factorio.com/images/Rail_chain_signal.png",
+      "localFile": "rail-chain-signal.png"
+    },
+    {
+      "key": "rail-signal",
+      "internal": "rail-signal",
+      "wikiFile": "Rail_signal.png",
+      "url": "https://wiki.factorio.com/images/Rail_signal.png",
+      "localFile": "rail-signal.png"
+    },
+    {
+      "key": "raw-fish",
+      "internal": "raw-fish",
+      "wikiFile": "Raw_fish.png",
+      "url": "https://wiki.factorio.com/images/Raw_fish.png",
+      "localFile": "raw-fish.png"
+    },
+    {
+      "key": "refined-concrete",
+      "internal": "refined-concrete",
+      "wikiFile": "Refined_concrete.png",
+      "url": "https://wiki.factorio.com/images/Refined_concrete.png",
+      "localFile": "refined-concrete.png"
+    },
+    {
+      "key": "refined-hazard-concrete",
+      "internal": "refined-hazard-concrete",
+      "wikiFile": "Refined_hazard_concrete.png",
+      "url": "https://wiki.factorio.com/images/Refined_hazard_concrete.png",
+      "localFile": "refined-hazard-concrete.png"
+    },
+    {
+      "key": "repair-pack",
+      "internal": "repair-pack",
+      "wikiFile": "Repair_pack.png",
+      "url": "https://wiki.factorio.com/images/Repair_pack.png",
+      "localFile": "repair-pack.png"
+    },
+    {
+      "key": "requester-chest",
+      "internal": "requester-chest",
+      "wikiFile": "Requester_chest.png",
+      "url": "https://wiki.factorio.com/images/Requester_chest.png",
+      "localFile": "requester-chest.png"
+    },
+    {
+      "key": "researchPack",
+      "internal": "production-science-pack",
+      "wikiFile": "Production_science_pack.png",
+      "url": "https://wiki.factorio.com/images/Production_science_pack.png",
+      "localFile": "researchPack.png"
+    },
+    {
+      "key": "roboport",
+      "internal": "roboport",
+      "wikiFile": "Roboport.png",
+      "url": "https://wiki.factorio.com/images/Roboport.png",
+      "localFile": "roboport.png"
+    },
+    {
+      "key": "rocket",
+      "internal": "rocket",
+      "wikiFile": "Rocket.png",
+      "url": "https://wiki.factorio.com/images/Rocket.png",
+      "localFile": "rocket.png"
+    },
+    {
+      "key": "rocket-fuel",
+      "internal": "rocket-fuel",
+      "wikiFile": "Rocket_fuel.png",
+      "url": "https://wiki.factorio.com/images/Rocket_fuel.png",
+      "localFile": "rocket-fuel.png"
+    },
+    {
+      "key": "rocket-launcher",
+      "internal": "rocket-launcher",
+      "wikiFile": "Rocket_launcher.png",
+      "url": "https://wiki.factorio.com/images/Rocket_launcher.png",
+      "localFile": "rocket-launcher.png"
+    },
+    {
+      "key": "rocket-part",
+      "internal": "rocket-part",
+      "wikiFile": "Rocket_part.png",
+      "url": "https://wiki.factorio.com/images/Rocket_part.png",
+      "localFile": "rocket-part.png"
+    },
+    {
+      "key": "rocket-silo",
+      "internal": "rocket-silo",
+      "wikiFile": "Rocket_silo.png",
+      "url": "https://wiki.factorio.com/images/Rocket_silo.png",
+      "localFile": "rocket-silo.png"
+    },
+    {
+      "key": "satellite",
+      "internal": "satellite",
+      "wikiFile": "Satellite.png",
+      "url": "https://wiki.factorio.com/images/Satellite.png",
+      "localFile": "satellite.png"
+    },
+    {
+      "key": "selector-combinator",
+      "internal": "selector-combinator",
+      "wikiFile": "Selector_combinator.png",
+      "url": "https://wiki.factorio.com/images/Selector_combinator.png",
+      "localFile": "selector-combinator.png"
+    },
+    {
+      "key": "shotgun",
+      "internal": "shotgun",
+      "wikiFile": "Shotgun.png",
+      "url": "https://wiki.factorio.com/images/Shotgun.png",
+      "localFile": "shotgun.png"
+    },
+    {
+      "key": "shotgun-shell",
+      "internal": "shotgun-shell",
+      "wikiFile": "Shotgun_shells.png",
+      "url": "https://wiki.factorio.com/images/Shotgun_shells.png",
+      "localFile": "shotgun-shell.png"
+    },
+    {
+      "key": "slowdown-capsule",
+      "internal": "slowdown-capsule",
+      "wikiFile": "Slowdown_capsule.png",
+      "url": "https://wiki.factorio.com/images/Slowdown_capsule.png",
+      "localFile": "slowdown-capsule.png"
+    },
+    {
+      "key": "small-electric-pole",
+      "internal": "small-electric-pole",
+      "wikiFile": "Small_electric_pole.png",
+      "url": "https://wiki.factorio.com/images/Small_electric_pole.png",
+      "localFile": "small-electric-pole.png"
+    },
+    {
+      "key": "small-lamp",
+      "internal": "small-lamp",
+      "wikiFile": "Lamp.png",
+      "url": "https://wiki.factorio.com/images/Lamp.png",
+      "localFile": "small-lamp.png"
+    },
+    {
+      "key": "solar-panel",
+      "internal": "solar-panel",
+      "wikiFile": "Solar_panel.png",
+      "url": "https://wiki.factorio.com/images/Solar_panel.png",
+      "localFile": "solar-panel.png"
+    },
+    {
+      "key": "solar-panel-equipment",
+      "internal": "solar-panel-equipment",
+      "wikiFile": "Portable_solar_panel.png",
+      "url": "https://wiki.factorio.com/images/Portable_solar_panel.png",
+      "localFile": "solar-panel-equipment.png"
+    },
+    {
+      "key": "solid-fuel",
+      "internal": "solid-fuel",
+      "wikiFile": "Solid_fuel.png",
+      "url": "https://wiki.factorio.com/images/Solid_fuel.png",
+      "localFile": "solid-fuel.png"
+    },
+    {
+      "key": "space-science-pack",
+      "internal": "space-science-pack",
+      "wikiFile": "Space_science_pack.png",
+      "url": "https://wiki.factorio.com/images/Space_science_pack.png",
+      "localFile": "space-science-pack.png"
+    },
+    {
+      "key": "speed-module",
+      "internal": "speed-module",
+      "wikiFile": "Speed_module.png",
+      "url": "https://wiki.factorio.com/images/Speed_module.png",
+      "localFile": "speed-module.png"
+    },
+    {
+      "key": "speed-module-2",
+      "internal": "speed-module-2",
+      "wikiFile": "Speed_module_2.png",
+      "url": "https://wiki.factorio.com/images/Speed_module_2.png",
+      "localFile": "speed-module-2.png"
+    },
+    {
+      "key": "speed-module-3",
+      "internal": "speed-module-3",
+      "wikiFile": "Speed_module_3.png",
+      "url": "https://wiki.factorio.com/images/Speed_module_3.png",
+      "localFile": "speed-module-3.png"
+    },
+    {
+      "key": "spidertron",
+      "internal": "spidertron",
+      "wikiFile": "Spidertron.png",
+      "url": "https://wiki.factorio.com/images/Spidertron.png",
+      "localFile": "spidertron.png"
+    },
+    {
+      "key": "splitter",
+      "internal": "splitter",
+      "wikiFile": "Splitter.png",
+      "url": "https://wiki.factorio.com/images/Splitter.png",
+      "localFile": "splitter.png"
+    },
+    {
+      "key": "steam",
+      "internal": "steam",
+      "wikiFile": "Steam.png",
+      "url": "https://wiki.factorio.com/images/Steam.png",
+      "localFile": "steam.png"
+    },
+    {
+      "key": "steam-engine",
+      "internal": "steam-engine",
+      "wikiFile": "Steam_engine.png",
+      "url": "https://wiki.factorio.com/images/Steam_engine.png",
+      "localFile": "steam-engine.png"
+    },
+    {
+      "key": "steam-turbine",
+      "internal": "steam-turbine",
+      "wikiFile": "Steam_turbine.png",
+      "url": "https://wiki.factorio.com/images/Steam_turbine.png",
+      "localFile": "steam-turbine.png"
+    },
+    {
+      "key": "steel",
+      "internal": "steel-plate",
+      "wikiFile": "Steel_plate.png",
+      "url": "https://wiki.factorio.com/images/Steel_plate.png",
+      "localFile": "steel.png"
+    },
+    {
+      "key": "steel-chest",
+      "internal": "steel-chest",
+      "wikiFile": "Steel_chest.png",
+      "url": "https://wiki.factorio.com/images/Steel_chest.png",
+      "localFile": "steel-chest.png"
+    },
+    {
+      "key": "steel-furnace",
+      "internal": "steel-furnace",
+      "wikiFile": "Steel_furnace.png",
+      "url": "https://wiki.factorio.com/images/Steel_furnace.png",
+      "localFile": "steel-furnace.png"
+    },
+    {
+      "key": "stone",
+      "internal": "stone",
+      "wikiFile": "Stone.png",
+      "url": "https://wiki.factorio.com/images/Stone.png",
+      "localFile": "stone.png"
+    },
+    {
+      "key": "stone-brick",
+      "internal": "stone-brick",
+      "wikiFile": "Stone_brick.png",
+      "url": "https://wiki.factorio.com/images/Stone_brick.png",
+      "localFile": "stone-brick.png"
+    },
+    {
+      "key": "stone-furnace",
+      "internal": "stone-furnace",
+      "wikiFile": "Stone_furnace.png",
+      "url": "https://wiki.factorio.com/images/Stone_furnace.png",
+      "localFile": "stone-furnace.png"
+    },
+    {
+      "key": "stone-wall",
+      "internal": "stone-wall",
+      "wikiFile": "Wall.png",
+      "url": "https://wiki.factorio.com/images/Wall.png",
+      "localFile": "stone-wall.png"
+    },
+    {
+      "key": "storage-chest",
+      "internal": "storage-chest",
+      "wikiFile": "Storage_chest.png",
+      "url": "https://wiki.factorio.com/images/Storage_chest.png",
+      "localFile": "storage-chest.png"
+    },
+    {
+      "key": "storage-tank",
+      "internal": "storage-tank",
+      "wikiFile": "Storage_tank.png",
+      "url": "https://wiki.factorio.com/images/Storage_tank.png",
+      "localFile": "storage-tank.png"
+    },
+    {
+      "key": "submachine-gun",
+      "internal": "submachine-gun",
+      "wikiFile": "Submachine_gun.png",
+      "url": "https://wiki.factorio.com/images/Submachine_gun.png",
+      "localFile": "submachine-gun.png"
+    },
+    {
+      "key": "substation",
+      "internal": "substation",
+      "wikiFile": "Substation.png",
+      "url": "https://wiki.factorio.com/images/Substation.png",
+      "localFile": "substation.png"
+    },
+    {
+      "key": "sulfur",
+      "internal": "sulfur",
+      "wikiFile": "Sulfur.png",
+      "url": "https://wiki.factorio.com/images/Sulfur.png",
+      "localFile": "sulfur.png"
+    },
+    {
+      "key": "sulfuric-acid",
+      "internal": "sulfuric-acid",
+      "wikiFile": "Sulfuric_acid.png",
+      "url": "https://wiki.factorio.com/images/Sulfuric_acid.png",
+      "localFile": "sulfuric-acid.png"
+    },
+    {
+      "key": "tank",
+      "internal": "tank",
+      "wikiFile": "Tank.png",
+      "url": "https://wiki.factorio.com/images/Tank.png",
+      "localFile": "tank.png"
+    },
+    {
+      "key": "train-stop",
+      "internal": "train-stop",
+      "wikiFile": "Train_stop.png",
+      "url": "https://wiki.factorio.com/images/Train_stop.png",
+      "localFile": "train-stop.png"
+    },
+    {
+      "key": "transport-belt",
+      "internal": "transport-belt",
+      "wikiFile": "Transport_belt.png",
+      "url": "https://wiki.factorio.com/images/Transport_belt.png",
+      "localFile": "transport-belt.png"
+    },
+    {
+      "key": "underground-belt",
+      "internal": "underground-belt",
+      "wikiFile": "Underground_belt.png",
+      "url": "https://wiki.factorio.com/images/Underground_belt.png",
+      "localFile": "underground-belt.png"
+    },
+    {
+      "key": "uranium",
+      "internal": "uranium-ore",
+      "wikiFile": "Uranium_ore.png",
+      "url": "https://wiki.factorio.com/images/Uranium_ore.png",
+      "localFile": "uranium.png"
+    },
+    {
+      "key": "uranium-235",
+      "internal": "uranium-235",
+      "wikiFile": "Uranium-235.png",
+      "url": "https://wiki.factorio.com/images/Uranium-235.png",
+      "localFile": "uranium-235.png"
+    },
+    {
+      "key": "uranium-238",
+      "internal": "uranium-238",
+      "wikiFile": "Uranium-238.png",
+      "url": "https://wiki.factorio.com/images/Uranium-238.png",
+      "localFile": "uranium-238.png"
+    },
+    {
+      "key": "uranium-cannon-shell",
+      "internal": "uranium-cannon-shell",
+      "wikiFile": "Uranium_cannon_shell.png",
+      "url": "https://wiki.factorio.com/images/Uranium_cannon_shell.png",
+      "localFile": "uranium-cannon-shell.png"
+    },
+    {
+      "key": "uranium-fuel-cell",
+      "internal": "uranium-fuel-cell",
+      "wikiFile": "Uranium_fuel_cell.png",
+      "url": "https://wiki.factorio.com/images/Uranium_fuel_cell.png",
+      "localFile": "uranium-fuel-cell.png"
+    },
+    {
+      "key": "uranium-rounds-magazine",
+      "internal": "uranium-rounds-magazine",
+      "wikiFile": "Uranium_rounds_magazine.png",
+      "url": "https://wiki.factorio.com/images/Uranium_rounds_magazine.png",
+      "localFile": "uranium-rounds-magazine.png"
+    },
+    {
+      "key": "utility-science-pack",
+      "internal": "utility-science-pack",
+      "wikiFile": "Utility_science_pack.png",
+      "url": "https://wiki.factorio.com/images/Utility_science_pack.png",
+      "localFile": "utility-science-pack.png"
+    },
+    {
+      "key": "water",
+      "internal": "water",
+      "wikiFile": "Water.png",
+      "url": "https://wiki.factorio.com/images/Water.png",
+      "localFile": "water.png"
+    },
+    {
+      "key": "wood",
+      "internal": "wood",
+      "wikiFile": "Wood.png",
+      "url": "https://wiki.factorio.com/images/Wood.png",
+      "localFile": "wood.png"
+    },
+    {
+      "key": "wooden-chest",
+      "internal": "wooden-chest",
+      "wikiFile": "Wooden_chest.png",
+      "url": "https://wiki.factorio.com/images/Wooden_chest.png",
+      "localFile": "wooden-chest.png"
+    }
+  ]
+}
