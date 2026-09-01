@@ -1,0 +1,404 @@
+Factory Production Game — Technical Specification
+
+1. Game Overview
+
+A mobile-first incremental factory simulator in which the player develops an industrial production network from basic raw materials into highly complex components and advanced technology.
+
+The core gameplay loop is:
+
+Extract → Process → Manufacture → Store → Research → Expand → Upgrade → Repeat
+
+Unlike a conventional factory-building game, the primary interaction is through production-line management and incremental progression, rather than manually placing every belt, inserter and machine.
+
+The factory is effectively a self-financing system: all expansion, upgrades and storage must ultimately be paid for using resources produced by the factory itself.
+
+⸻
+
+2. Production System
+
+The factory consists of a hierarchy of production lines.
+
+Each production line converts one or more input resources into an output resource according to a defined recipe.
+
+Every production line has:
+
+* Recipe
+* Input components
+* Input consumption rate
+* Output component
+* Output production rate
+* Production interval
+* Number of production units
+* Production-unit level
+* Current operational status
+* Available storage
+* Upgrade cost
+
+Production occurs continuously while the game is active.
+
+⸻
+
+3. Production Chain
+
+Components exist in progressively more complex tiers.
+
+Tier 1 — Raw Materials
+
+Examples:
+
+* Iron Ore
+* Copper Ore
+* Coal
+* Stone
+* Wood
+
+Tier 2 — Processed Materials
+
+Examples:
+
+* Iron Plate
+* Copper Plate
+* Steel
+* Stone Brick
+
+Tier 3 — Basic Components
+
+Examples:
+
+* Gear
+* Copper Wire
+* Pipe
+* Electronic Circuit
+
+Tier 4 — Intermediate Components
+
+Examples:
+
+* Transport Belt
+* Inserter
+* Engine
+* Advanced Circuit
+* Battery
+
+Tier 5 — Advanced Components
+
+Examples:
+
+* Processing Unit
+* Electric Engine
+* Flying Robot Frame
+* Advanced machinery components
+
+Tier 6+ — High-Complexity Products
+
+Examples:
+
+* Science products
+* High-level industrial components
+* Space/late-game products
+* End-game technological components
+
+Recipes should progressively become more interconnected, requiring components from increasingly large portions of the production tree.
+
+⸻
+
+4. Production Units
+
+Every production line is operated by one or more Production Units.
+
+A Production Unit has a base production rate and can be upgraded.
+
+Upgrades increase both consumption and production proportionally.
+
+A unit producing 1 Gear/sec at Level 1 might consume 2 Iron Plates/sec.
+
+At Level 2 it produces 2 Gears/sec and consumes 4 Iron Plates/sec.
+
+Therefore, upgrades increase factory throughput, rather than simply generating additional resources.
+
+Production status
+
+Each unit should communicate whether it is:
+
+🟢 Fully supplied
+Operating continuously at maximum rate.
+
+🟡 Input constrained
+Production is intermittently limited by insufficient inputs.
+
+🔴 No input
+Production cannot currently operate.
+
+This makes identifying bottlenecks an important part of factory management.
+
+⸻
+
+5. Building Additional Production Capacity
+
+Players can construct additional Production Units/buildings to increase total production capacity.
+
+Additional buildings are not free.
+
+Every construction project has a bill of materials.
+
+The factory must physically produce these components before construction can occur.
+
+Once the required materials have been supplied, the new Production Unit becomes operational.
+
+This means expansion is fundamentally funded by the player’s existing production network.
+
+⸻
+
+6. Production-Funded Upgrades
+
+Existing Production Units can similarly be upgraded using manufactured components.
+
+The required resources are drawn from the factory’s available inventory.
+
+The upgrade therefore represents an investment of current production into future production capacity.
+
+Upgrading one production line may subsequently create bottlenecks elsewhere.
+
+This creates a naturally cascading progression system.
+
+⸻
+
+7. Storage System
+
+Factories can construct storage buildings to retain unused resources.
+
+Storage buildings are themselves paid for using factory-produced components.
+
+Higher-tier storage provides substantially greater capacity at increasing construction cost.
+
+Possible tiers:
+
+* Small Chest
+* Storage Crate
+* Large Storage
+* Warehouse
+* Industrial Warehouse
+
+⸻
+
+8. Automatic Inventory Management
+
+Resources are automatically distributed according to demand.
+
+The surplus is placed into available storage.
+
+When demand subsequently exceeds production, stored inventory is automatically consumed to cover the deficit.
+
+This makes storage a buffer, allowing the factory to absorb temporary differences between production and consumption.
+
+Storage behaviour
+
+Production > Consumption
+
+→ Storage increases.
+
+Production < Consumption
+
+→ Storage decreases.
+
+Production < Consumption + Storage Empty
+
+→ Downstream production becomes constrained.
+
+⸻
+
+9. Construction Resource Allocation
+
+Construction projects consume resources from the same overall production ecosystem.
+
+The player can therefore accumulate resources for construction while the factory continues operating.
+
+As the factory generates additional required components, the construction requirement fills automatically.
+
+When all requirements are met, the resources are consumed and the upgrade completes.
+
+Multiple construction projects can be queued.
+
+⸻
+
+10. Science System
+
+Science provides the game’s primary technology progression mechanism.
+
+Science products are themselves manufactured using ordinary factory components.
+
+Each technology level contains several distinct science products.
+
+The precise science tree can be expanded substantially as progression increases.
+
+⸻
+
+11. Continuous Science Production
+
+Once a science level becomes available, all science products belonging to that level must be continuously produced.
+
+The player cannot simply manufacture whichever science is easiest.
+
+All production lines operate simultaneously.
+
+This forces the player to maintain the component supply chains supporting the entire technology system.
+
+⸻
+
+12. Technology Unlock Requirements
+
+Technology progression requires a specified cumulative quantity of every science type within the current level.
+
+The next technology level unlocks only when all requirements have been reached.
+
+Science produced for progression is cumulative and does not need to be permanently removed when a technology level is unlocked.
+
+13. Science as a Factory Sink
+
+Science creates continuous demand for a large portion of the factory.
+
+This prevents the player from simply building one highly efficient production chain and ignoring everything else.
+
+Each new technology level therefore expands the industrial ecosystem.
+
+⸻
+
+14. Bottleneck System
+
+The factory should dynamically identify production bottlenecks.
+
+A component becomes constrained when its production capacity is insufficient to satisfy downstream demand.
+
+This can cause downstream production to operate below maximum capacity.
+
+The player must decide whether to:
+
+* Upgrade the existing production unit
+* Construct additional production units
+* Increase upstream production
+* Improve storage
+* Temporarily prioritise another production chain
+
+⸻
+
+15. Offline Production
+
+The game is an incremental/idle experience.
+
+Production continues conceptually while the player is away.
+
+On returning, the game calculates the elapsed period and determines:
+
+* Resources produced
+* Resources consumed
+* Science produced
+* Construction progress
+* Upgrade progress
+* Storage changes
+* Production bottlenecks
+* Final inventories
+
+The result is presented as an offline production summary.
+
+16. Incremental Progression
+
+Progression should continuously increase both scale and complexity.
+
+The player gradually transitions from managing a few simple production lines to managing a large interconnected industrial ecosystem.
+
+⸻
+
+17. Mobile UI
+
+The primary interface should be mobile-first, with vertically scrolling production cards rather than requiring a large traditional factory map.
+
+Each Production Unit is represented by a compact card.
+
+The card should provide enough information to understand the current state without opening another screen.
+
+⸻
+
+18. Production Detail View
+
+Tapping a production card opens a detailed view containing:
+
+* Recipe
+* Input requirements
+* Input availability
+* Production rate
+* Consumption rate
+* Output rate
+* Storage
+* Unit level
+* Number of units
+* Upgrade cost
+* Next-level statistics
+* Production status
+* Upstream dependencies
+* Downstream consumers
+
+The player should be able to navigate directly through the production chain.
+
+For example, tapping Iron Plate from the Gear Factory should take the player directly to Iron Plate production.
+
+19. Factory Overview
+
+A high-level overview screen communicates the health of the entire factory.
+
+Important metrics include:
+
+* Total production
+* Total consumption
+* Storage utilisation
+* Number of production units
+* Active bottlenecks
+* Science progress
+* Current technology level
+* Construction queue
+* Upgrade queue
+
+A Bottlenecks section can provide actionable recommendations. 
+
+20. Technology / Production Tree
+
+A dedicated technology tree provides a visual representation of the entire progression.
+
+Nodes represent components or science products.
+
+Connections represent recipe dependencies.
+
+Future components should be visible but locked, allowing players to understand the long-term progression.
+
+⸻
+
+21. Core Economic Philosophy
+
+The game’s economy is deliberately closed-loop.
+
+There is no requirement for an external money currency to fund the core factory.
+
+Instead:
+
+Resources pay for buildings.
+
+Resources pay for upgrades.
+
+Resources pay for storage.
+
+Components pay for increasingly complex components.
+
+Components pay for science.
+
+Science unlocks new production capability.
+
+This creates a fundamental incremental cycle:
+
+Current production is sacrificed to create future production capacity.
+
+The central strategic question is therefore not simply “How much can I produce?”, but:
+
+“What should I use my current production to build so that I can produce more in the future?”
+
+That principle should underpin the entire game’s progression, economy and UI.
+
+

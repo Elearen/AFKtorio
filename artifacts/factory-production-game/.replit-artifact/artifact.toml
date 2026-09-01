@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Factory Production Game"
+description = "A mobile-first incremental factory simulator where players balance production lines, storage, construction, upgrades, and science progression in a self-funded industrial network."
+version = "1.0.0"
+id = "artifacts/factory-production-game"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 26155
+
+[services.development]
+run = "pnpm --filter @workspace/factory-production-game run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/factory-production-game", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/factory-production-game/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "26155"
+BASE_PATH = "/"

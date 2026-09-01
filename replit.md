@@ -1,6 +1,6 @@
-# [Project name]
+# Factory Production Game
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A mobile-first incremental factory simulator where players grow a self-funded production network from raw materials into advanced technology.
 
 ## Run & Operate
 
@@ -22,23 +22,29 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/factory-production-game/src/App.tsx` — playable factory simulation and production-floor UI
+- `artifacts/factory-production-game/src/index.css` — industrial control-room theme and responsive layout
+- `attached_assets/Pasted-Factory-Production-Game-Technical-Specification-1-Game-_1788259810206.txt` — product specification
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The first playable slice is frontend-only and persists game state in localStorage so the core idle loop works without a server account.
+- Production, storage, construction, upgrades, science, and offline catch-up are simulated from one shared client state so bottlenecks remain visible and actionable.
+- Resource visuals are original inline illustrations; Factorio is used as a mechanical vocabulary reference, not as a source for copied artwork or interface assets.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- The factory floor shows live throughput, active units, total output, power draw, storage buffers, queues, bottleneck recommendations, and production-unit drill-downs.
+- The technology map shows dependency-aware research, science-pack costs, unlockable nodes, and navigation back to the floor.
+- Production continues while the player is away and reports the recovered offline interval on return.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Use vanilla Factorio as inspiration for resource vocabulary, recipe logic, and production progression while keeping visuals original.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The web artifact workflow supplies `PORT` and `BASE_PATH`; use the managed workflow for previews and restarts.
 
 ## Pointers
 
