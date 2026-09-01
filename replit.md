@@ -28,14 +28,15 @@ A mobile-first incremental factory simulator where players grow a self-funded pr
 
 ## Architecture decisions
 
-- The first playable slice is frontend-only and persists game state in localStorage so the core idle loop works without a server account.
-- Production, storage, construction, upgrades, science, and offline catch-up are simulated from one shared client state so bottlenecks remain visible and actionable.
+- The playable slice is frontend-only and persists game state in localStorage so the core idle loop works without a server account.
+- The ten control tabs share one client simulation state so manual actions, construction, production, power, storage, upgrades, science, research, and offline catch-up stay consistent.
 - Resource visuals are original inline illustrations; Factorio is used as a mechanical vocabulary reference, not as a source for copied artwork or interface assets.
 
 ## Product
 
-- The factory floor shows live throughput, active units, total output, power draw, storage buffers, queues, bottleneck recommendations, and production-unit drill-downs.
-- The technology map shows dependency-aware research, science-pack costs, unlockable nodes, and navigation back to the floor.
+- The factory tab shows factory-wide throughput, active units, total output, power balance, queues, bottleneck recommendations, and network signals.
+- Mining, production, power, storage, logistics, upgrades, science, research, and settings each have dedicated tabs with their own controls and progression states.
+- The research tab shows dependency-aware research, original illustrations, per-node science-pack costs, and unlockable power families.
 - Production continues while the player is away and reports the recovered offline interval on return.
 
 ## User preferences

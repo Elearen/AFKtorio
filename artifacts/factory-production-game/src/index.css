@@ -130,3 +130,13 @@ button { cursor: pointer; }
 @keyframes pulse-soft { 0%, 100% { opacity: .76; } 50% { opacity: 1; } }
 @keyframes flash { 0% { background-color: hsl(var(--primary) / .22); } 100% { background-color: transparent; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+.tab-rail { scrollbar-width: none; }
+.tab-rail::-webkit-scrollbar { display: none; }
+.tab-rail a { white-space: nowrap; }
+.data-row { background: hsl(216 24% 11% / .62); border: 1px solid hsl(var(--border) / .8); }
+.data-row:hover { border-color: hsl(var(--secondary) / .48); background: hsl(216 24% 14% / .8); }
+.tree-line { position: relative; }
+.tree-line::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 18px; background: hsl(var(--border)); }
+.tree-line:last-child::after { display: none; }
+.locked-wash { background: repeating-linear-gradient(135deg, hsl(216 25% 13% / .72), hsl(216 25% 13% / .72) 9px, hsl(216 25% 15% / .72) 9px, hsl(216 25% 15% / .72) 18px); }
