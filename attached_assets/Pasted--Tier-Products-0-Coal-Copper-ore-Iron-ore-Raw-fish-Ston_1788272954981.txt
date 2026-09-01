@@ -1,0 +1,30 @@
+
+Tier
+Products
+
+0
+Coal, Copper ore, Iron ore, Raw fish, Stone, Water, Wood
+1
+Copper plate, Iron plate, Landfill, Stone brick, Stone furnace, Wooden chest
+2
+Concrete, Copper cable, Firearm magazine, Grenade, Iron chest, Iron gear wheel, Iron stick, Light armor, Pipe, Pistol, Shotgun shell, Steel plate, Stone wall
+3
+Automation science pack, Barrel, Big electric pole, Boiler, Burner inserter, Burner mining drill, Cargo wagon, Combat shotgun, Electronic circuit, Engine unit, Flamethrower, Gun turret, Hazard concrete, Heat exchanger, Heat pipe, Heavy armor, Medium electric pole, Offshore pump, Piercing rounds magazine, Piercing shotgun shell, Pipe to ground, Rail, Refined concrete, Shotgun, Small electric pole, Steam engine, Steam turbine, Steel chest, Steel furnace, Storage tank, Submachine gun, Transport belt
+4
+Arithmetic combinator, Assembling machine 1, Car, Chemical plant, Constant combinator, Crude oil, Decider combinator, Defender capsule, Display panel, Electric mining drill, Fast transport belt, Flamethrower turret, Fluid wagon, Gate, Inserter, Lab, Locomotive, Military science pack, Oil refinery, Poison capsule, Power switch, Programmable speaker, Pump, Pumpjack, Radar, Rail chain signal, Rail signal, Refined hazard concrete, Repair pack, Rocket launcher, Slowdown capsule, Small lamp, Solar panel, Splitter, Train stop, Underground belt
+5
+Assembling machine 2, Fast inserter, Fast splitter, Fast underground belt, Flamethrower ammo, Heavy oil, Light oil, Loader, Logistic science pack, Long-handed inserter, Petroleum gas
+6
+Fast loader, Lubricant, Plastic bar, Solid fuel, Sulfur
+7
+Advanced circuit, Electric engine unit, Explosives, Express transport belt, Express underground belt, Low-density structure, Rocket fuel, Sulfuric acid
+8
+Active provider chest, Artillery turret, Artillery wagon, Battery, Beacon, Belt immunity equipment, Buffer chest, Bulk inserter, Cannon shell, Centrifuge, Chemical science pack, Cliff explosives, Cluster grenade, Distractor capsule, Efficiency module, Electric furnace, Energy shield equipment, Explosive cannon shell, Express loader, Express splitter, Land mine, Modular armor, Night vision equipment, Nuclear reactor, Passive provider chest, Processing unit, Productivity module, Requester chest, Roboport, Rocket, Selector combinator, Solar panel equipment, Speed module, Storage chest, Substation, Tank, Uranium ore
+9
+Accumulator, Artillery shell, Assembling machine 3, Battery equipment, Cargo landing pad, Destroyer capsule, Efficiency module 2, Energy shield MK2 equipment, Exoskeleton equipment, Explosive rocket, Flying robot frame, Laser turret, Personal roboport equipment, Power armor, Production science pack, Productivity module 2, Rocket part, Rocket silo, Speed module 2, Uranium-235, Uranium-238
+10
+Atomic bomb, Battery MK2 equipment, Construction robot, Discharge defense equipment, Efficiency module 3, Explosive uranium cannon shell, Logistic robot, Nuclear fuel, Personal laser defense equipment, Personal roboport MK2 equipment, Power armor MK2, Productivity module 3, Satellite, Speed module 3, Uranium cannon shell, Uranium fuel cell, Uranium rounds magazine, Utility science pack
+11
+Fission reactor equipment, Space science
+12
+Spidertron
