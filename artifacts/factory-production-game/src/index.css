@@ -102,6 +102,8 @@ button { cursor: pointer; }
 .button-primary:hover { background: hsl(39 94% 64%); }
 .button-ghost { color: hsl(var(--muted-foreground)); background: hsl(216 22% 16%); border-color: hsl(var(--border)); }
 .button-ghost:hover { color: hsl(var(--foreground)); border-color: hsl(174 49% 45% / .55); background: hsl(216 22% 19%); }
+.button-build-active { color: #f8d58b; background: hsl(39 94% 58% / .13); border-color: hsl(39 94% 58% / .55); box-shadow: inset 0 0 0 1px hsl(39 94% 58% / .08), 0 0 18px hsl(39 94% 58% / .08); }
+.button-build-active:hover { color: #ffe4a9; background: hsl(39 94% 58% / .2); border-color: hsl(39 94% 58% / .75); }
 .icon-button { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(216 22% 14%); color: hsl(var(--muted-foreground)); transition: transform .18s ease, background-color .18s ease, color .18s ease; }
 .icon-button:hover { color: hsl(var(--foreground)); background: hsl(216 22% 20%); }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
@@ -118,6 +120,8 @@ button { cursor: pointer; }
 .progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, hsl(var(--secondary)), hsl(var(--accent))); transition: width .45s ease; }
 .progress-fill.amber { background: linear-gradient(90deg, #bd7c27, hsl(var(--primary))); }
 .progress-fill.red { background: linear-gradient(90deg, #9b3d38, hsl(var(--destructive))); }
+.construction-panel { border: 1px solid hsl(var(--primary) / .28); background: linear-gradient(135deg, hsl(39 54% 18% / .3), hsl(216 24% 11% / .78)); }
+.construction-pulse { color: hsl(var(--primary)); background: hsl(var(--primary) / .14); animation: construction-pulse 1.8s ease-in-out infinite; }
 .resource-orb { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; border: 1px solid hsl(var(--border)); background: hsl(216 24% 11%); }
 .resource-orb svg { width: 27px; height: 27px; }
 .mini-pulse { animation: pulse-soft 2.8s ease-in-out infinite; }
@@ -129,6 +133,7 @@ button { cursor: pointer; }
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse-soft { 0%, 100% { opacity: .76; } 50% { opacity: 1; } }
 @keyframes flash { 0% { background-color: hsl(var(--primary) / .22); } 100% { background-color: transparent; } }
+@keyframes construction-pulse { 0%, 100% { opacity: .68; box-shadow: 0 0 0 0 hsl(var(--primary) / 0); } 50% { opacity: 1; box-shadow: 0 0 0 4px hsl(var(--primary) / .08); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 .tab-rail { scrollbar-width: none; }
