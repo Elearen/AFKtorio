@@ -85,6 +85,19 @@ const orderedRecipeCatalog = [...recipeCatalog].sort((a, b) => {
   const bTier = Math.min(...recipeOutputs(b).map((output) => tierForProduct(output.key)), Number.MAX_SAFE_INTEGER);
   return aTier - bTier;
 });
+const recipeUnlockResearch: Record<string, string[]> = {};
+technologyCatalog.forEach((technology) => technology.effects.forEach((effect) => {
+  if (effect.type === 'unlock-recipe' && effect.recipe) recipeUnlockResearch[effect.recipe] = [...(recipeUnlockResearch[effect.recipe] ?? []), technology.name];
+}));
+const rawProductIsUnlocked = (key: string, state: GameState) => key !== 'water' && key !== 'uranium'
+  || key === 'water' && state.research.includes('steam-power')
+  || key === 'uranium' && state.research.includes('nuclear-power');
+const recipeIsUnlocked = (recipe: Recipe, state: GameState) => recipe.enabled
+  || (recipeUnlockResearch[recipe.name] ?? []).some((technology) => state.research.includes(technology));
+const unlockedProductKeys = (state: GameState) => new Set([
+  ...rawKeys.filter((key) => rawProductIsUnlocked(key, state)),
+  ...recipeCatalog.filter((recipe) => recipeIsUnlocked(recipe, state)).flatMap((recipe) => recipeOutputs(recipe).map((output) => output.key)),
+]);
 const prettyLabel = (key: string) => key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const baseMeta: Record<string, { label: string; short: string; color: string; category: string }> = {
   iron: { label: 'Iron ore', short: 'iron', color: '#bd7b45', category: 'Raw' }, copper: { label: 'Copper ore', short: 'copper', color: '#dc9361', category: 'Raw' },
@@ -352,10 +365,10 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
-  const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => {
+  const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => recipeIsUnlocked(recipe, state)).filter((recipe) => {
     const matchesQuery = !query.trim() || `${recipe.name} ${recipe.category}`.toLowerCase().includes(query.trim().toLowerCase());
     return matchesQuery && (category === 'all' || recipe.category === category);
-  }), [category, query]);
+  }), [category, query, state]);
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   const tap = (key: ComponentKey) => {
     const recipe = recipeMap[key];
@@ -432,7 +445,8 @@ function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" ar
 
 function StoragePage({ state, setState, notice }: PageProps) {
   const upgrade = (key: TrackedKey) => { const cost = 3 + Math.floor(state.storage[key] / 60); if (state.products.gear < cost || state.products.ironPlate < cost * 2) return notice(`need ${cost} gears + ${cost * 2} iron plates`); setState((s) => ({ ...s, products: { ...s.products, gear: s.products.gear - cost, ironPlate: s.products.ironPlate - cost * 2 }, storage: { ...s.storage, [key]: s.storage[key] + 60 } })); notice(`${meta[key].label} capacity expanded`); };
-  return <PageFrame><Header eyebrow="Buffer control" title="Storage" copy="Every tracked item gets one honest row, arranged by the imported product tiers. Upgrade a single capacity when a full buffer becomes the next constraint." action={<Tag><Box size={11} /> {orderedTrackedKeys.length} tracked items</Tag>} /><section className="surface overflow-hidden rounded-xl p-3 sm:p-5"><div className="hidden grid-cols-[minmax(180px,1.3fr)_110px_minmax(160px,1fr)_115px] gap-4 border-b border-[hsl(var(--border))] px-3 pb-3 md:grid"><span className="eyebrow">Item</span><span className="eyebrow">Amount</span><span className="eyebrow">Fill</span><span className="eyebrow text-right">Action</span></div><div className="space-y-2 pt-1">{orderedTrackedKeys.map((key) => { const amount = quantityFor(state, key); const capacity = capFor(state, key); const cost = 3 + Math.floor(state.storage[key] / 60); return <div className="data-row grid gap-3 rounded-xl p-3 md:grid-cols-[minmax(180px,1.3fr)_110px_minmax(160px,1fr)_115px] md:items-center md:gap-4" key={key} data-testid={`row-storage-${key}`}><div className="flex items-center gap-3"><div className="resource-orb !h-9 !w-9"><ResourceIcon item={key} size={25} /></div><div><div className="text-[11px] font-bold">{meta[key].label}</div><div className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category} · capacity {capacity}</div></div></div><div className="flex items-baseline justify-between md:block"><span className="eyebrow md:hidden">amount</span><span className="mono text-[14px]">{fmt(amount)} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">/ {capacity}</span></span></div><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span className="md:hidden">fill level</span><span>{Math.floor(amount / capacity * 100)}%</span></div><Progress value={amount / capacity * 100} /></div><button onClick={() => upgrade(key)} className="button-base button-ghost w-full !py-2 md:w-auto" data-testid={`button-upgrade-storage-${key}`}><Plus size={12} /> +60 <span className="hidden sm:inline">capacity</span><span className="mono text-[9px] text-[hsl(var(--primary))]">· {cost}g</span></button></div>; })}</div></section><p className="mt-4 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--primary))]" /> Storage upgrades spend factory-produced gears and iron plates, and affect only the selected row.</p></PageFrame>;
+  const visibleKeys = orderedTrackedKeys.filter((key) => unlockedProductKeys(state).has(key));
+  return <PageFrame><Header eyebrow="Buffer control" title="Storage" copy="Every unlocked product gets one honest row, arranged by the imported product tiers. Hidden products appear after their source recipe is researched." action={<Tag><Box size={11} /> {visibleKeys.length} unlocked items</Tag>} /><section className="surface overflow-hidden rounded-xl p-3 sm:p-5"><div className="hidden grid-cols-[minmax(180px,1.3fr)_110px_minmax(160px,1fr)_115px] gap-4 border-b border-[hsl(var(--border))] px-3 pb-3 md:grid"><span className="eyebrow">Item</span><span className="eyebrow">Amount</span><span className="eyebrow">Fill</span><span className="eyebrow text-right">Action</span></div><div className="space-y-2 pt-1">{visibleKeys.map((key) => { const amount = quantityFor(state, key); const capacity = capFor(state, key); const cost = 3 + Math.floor(state.storage[key] / 60); return <div className="data-row grid gap-3 rounded-xl p-3 md:grid-cols-[minmax(180px,1.3fr)_110px_minmax(160px,1fr)_115px] md:items-center md:gap-4" key={key} data-testid={`row-storage-${key}`}><div className="flex items-center gap-3"><div className="resource-orb !h-9 !w-9"><ResourceIcon item={key} size={25} /></div><div><div className="text-[11px] font-bold">{meta[key].label}</div><div className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category} · capacity {capacity}</div></div></div><div className="flex items-baseline justify-between md:block"><span className="eyebrow md:hidden">amount</span><span className="mono text-[14px]">{fmt(amount)} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">/ {capacity}</span></span></div><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span className="md:hidden">fill level</span><span>{Math.floor(amount / capacity * 100)}%</span></div><Progress value={amount / capacity * 100} /></div><button onClick={() => upgrade(key)} className="button-base button-ghost w-full !py-2 md:w-auto" data-testid={`button-upgrade-storage-${key}`}><Plus size={12} /> +60 <span className="hidden sm:inline">capacity</span><span className="mono text-[9px] text-[hsl(var(--primary))]">· {cost}g</span></button></div>; })}</div></section><p className="mt-4 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--primary))]" /> Storage upgrades spend factory-produced gears and iron plates, and affect only the selected row.</p></PageFrame>;
 }
 
 function LogisticsPage({ notice }: PageProps) {
