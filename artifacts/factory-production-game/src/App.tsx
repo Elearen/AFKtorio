@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
+import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial } from './recipeCatalog';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, Factory as FactoryIcon, FlaskConical, Gauge, Hammer,
@@ -9,26 +10,26 @@ import {
 } from 'lucide-react';
 
 type RawKey = 'iron' | 'copper' | 'stone' | 'coal' | 'wood' | 'water' | 'uranium';
-type ComponentKey = 'ironPlate' | 'copperPlate' | 'steel' | 'gear' | 'pipe' | 'circuit' | 'automationPack' | 'logisticsPack' | 'researchPack';
+type ComponentKey = string;
 type ScienceKey = 'automationPack' | 'logisticsPack' | 'researchPack';
-type TrackedKey = RawKey | ComponentKey;
+type TrackedKey = string;
 type UpgradeKey = 'manualMining' | 'productionSpeed' | 'storageEfficiency' | 'powerEfficiency';
 type ResearchKey = 'steamPower' | 'solarPower' | 'nuclearPower' | 'steelProcessing' | 'automation';
 type UnitStatus = 'running' | 'starved' | 'blocked';
 
-type Recipe = { output: ComponentKey; label: string; cycle: number; inputs: Partial<Record<TrackedKey, number>> };
+type Recipe = RecipeCatalogEntry;
 type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'lab' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number };
 type GameState = {
   raw: Record<RawKey, number>;
-  products: Record<ComponentKey, number>;
+  products: Record<string, number>;
   storage: Record<TrackedKey, number>;
   miners: Record<RawKey, number>;
   pumps: number;
   uraniumMiners: number;
-  assemblers: Record<ComponentKey, number>;
+  assemblers: Record<string, number>;
   labs: number;
   miningProgress: Record<RawKey, number>;
-  assemblyProgress: Record<ComponentKey, number>;
+  assemblyProgress: Record<string, number>;
   labProgress: number;
   queue: QueueItem[];
   research: ResearchKey[];
@@ -40,10 +41,38 @@ type GameState = {
 
 const SAVE_KEY = 'factory-production-game-save-v2';
 const rawKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood', 'water', 'uranium'];
-const componentKeys: ComponentKey[] = ['ironPlate', 'copperPlate', 'steel', 'gear', 'pipe', 'circuit', 'automationPack', 'logisticsPack', 'researchPack'];
 const scienceKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'researchPack'];
-const trackedKeys: TrackedKey[] = [...rawKeys, ...componentKeys];
-const meta: Record<TrackedKey, { label: string; short: string; color: string; category: string }> = {
+const sourceKeyAliases: Record<string, TrackedKey> = {
+  'iron-ore': 'iron', 'copper-ore': 'copper', 'uranium-ore': 'uranium',
+  'iron-plate': 'ironPlate', 'copper-plate': 'copperPlate', 'steel-plate': 'steel',
+  'iron-gear-wheel': 'gear', 'electronic-circuit': 'circuit',
+  'automation-science-pack': 'automationPack', 'logistic-science-pack': 'logisticsPack',
+  'production-science-pack': 'researchPack',
+};
+const keyForSource = (name: string) => sourceKeyAliases[name] ?? name;
+const recipeMap: Record<string, Recipe> = Object.fromEntries(recipeCatalog.map((recipe) => [recipe.name, recipe]));
+const componentKeys: ComponentKey[] = recipeCatalog.map((recipe) => recipe.name);
+const scienceRecipeKeys: Record<ScienceKey, string> = { automationPack: 'automation-science-pack', logisticsPack: 'logistic-science-pack', researchPack: 'production-science-pack' };
+const materialAmount = (material: RecipeMaterial) => {
+  const base = material.amount ?? ((material.amountMin ?? 0) + (material.amountMax ?? material.amountMin ?? 0)) / 2;
+  const probability = material.probability ?? (material.sharedProbability ? material.sharedProbability.max - material.sharedProbability.min : 1);
+  return base * probability;
+};
+const recipeInputs = (recipe: Recipe) => {
+  const inputs: Record<string, number> = {};
+  recipe.ingredients.forEach((material) => {
+    const key = keyForSource(material.name);
+    inputs[key] = (inputs[key] ?? 0) + materialAmount(material);
+  });
+  return inputs as Partial<Record<TrackedKey, number>>;
+};
+const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
+const trackedKeys: TrackedKey[] = Array.from(new Set([
+  ...rawKeys,
+  ...recipeCatalog.flatMap((recipe) => [...recipe.ingredients, ...recipe.results].map((material) => keyForSource(material.name))),
+]));
+const prettyLabel = (key: string) => key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const baseMeta: Record<string, { label: string; short: string; color: string; category: string }> = {
   iron: { label: 'Iron ore', short: 'iron', color: '#bd7b45', category: 'Raw' }, copper: { label: 'Copper ore', short: 'copper', color: '#dc9361', category: 'Raw' },
   stone: { label: 'Stone', short: 'stone', color: '#9ba6a4', category: 'Raw' }, coal: { label: 'Coal', short: 'coal', color: '#929aaa', category: 'Fuel' },
   wood: { label: 'Wood', short: 'wood', color: '#b9996b', category: 'Raw' }, water: { label: 'Water', short: 'water', color: '#65afba', category: 'Fluid' },
@@ -53,22 +82,18 @@ const meta: Record<TrackedKey, { label: string; short: string; color: string; ca
   circuit: { label: 'Circuits', short: 'circuit', color: '#54b8a8', category: 'Component' }, automationPack: { label: 'Automation science', short: 'automation', color: '#df7165', category: 'Science' },
   logisticsPack: { label: 'Logistics science', short: 'logistics', color: '#d6a04f', category: 'Science' }, researchPack: { label: 'Research science', short: 'research', color: '#8ea9db', category: 'Science' },
 };
-
-const recipes: Record<ComponentKey, Recipe> = {
-  ironPlate: { output: 'ironPlate', label: 'Smelt', cycle: 2, inputs: { iron: 1 } },
-  copperPlate: { output: 'copperPlate', label: 'Smelt', cycle: 2.4, inputs: { copper: 1 } },
-  steel: { output: 'steel', label: 'Reforge', cycle: 4, inputs: { ironPlate: 2 } },
-  gear: { output: 'gear', label: 'Stamp', cycle: 3, inputs: { ironPlate: 2 } },
-  pipe: { output: 'pipe', label: 'Roll', cycle: 2.5, inputs: { ironPlate: 1 } },
-  circuit: { output: 'circuit', label: 'Assemble', cycle: 4, inputs: { ironPlate: 1, copperPlate: 1 } },
-  automationPack: { output: 'automationPack', label: 'Pack', cycle: 5, inputs: { gear: 1, circuit: 1, copperPlate: 1 } },
-  logisticsPack: { output: 'logisticsPack', label: 'Pack', cycle: 6, inputs: { gear: 1, pipe: 1, circuit: 1 } },
-  researchPack: { output: 'researchPack', label: 'Pack', cycle: 8, inputs: { steel: 1, circuit: 2, automationPack: 1 } },
+const meta: Record<TrackedKey, { label: string; short: string; color: string; category: string }> = Object.fromEntries(trackedKeys.map((key, index) => {
+  const fallback = { label: prettyLabel(key), short: key, color: ['#c9d3d0', '#e6a067', '#8da8a7', '#dfb05c', '#54b8a8', '#8ea9db'][index % 6], category: 'Component' };
+  return [key, baseMeta[key] ?? fallback];
+}));
+const starterProducts: Record<string, number> = {
+  ...Object.fromEntries(trackedKeys.map((key) => [key, 0])),
+  ironPlate: 28, copperPlate: 14, steel: 4, gear: 9, pipe: 4, circuit: 3, automationPack: 9, logisticsPack: 5, researchPack: 2,
 };
 
 const initialState: GameState = {
   raw: { iron: 62, copper: 38, stone: 26, coal: 31, wood: 18, water: 0, uranium: 0 },
-  products: { ironPlate: 28, copperPlate: 14, steel: 4, gear: 9, pipe: 4, circuit: 3, automationPack: 9, logisticsPack: 5, researchPack: 2 },
+  products: starterProducts,
   storage: Object.fromEntries(trackedKeys.map((key) => [key, 180])) as Record<TrackedKey, number>,
   miners: { iron: 0, copper: 0, stone: 0, coal: 0, wood: 0, water: 0, uranium: 0 },
   pumps: 0, uraniumMiners: 0,
@@ -113,18 +138,19 @@ const upgradeData: { id: UpgradeKey; title: string; copy: string; base: number; 
 
 const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
 const duration = (n: number) => `${Math.floor(n / 60)}m ${String(Math.max(0, Math.floor(n % 60))).padStart(2, '0')}s`;
-const capFor = (state: GameState, key: TrackedKey) => Math.floor(state.storage[key] * (1 + state.upgrades.storageEfficiency * 0.08));
+const capFor = (state: GameState, key: TrackedKey) => Math.floor((state.storage[key] ?? 180) * (1 + state.upgrades.storageEfficiency * 0.08));
 const totalUnits = (state: GameState) => Object.values(state.miners).reduce((a, b) => a + b, 0) + Object.values(state.assemblers).reduce((a, b) => a + b, 0) + state.labs;
-const hasInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>) => Object.entries(inputs).every(([key, value]) => (state.raw[key as RawKey] ?? state.products[key as ComponentKey] ?? 0) >= (value ?? 0));
+const quantityFor = (state: GameState, key: TrackedKey) => rawKeys.includes(key as RawKey) ? state.raw[key as RawKey] : state.products[key] ?? 0;
+const hasInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>) => Object.entries(inputs).every(([key, value]) => quantityFor(state, key) >= (value ?? 0));
 const spendInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>) => {
   Object.entries(inputs).forEach(([key, value]) => {
     if (rawKeys.includes(key as RawKey)) state.raw[key as RawKey] -= value ?? 0;
-    else state.products[key as ComponentKey] -= value ?? 0;
+    else state.products[key] = (state.products[key] ?? 0) - (value ?? 0);
   });
 };
 const addTracked = (state: GameState, key: TrackedKey, amount: number) => {
   if (rawKeys.includes(key as RawKey)) state.raw[key as RawKey] = Math.min(capFor(state, key), state.raw[key as RawKey] + amount);
-  else state.products[key as ComponentKey] = Math.min(capFor(state, key), state.products[key as ComponentKey] + amount);
+  else state.products[key] = Math.min(capFor(state, key), (state.products[key] ?? 0) + amount);
 };
 const netRateFor = (state: GameState, key: TrackedKey) => {
   const speed = state.simulationSpeed;
@@ -135,10 +161,13 @@ const netRateFor = (state: GameState, key: TrackedKey) => {
     const base = rawKey === 'uranium' ? 0.32 : rawKey === 'water' ? 0.7 : rawKey === 'copper' ? 0.88 : 1;
     rate += count * base * 60 * speed;
   }
-  componentKeys.forEach((outputKey) => {
-    const outputRate = state.assemblers[outputKey] * 60 * speed * (1 + state.upgrades.productionSpeed * 0.1) / recipes[outputKey].cycle;
-    if (outputKey === key) rate += outputRate;
-    Object.entries(recipes[outputKey].inputs).forEach(([input, quantity]) => {
+  componentKeys.forEach((recipeKey) => {
+    const recipe = recipeMap[recipeKey];
+    const outputRate = (state.assemblers[recipeKey] ?? 0) * 60 * speed * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
+    recipeOutputs(recipe).forEach(({ key: outputKey, amount }) => {
+      if (outputKey === key) rate += outputRate * amount;
+    });
+    Object.entries(recipeInputs(recipe)).forEach(([input, quantity]) => {
       if (input === key) rate -= outputRate * (quantity ?? 0);
     });
   });
@@ -165,14 +194,17 @@ function simulate(previous: GameState, seconds: number): GameState {
     }
   });
   componentKeys.forEach((key) => {
-    const count = state.assemblers[key];
+    const count = state.assemblers[key] ?? 0;
     if (!count) return;
-    const recipe = recipes[key];
-    state.assemblyProgress[key] += count * seconds * speed * (1 + state.upgrades.productionSpeed * 0.1) / recipe.cycle;
+    const recipe = recipeMap[key];
+    state.assemblyProgress[key] = (state.assemblyProgress[key] ?? 0) + count * seconds * speed * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
     let cycles = 0;
     while (state.assemblyProgress[key] >= 1 && cycles < 80) {
-      if (!hasInputs(state, recipe.inputs) || state.products[key] >= capFor(state, key)) break;
-      spendInputs(state, recipe.inputs); addTracked(state, key, 1); state.assemblyProgress[key] -= 1; state.totalOutput += 1; cycles += 1;
+      const outputs = recipeOutputs(recipe);
+      if (!hasInputs(state, recipeInputs(recipe)) || outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) break;
+      spendInputs(state, recipeInputs(recipe));
+      outputs.forEach(({ key: outputKey, amount }) => addTracked(state, outputKey, amount));
+      state.assemblyProgress[key] -= 1; state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0); cycles += 1;
     }
   });
   state.labProgress += state.labs * seconds * speed / 5;
@@ -198,7 +230,20 @@ function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(SAVE_KEY) ?? 'null') as Partial<GameState> | null;
     if (!parsed) return { state: initialState, away: 0, recovered: 0 };
-    const state = { ...initialState, ...parsed, raw: { ...initialState.raw, ...parsed.raw }, products: { ...initialState.products, ...parsed.products }, lastSeen: parsed.lastSeen ?? Date.now() } as GameState;
+    const state = {
+      ...initialState,
+      ...parsed,
+      raw: { ...initialState.raw, ...parsed.raw },
+      products: { ...initialState.products, ...parsed.products },
+      storage: { ...initialState.storage, ...parsed.storage },
+      miners: { ...initialState.miners, ...parsed.miners },
+      assemblers: { ...initialState.assemblers, ...parsed.assemblers },
+      miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
+      assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
+      upgrades: { ...initialState.upgrades, ...parsed.upgrades },
+      queue: parsed.queue ?? [],
+      lastSeen: parsed.lastSeen ?? Date.now(),
+    } as GameState;
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
     const before = state.totalOutput;
     const recovered = simulate(state, away);
@@ -268,10 +313,14 @@ function BuildProgress({ items, label }: { items: QueueItem[]; label: string }) 
 
 function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
   const active = totalUnits(state);
-  const throughput = Math.max(0, Object.values(state.assemblers).reduce((a, count, i) => a + count * 60 / recipes[componentKeys[i]].cycle, 0));
+  const throughput = Math.max(0, Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => {
+    const recipe = recipeMap[recipeKey];
+    return total + (recipe ? count * 60 / recipe.energyRequired : 0);
+  }, 0));
   const powerProduction = (state.research.includes('steamPower') ? 80 : 0) + (state.research.includes('solarPower') ? 45 : 0) + (state.research.includes('nuclearPower') ? 180 : 0);
   const draw = Math.max(1, Math.floor(active * 7 * (1 - state.upgrades.powerEfficiency * 0.06)));
-  const bottleneck = componentKeys.find((key) => state.assemblers[key] > 0 && !hasInputs(state, recipes[key].inputs)) ?? 'circuit';
+  const bottleneckRecipe = componentKeys.map((key) => recipeMap[key]).find((recipe) => (state.assemblers[recipe.name] ?? 0) > 0 && !hasInputs(state, recipeInputs(recipe)));
+  const bottleneck = keyForSource(bottleneckRecipe?.results[0]?.name ?? 'electronic-circuit');
   return <PageFrame>{away >= 60 && recovered > 0 && <div className="surface mb-5 flex flex-col gap-3 rounded-xl border-[hsl(var(--secondary)/.4)] bg-[linear-gradient(100deg,hsl(174_35%_17%/.8),hsl(216_25%_14%/.96))] p-4 sm:flex-row sm:items-center sm:justify-between enter" data-testid="status-offline-production"><div className="flex items-start gap-3"><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--secondary)/.14)] text-[hsl(var(--secondary))]"><RotateCcw size={18} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Network recovered</div><div className="mt-1 text-[13px] font-bold">{duration(away)} of offline production reconciled</div><div className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">The line added <span className="mono text-[hsl(var(--secondary))]">{fmt(recovered)} items</span> while the control room was closed.</div></div></div><button onClick={() => notice('offline report acknowledged')} className="button-base button-ghost shrink-0" data-testid="button-dismiss-offline">acknowledge <ArrowRight size={13} /></button></div>}
     <Header eyebrow="Live production network" title="Factory" copy="One control surface for the whole operation. Watch the line, then clear the next constraint." action={<Tag><span className="status-dot status-running mini-pulse" /> line online</Tag>} />
     <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4 enter enter-delay-1">{[{ label: 'Throughput', value: throughput.toFixed(1), suffix: 'items / min', icon: TrendingUp, color: 'text-[hsl(var(--secondary))]' }, { label: 'Active units', value: fmt(active), suffix: 'machines + labs', icon: Activity, color: 'text-[#83d993]' }, { label: 'Total output', value: fmt(state.totalOutput), suffix: 'lifetime items', icon: Layers3, color: 'text-[hsl(var(--primary))]' }, { label: 'Power balance', value: `${powerProduction - draw}`, suffix: 'MW net', icon: Zap, color: powerProduction >= draw ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]' }].map((k) => <div className="surface rounded-xl p-3.5" key={k.label}><div className={`mb-2 flex items-center gap-2 ${k.color}`}><k.icon size={14} /><span className="eyebrow">{k.label}</span></div><div className="mono text-[19px]">{k.value} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{k.suffix}</span></div></div>)}</div>
@@ -293,9 +342,78 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
 }
 
 function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
-  const tap = (key: ComponentKey) => { const recipe = recipes[key]; if (state.assemblers[key]) return notice('assembler already controls this recipe'); if (!hasInputs(state, recipe.inputs)) return notice('missing recipe inputs'); setState((s) => { const next = { ...s, raw: { ...s.raw }, products: { ...s.products } }; spendInputs(next, recipe.inputs); addTracked(next, key, 1); next.totalOutput += 1; return next; }); notice(`${meta[key].label} produced manually`); };
-  const buildAssembler = (key: ComponentKey) => { if (state.products.ironPlate < 8 || state.products.gear < 1) return notice('need 8 iron plates + 1 gear'); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 8, gear: s.products.gear - 1 } })); enqueue('assembler', `${meta[key].label} assembler`, 50, key); };
-  return <PageFrame><Header eyebrow="Component line" title="Production" copy="Every section is one recipe. Track the signed net flow beside its stored quantity, then let assemblers run the recipe itself." action={<Tag><Cog size={11} /> data-driven recipes</Tag>} /><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{componentKeys.map((key) => { const recipe = recipes[key]; const count = state.assemblers[key]; const rate = count * 60 / recipe.cycle * (1 + state.upgrades.productionSpeed * .1); const netRate = netRateFor(state, key); const constructionItems = state.queue.filter((item) => item.action === 'assembler' && item.targetId === key); const isBuilding = constructionItems.length > 0; return <section className="surface rounded-xl p-4" key={key} data-testid={`section-production-${key}`}><div className="flex items-start gap-3"><div className="resource-orb"><ResourceIcon item={key} size={29} /></div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><h2 className="text-[13px] font-extrabold">{meta[key].label}</h2>{count ? <Tag><span className="status-dot status-running" /> auto</Tag> : <Tag tone="amber">manual</Tag>}</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{recipe.label} cycle · {recipe.cycle}s base</div></div></div><div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Recipe</div><div className="flex flex-wrap items-center gap-1.5">{Object.entries(recipe.inputs).map(([input, qty]) => <span className="resource-chip" key={input}><ResourceIcon item={input as TrackedKey} size={17} /><strong>{qty}</strong> {meta[input as TrackedKey].short}</span>)}<ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: `${meta[key].color}66` }}><ResourceIcon item={key} size={17} /><strong>1</strong> {meta[key].short}</span></div></div><div className="mt-4 flex items-end justify-between"><div><div className="eyebrow">Net rate</div><div className={`mono mt-1 text-[17px] ${netRate < 0 ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary))]'}`}>{netRate > 0 ? '+' : ''}{netRate.toFixed(1)} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">/ min</span></div></div><div className="text-right"><div className="eyebrow">Stored</div><div className="mono mt-1 text-[14px]">{fmt(state.products[key])}</div></div></div><BuildProgress items={constructionItems} label={`${meta[key].label} assembler`} /><div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${meta[key].label} assembler is running at ${rate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button><button onClick={() => buildAssembler(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another ${meta[key].label} assembler`} data-testid={`button-build-more-assembler-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => tap(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-tap-production-${key}`}><Plus size={13} /> produce 1</button><button onClick={() => buildAssembler(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${meta[key].label} assembler`} data-testid={`button-build-assembler-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div></section>; })}</div></PageFrame>;
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('all');
+  const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
+  const visibleRecipes = useMemo(() => recipeCatalog.filter((recipe) => {
+    const matchesQuery = !query.trim() || `${recipe.name} ${recipe.category}`.toLowerCase().includes(query.trim().toLowerCase());
+    return matchesQuery && (category === 'all' || recipe.category === category);
+  }), [category, query]);
+  const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
+  const tap = (key: ComponentKey) => {
+    const recipe = recipeMap[key];
+    if (state.assemblers[key]) return notice('assembler already controls this recipe');
+    if (!hasInputs(state, recipeInputs(recipe))) return notice('missing recipe inputs');
+    const outputs = recipeOutputs(recipe);
+    if (outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) return notice('output storage is full');
+    setState((s) => {
+      const next = { ...s, raw: { ...s.raw }, products: { ...s.products } };
+      spendInputs(next, recipeInputs(recipe));
+      outputs.forEach(({ key: outputKey, amount }) => addTracked(next, outputKey, amount));
+      next.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0);
+      return next;
+    });
+    notice(`${prettyLabel(outputs[0]?.key ?? recipe.name)} produced manually`);
+  };
+  const buildAssembler = (key: ComponentKey) => {
+    if (state.products.ironPlate < 8 || state.products.gear < 1) return notice('need 8 iron plates + 1 gear');
+    setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 8, gear: s.products.gear - 1 } }));
+    enqueue('assembler', `${prettyLabel(key)} assembler`, 50, key);
+  };
+  return <PageFrame>
+    <Header eyebrow="Recipe catalog" title="Production" copy="The attached recipe definitions drive every card below. Search the full line, inspect item and fluid flows, then run any recipe manually or with an assembler." action={<Tag><Cog size={11} /> {recipeCatalog.length} recipes loaded</Tag>} />
+    <section className="surface mb-5 rounded-xl p-3 sm:p-4">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search recipes, items, or fluids" className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search recipes" data-testid="input-search-recipes" />
+        <select value={category} onChange={(event) => setCategory(event.target.value)} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none" aria-label="Filter recipe category" data-testid="select-recipe-category">
+          <option value="all">All categories</option>
+          {categories.map((entry) => <option key={entry} value={entry}>{prettyLabel(entry)}</option>)}
+        </select>
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source data includes hidden and disabled definitions.</span><span className="mono">{visibleRecipes.length} visible</span></div>
+    </section>
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{visibleRecipes.map((recipe) => {
+      const key = recipe.name;
+      const outputs = recipeOutputs(recipe);
+      const primaryOutput = outputs[0];
+      const count = state.assemblers[key] ?? 0;
+      const rate = count * 60 / recipe.energyRequired * (1 + state.upgrades.productionSpeed * .1);
+      const netRate = primaryOutput ? netRateFor(state, primaryOutput.key) : 0;
+      const constructionItems = state.queue.filter((item) => item.action === 'assembler' && item.targetId === key);
+      const isBuilding = constructionItems.length > 0;
+      return <section className="surface rounded-xl p-4" key={key} data-testid={`section-production-${key}`}>
+        <div className="flex items-start gap-3">
+          <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2>{count ? <Tag><span className="status-dot status-running" /> auto</Tag> : <Tag tone="amber">manual</Tag>}</div>
+            <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle</div>
+            <div className="mt-1 flex flex-wrap gap-1">{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
+          </div>
+        </div>
+        <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
+          <div className="eyebrow mb-2">Recipe</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {recipe.ingredients.map((material, index) => { const materialKey = keyForSource(material.name); return <span className="resource-chip" key={`${material.name}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</span>; })}
+            <ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" />
+            {outputs.map(({ key: outputKey, amount }, index) => <span className="resource-chip" style={{ borderColor: `${meta[outputKey].color}66` }} key={`${outputKey}-${index}`}><ResourceIcon item={outputKey} size={17} /><strong>{amountLabel(amount)}</strong> {meta[outputKey].short}</span>)}
+          </div>
+        </div>
+        <div className="mt-4 flex items-end justify-between"><div><div className="eyebrow">Net rate · primary output</div><div className={`mono mt-1 text-[17px] ${netRate < 0 ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary))]'}`}>{netRate > 0 ? '+' : ''}{netRate.toFixed(1)} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">/ min</span></div></div><div className="text-right"><div className="eyebrow">Stored</div><div className="mono mt-1 text-[14px]">{fmt(primaryOutput ? quantityFor(state, primaryOutput.key) : 0)}</div></div></div>
+        <BuildProgress items={constructionItems} label={`${prettyLabel(key)} assembler`} />
+        <div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${prettyLabel(key)} assembler is running at ${rate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button><button onClick={() => buildAssembler(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another ${prettyLabel(key)} assembler`} data-testid={`button-build-more-assembler-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => tap(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-tap-production-${key}`}><Plus size={13} /> produce outputs</button><button onClick={() => buildAssembler(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${prettyLabel(key)} assembler`} data-testid={`button-build-assembler-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div>
+      </section>;
+    })}</div>
+  </PageFrame>;
 }
 
 function PowerPage({ state, notice }: PageProps) {
@@ -307,7 +425,7 @@ function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" ar
 
 function StoragePage({ state, setState, notice }: PageProps) {
   const upgrade = (key: TrackedKey) => { const cost = 3 + Math.floor(state.storage[key] / 60); if (state.products.gear < cost || state.products.ironPlate < cost * 2) return notice(`need ${cost} gears + ${cost * 2} iron plates`); setState((s) => ({ ...s, products: { ...s.products, gear: s.products.gear - cost, ironPlate: s.products.ironPlate - cost * 2 }, storage: { ...s.storage, [key]: s.storage[key] + 60 } })); notice(`${meta[key].label} capacity expanded`); };
-  return <PageFrame><Header eyebrow="Buffer control" title="Storage" copy="Every tracked item gets one honest row. Upgrade a single capacity when a full buffer becomes the next constraint." action={<Tag><Box size={11} /> {trackedKeys.length} tracked items</Tag>} /><section className="surface overflow-hidden rounded-xl p-3 sm:p-5"><div className="hidden grid-cols-[minmax(180px,1.3fr)_110px_minmax(160px,1fr)_115px] gap-4 border-b border-[hsl(var(--border))] px-3 pb-3 md:grid"><span className="eyebrow">Item</span><span className="eyebrow">Amount</span><span className="eyebrow">Fill</span><span className="eyebrow text-right">Action</span></div><div className="space-y-2 pt-1">{trackedKeys.map((key) => { const amount = rawKeys.includes(key as RawKey) ? state.raw[key as RawKey] : state.products[key as ComponentKey]; const capacity = capFor(state, key); const cost = 3 + Math.floor(state.storage[key] / 60); return <div className="data-row grid gap-3 rounded-xl p-3 md:grid-cols-[minmax(180px,1.3fr)_110px_minmax(160px,1fr)_115px] md:items-center md:gap-4" key={key} data-testid={`row-storage-${key}`}><div className="flex items-center gap-3"><div className="resource-orb !h-9 !w-9"><ResourceIcon item={key} size={25} /></div><div><div className="text-[11px] font-bold">{meta[key].label}</div><div className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category} · capacity {capacity}</div></div></div><div className="flex items-baseline justify-between md:block"><span className="eyebrow md:hidden">amount</span><span className="mono text-[14px]">{fmt(amount)} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">/ {capacity}</span></span></div><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span className="md:hidden">fill level</span><span>{Math.floor(amount / capacity * 100)}%</span></div><Progress value={amount / capacity * 100} /></div><button onClick={() => upgrade(key)} className="button-base button-ghost w-full !py-2 md:w-auto" data-testid={`button-upgrade-storage-${key}`}><Plus size={12} /> +60 <span className="hidden sm:inline">capacity</span><span className="mono text-[9px] text-[hsl(var(--primary))]">· {cost}g</span></button></div>; })}</div></section><p className="mt-4 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--primary))]" /> Storage upgrades spend factory-produced gears and iron plates, and affect only the selected row.</p></PageFrame>;
+  return <PageFrame><Header eyebrow="Buffer control" title="Storage" copy="Every tracked item gets one honest row. Upgrade a single capacity when a full buffer becomes the next constraint." action={<Tag><Box size={11} /> {trackedKeys.length} tracked items</Tag>} /><section className="surface overflow-hidden rounded-xl p-3 sm:p-5"><div className="hidden grid-cols-[minmax(180px,1.3fr)_110px_minmax(160px,1fr)_115px] gap-4 border-b border-[hsl(var(--border))] px-3 pb-3 md:grid"><span className="eyebrow">Item</span><span className="eyebrow">Amount</span><span className="eyebrow">Fill</span><span className="eyebrow text-right">Action</span></div><div className="space-y-2 pt-1">{trackedKeys.map((key) => { const amount = quantityFor(state, key); const capacity = capFor(state, key); const cost = 3 + Math.floor(state.storage[key] / 60); return <div className="data-row grid gap-3 rounded-xl p-3 md:grid-cols-[minmax(180px,1.3fr)_110px_minmax(160px,1fr)_115px] md:items-center md:gap-4" key={key} data-testid={`row-storage-${key}`}><div className="flex items-center gap-3"><div className="resource-orb !h-9 !w-9"><ResourceIcon item={key} size={25} /></div><div><div className="text-[11px] font-bold">{meta[key].label}</div><div className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category} · capacity {capacity}</div></div></div><div className="flex items-baseline justify-between md:block"><span className="eyebrow md:hidden">amount</span><span className="mono text-[14px]">{fmt(amount)} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">/ {capacity}</span></span></div><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span className="md:hidden">fill level</span><span>{Math.floor(amount / capacity * 100)}%</span></div><Progress value={amount / capacity * 100} /></div><button onClick={() => upgrade(key)} className="button-base button-ghost w-full !py-2 md:w-auto" data-testid={`button-upgrade-storage-${key}`}><Plus size={12} /> +60 <span className="hidden sm:inline">capacity</span><span className="mono text-[9px] text-[hsl(var(--primary))]">· {cost}g</span></button></div>; })}</div></section><p className="mt-4 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--primary))]" /> Storage upgrades spend factory-produced gears and iron plates, and affect only the selected row.</p></PageFrame>;
 }
 
 function LogisticsPage({ notice }: PageProps) {
@@ -323,11 +441,11 @@ function UpgradesPage({ state, setState, enqueue, notice }: PageProps) {
 function SciencePage({ state, setState, enqueue, notice }: PageProps) {
   const totalConsumption = state.labs * 12 * state.simulationSpeed * (scienceKeys.some((key) => state.products[key] > 0) ? 1 : 0);
   const sharedScale = Math.max(1, ...scienceKeys.map((key) => Math.max(
-    state.assemblers[key] * 60 / recipes[key].cycle * (1 + state.upgrades.productionSpeed * .1),
+    (state.assemblers[scienceRecipeKeys[key]] ?? 0) * 60 / recipeMap[scienceRecipeKeys[key]].energyRequired * (1 + state.upgrades.productionSpeed * .1),
     state.products[key] > 0 ? state.labs * 12 : 0,
   )));
   const buildLab = () => { if (state.products.ironPlate < 12 || state.products.circuit < 4) return notice('need 12 iron plates + 4 circuits'); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 12, circuit: s.products.circuit - 4 } })); enqueue('lab', 'Science lab', 65); };
-  return <PageFrame><Header eyebrow="Research fuel" title="Science" copy="Labs consume science packs at a measured rate. Identically scaled bars make the smallest capacity or demand visible at a glance." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><FlaskConical size={17} className="text-[hsl(var(--primary))]" /><span className="mono text-[15px]">{totalConsumption.toFixed(1)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">SPM</span></span></div>} /><section className="surface rounded-xl p-4 sm:p-5"><div className="mb-5 flex items-center justify-between"><SectionTitle detail={`${state.labs} labs online`}>Science pack flow</SectionTitle><button onClick={buildLab} className="button-base button-primary !py-2" data-testid="button-build-lab"><Plus size={13} /> build lab</button></div><div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Current SPM</div><div className="mono mt-2 text-xl text-[hsl(var(--primary))]">{totalConsumption.toFixed(1)}</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Labs</div><div className="mono mt-2 text-xl">{state.labs}</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Lab cycle</div><div className="mono mt-2 text-xl">5s</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Research bank</div><div className="mono mt-2 text-xl">{fmt(scienceKeys.reduce((sum, key) => sum + state.products[key], 0))}</div></div></div><div className="space-y-3">{scienceKeys.map((key) => { const productionCapacity = state.assemblers[key] * 60 / recipes[key].cycle * (1 + state.upgrades.productionSpeed * .1); const consumption = state.products[key] > 0 ? state.labs * 12 : 0; return <div className="data-row rounded-xl p-3 sm:p-4" key={key} data-testid={`row-science-${key}`}><div className="flex items-center gap-3"><div className="resource-orb !h-9 !w-9"><ResourceIcon item={key} size={25} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className="text-[12px] font-bold">{meta[key].label}</span><span className="mono text-[11px]">{fmt(state.products[key])} stored</span></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">capacity <span className="mono text-[hsl(var(--secondary))]">{productionCapacity.toFixed(1)}/min</span> · consumption <span className="mono text-[hsl(var(--primary))]">{consumption.toFixed(1)}/min</span></div></div></div><div className="mt-3 grid grid-cols-[1fr_1fr] gap-3"><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span>production capacity</span><span className="mono">{productionCapacity.toFixed(1)}</span></div><Progress value={productionCapacity / sharedScale * 100} /></div><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span>lab consumption</span><span className="mono">{consumption.toFixed(1)}</span></div><Progress value={consumption / sharedScale * 100} tone="amber" /></div></div></div>; })}</div></section></PageFrame>;
+  return <PageFrame><Header eyebrow="Research fuel" title="Science" copy="Labs consume science packs at a measured rate. Identically scaled bars make the smallest capacity or demand visible at a glance." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><FlaskConical size={17} className="text-[hsl(var(--primary))]" /><span className="mono text-[15px]">{totalConsumption.toFixed(1)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">SPM</span></span></div>} /><section className="surface rounded-xl p-4 sm:p-5"><div className="mb-5 flex items-center justify-between"><SectionTitle detail={`${state.labs} labs online`}>Science pack flow</SectionTitle><button onClick={buildLab} className="button-base button-primary !py-2" data-testid="button-build-lab"><Plus size={13} /> build lab</button></div><div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Current SPM</div><div className="mono mt-2 text-xl text-[hsl(var(--primary))]">{totalConsumption.toFixed(1)}</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Labs</div><div className="mono mt-2 text-xl">{state.labs}</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Lab cycle</div><div className="mono mt-2 text-xl">5s</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Research bank</div><div className="mono mt-2 text-xl">{fmt(scienceKeys.reduce((sum, key) => sum + state.products[key], 0))}</div></div></div><div className="space-y-3">{scienceKeys.map((key) => { const scienceRecipe = recipeMap[scienceRecipeKeys[key]]; const productionCapacity = (state.assemblers[scienceRecipe.name] ?? 0) * 60 / scienceRecipe.energyRequired * (1 + state.upgrades.productionSpeed * .1) * (recipeOutputs(scienceRecipe).find((output) => output.key === key)?.amount ?? 1); const consumption = state.products[key] > 0 ? state.labs * 12 : 0; return <div className="data-row rounded-xl p-3 sm:p-4" key={key} data-testid={`row-science-${key}`}><div className="flex items-center gap-3"><div className="resource-orb !h-9 !w-9"><ResourceIcon item={key} size={25} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className="text-[12px] font-bold">{meta[key].label}</span><span className="mono text-[11px]">{fmt(state.products[key])} stored</span></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">capacity <span className="mono text-[hsl(var(--secondary))]">{productionCapacity.toFixed(1)}/min</span> · consumption <span className="mono text-[hsl(var(--primary))]">{consumption.toFixed(1)}/min</span></div></div></div><div className="mt-3 grid grid-cols-[1fr_1fr] gap-3"><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span>production capacity</span><span className="mono">{productionCapacity.toFixed(1)}</span></div><Progress value={productionCapacity / sharedScale * 100} /></div><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span>lab consumption</span><span className="mono">{consumption.toFixed(1)}</span></div><Progress value={consumption / sharedScale * 100} tone="amber" /></div></div></div>; })}</div></section></PageFrame>;
 }
 
 function ResearchArt({ accent }: { accent: string }) { return <div className="grid h-16 w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_25%_10%)]" style={{ color: accent }}><svg width="72" height="56" viewBox="0 0 72 56" aria-hidden="true"><path stroke="currentColor" strokeOpacity=".35" d="M6 43 22 27l10 8 15-21 19 14" /><circle cx="22" cy="27" r="5" fill="currentColor" opacity=".85" /><circle cx="47" cy="14" r="5" fill="currentColor" opacity=".65" /><path fill="currentColor" opacity=".18" d="M7 47h58v3H7zM12 10h3v34h-3zm45 13h3v21h-3z" /></svg></div>; }
