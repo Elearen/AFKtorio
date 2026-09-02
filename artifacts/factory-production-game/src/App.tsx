@@ -233,19 +233,35 @@ const applyResearchTriggers = (state: GameState) => {
     });
   }
 };
-const miningProductionRateFor = (state: GameState, key: RawKey) => {
-  const speed = state.simulationSpeed;
+const recipeCycleRateFor = (state: GameState, recipe: Recipe) => {
+  const count = state.assemblers[recipe.name] ?? 0;
+  return count * 60 * state.simulationSpeed * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
+};
+const miningBaseProductionRateFor = (state: GameState, key: RawKey) => {
   const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key];
   const base = key === 'uranium' ? 0.32 : key === 'water' ? 0.7 : key === 'copper' ? 0.88 : 1;
-  const fuelRatio = burnerMinerCount(state) ? Math.min(1, state.raw.coal / Math.max(0.01, burnerMinerCoalRate(state) * 60 * speed)) : 1;
-  return count * base * 60 * speed * (burnerMinerKeys.includes(key) ? fuelRatio : 1);
+  return count * base * 60 * state.simulationSpeed;
+};
+const miningProductionRateFor = (state: GameState, key: RawKey) => {
+  const fuelRatio = burnerMinerCount(state) ? Math.min(1, state.raw.coal / Math.max(0.01, burnerMinerCoalRate(state) * 60 * state.simulationSpeed)) : 1;
+  return miningBaseProductionRateFor(state, key) * (burnerMinerKeys.includes(key) ? fuelRatio : 1);
+};
+const peakProductionRateFor = (state: GameState, key: TrackedKey) => {
+  let rate = rawKeys.includes(key as RawKey) ? miningBaseProductionRateFor(state, key as RawKey) : 0;
+  componentKeys.forEach((recipeKey) => {
+    const recipe = recipeMap[recipeKey];
+    const outputRate = recipeCycleRateFor(state, recipe);
+    recipeOutputs(recipe).forEach(({ key: outputKey, amount }) => {
+      if (outputKey === key) rate += outputRate * amount;
+    });
+  });
+  return rate;
 };
 const productionRateFor = (state: GameState, key: TrackedKey) => {
-  const speed = state.simulationSpeed;
   let rate = rawKeys.includes(key as RawKey) ? miningProductionRateFor(state, key as RawKey) : 0;
   componentKeys.forEach((recipeKey) => {
     const recipe = recipeMap[recipeKey];
-    const outputRate = (state.assemblers[recipeKey] ?? 0) * 60 * speed * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
+    const outputRate = recipeCycleRateFor(state, recipe);
     recipeOutputs(recipe).forEach(({ key: outputKey, amount }) => {
       if (outputKey === key) rate += outputRate * amount;
     });
@@ -255,24 +271,32 @@ const productionRateFor = (state: GameState, key: TrackedKey) => {
   });
   return rate;
 };
-const demandRateFor = (state: GameState, key: TrackedKey) => {
-  const speed = state.simulationSpeed;
-  let rate = key === 'coal' ? burnerMinerCoalRate(state) * 60 * speed : 0;
+const peakDemandRateFor = (state: GameState, key: TrackedKey) => {
+  let rate = key === 'coal' ? burnerMinerCoalRate(state) * 60 * state.simulationSpeed : 0;
   componentKeys.forEach((recipeKey) => {
     const recipe = recipeMap[recipeKey];
-    const outputRate = (state.assemblers[recipeKey] ?? 0) * 60 * speed * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
+    const input = automatedRecipeInputs(recipe)[key];
+    if (input) rate += recipeCycleRateFor(state, recipe) * input;
+  });
+  if (scienceKeys.includes(key as ScienceKey)) rate += state.labs * 12 * state.simulationSpeed;
+  return rate;
+};
+const demandRateFor = (state: GameState, key: TrackedKey) => {
+  let rate = key === 'coal' ? burnerMinerCoalRate(state) * 60 * state.simulationSpeed : 0;
+  componentKeys.forEach((recipeKey) => {
+    const recipe = recipeMap[recipeKey];
+    const outputRate = recipeCycleRateFor(state, recipe);
     const input = automatedRecipeInputs(recipe)[key];
     if (input) rate += outputRate * input;
   });
   const activeLabPack = scienceKeys.find((pack) => state.products[pack] > 0);
-  if (activeLabPack === key) rate += state.labs * 12 * speed;
+  if (activeLabPack === key) rate += state.labs * 12 * state.simulationSpeed;
   return rate;
 };
 const recipeProductionRateFor = (state: GameState, recipe: Recipe) => {
-  const outputRate = (state.assemblers[recipe.name] ?? 0) * 60 * state.simulationSpeed * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
+  const outputRate = recipeCycleRateFor(state, recipe);
   return (recipeOutputs(recipe)[0]?.amount ?? 0) * outputRate;
 };
-
 const burnerOperatingSeconds = (state: GameState, seconds: number) => {
   const fuelRate = burnerMinerCoalRate(state) * state.simulationSpeed;
   return fuelRate > 0 ? Math.min(seconds, Math.max(0, state.raw.coal) / fuelRate) : seconds;
@@ -416,15 +440,17 @@ function Header({ eyebrow, title, copy, action }: { eyebrow: string; title: stri
 }
 function SectionTitle({ children, detail }: { children: ReactNode; detail?: string }) { return <div className="mb-3 flex items-end justify-between"><span className="eyebrow">{children}</span>{detail && <span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">{detail}</span>}</div>; }
 function Progress({ value, tone = 'teal' }: { value: number; tone?: 'teal' | 'amber' | 'red' }) { return <div className="progress-track"><div className={`progress-fill ${tone === 'amber' ? 'amber' : tone === 'red' ? 'red' : ''}`} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div>; }
-function CompactMetricsRow({ production, demand, net, storage, capacity }: { production: number; demand: number; net: number; storage: number; capacity: number }) {
+function CompactMetricsRow({ production, peakProduction, demand, peakDemand, net, storage, capacity }: { production: number; peakProduction: number; demand: number; peakDemand: number; net: number; storage: number; capacity: number }) {
   const rate = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
   const metrics = [
-    { label: 'production', value: `${production.toFixed(1)}/m`, tone: 'text-[hsl(var(--secondary))]' },
+    { label: 'prod.', value: `${production.toFixed(1)}/m`, tone: 'text-[hsl(var(--secondary))]' },
+    { label: 'peak prod.', value: `${peakProduction.toFixed(1)}/m`, tone: 'text-[hsl(var(--secondary)/.7)]' },
     { label: 'demand', value: `${demand.toFixed(1)}/m`, tone: 'text-[hsl(var(--primary))]' },
-    { label: 'net rate', value: `${rate(net)}/m`, tone: net < 0 ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary))]' },
+    { label: 'peak dem.', value: `${peakDemand.toFixed(1)}/m`, tone: 'text-[hsl(var(--primary)/.7)]' },
+    { label: 'net', value: `${rate(net)}/m`, tone: net < 0 ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary))]' },
     { label: 'storage', value: `${fmt(storage)}/${fmt(capacity)}`, tone: 'text-[hsl(var(--foreground))]' },
   ];
-  return <div className="mt-3 grid grid-cols-4 gap-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] px-2 py-2" aria-label="Production metrics">
+  return <div className="mt-3 grid grid-cols-6 gap-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] px-1.5 py-2" aria-label="Production metrics">
     {metrics.map((metric) => <div className="min-w-0 text-center" key={metric.label} title={`${metric.label}: ${metric.value}`}><div className="truncate text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">{metric.label}</div><div className={`mono mt-1 truncate text-[10px] font-semibold ${metric.tone}`}>{metric.value}</div></div>)}
   </div>;
 }
@@ -517,7 +543,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
     setState((s) => ({ ...s, raw: { ...s.raw, stone: s.raw.stone - burnerMiningDrillCost.stone }, products: { ...s.products, ironPlate: s.products.ironPlate - burnerMiningDrillCost.ironPlate, gear: s.products.gear - burnerMiningDrillCost.gear } }));
     enqueue('miner', `${rawInfo[key].label} burner mining drill`, burnerMiningDrillRecipe.energyRequired, key);
   };
-  return <PageFrame><Header eyebrow="Raw material control" title="Mining" copy="Tap the ground to start. Build burner mining drills to make the ore line autonomous — each drill consumes coal while it operates." action={<Tag><Pickaxe size={11} /> 7 resource sections</Tag>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{rawKeys.map((key) => { const info = rawInfo[key]; const locked = !!info.research && !state.research.includes(info.research); const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key]; const isBurnerOre = burnerMinerKeys.includes(key); const fuelRate = count * burnerMiningDrillCoalPerSecond; const autonomous = count > 0; const productionRate = miningProductionRateFor(state, key); const demandRate = demandRateFor(state, key); const manualMiningJob = state.manualMining?.resourceKey === key ? state.manualMining : null; const manualMiningBusy = Boolean(state.manualMining && !manualMiningJob); const constructionAction = key === 'water' ? 'pump' : key === 'uranium' ? 'uraniumMiner' : 'miner'; const constructionItems = state.queue.filter((item) => item.action === constructionAction && (constructionAction !== 'miner' || item.targetId === key)); const isBuilding = constructionItems.length > 0; const constructionLabel = key === 'water' ? 'Water pump' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} burner mining drill`; return <section className={`surface rounded-xl p-4 ${locked ? 'locked-wash opacity-75' : ''}`} key={key} data-testid={`section-mining-${key}`}><div className="flex items-start gap-3"><div className="resource-orb"><ResourceIcon item={key} size={29} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">{info.label}</h2>{locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <Tag><span className="status-dot status-running" /> autonomous</Tag> : <Tag tone="amber">manual</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{info.description}</p></div></div><div className="mt-4 flex items-end justify-between"><div><div className="eyebrow">Buffer</div><div className="mono mt-1 text-[18px]">{fmt(state.raw[key])}<span className="text-[10px] text-[hsl(var(--muted-foreground))]"> / {capFor(state, key)}</span></div></div><div className="text-right">{isBurnerOre ? <div className="eyebrow flex items-center justify-end gap-1"><ResourceIcon item="burner-mining-drill" size={14} /> burner drills</div> : <div className="eyebrow">{key === 'water' ? 'pumps' : 'acid miners'}</div>}<div className="mono mt-1 text-[18px] text-[hsl(var(--secondary))]">{count}</div></div></div><CompactMetricsRow production={productionRate} demand={demandRate} net={productionRate - demandRate} storage={state.raw[key]} capacity={capFor(state, key)} /><Progress value={state.raw[key] / capFor(state, key) * 100} />{manualMiningJob && <ManualMiningProgress job={manualMiningJob} />}{isBurnerOre && <><div className="data-row mt-3 flex items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="burner-mining-drill" size={18} /><span className="text-[10px] font-semibold">Burner drill fuel</span><span className="ml-auto flex items-center gap-1 mono text-[10px] text-[hsl(var(--primary))]"><ResourceIcon item="coal" size={15} /> {fuelRate.toFixed(2)} /s</span><span className="text-[9px] text-[hsl(var(--muted-foreground))]">no electricity</span></div><div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Build: {burnerMiningDrillCost.gear} gears + {burnerMiningDrillCost.ironPlate} iron plates + {burnerMiningDrillCost.stone} stone · {burnerMiningDrillRecipe.energyRequired}s</div></>}<BuildProgress items={constructionItems} label={constructionLabel} /><div className="mt-4 flex gap-2">{locked ? <button onClick={() => notice(`${info.needs} research required`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-locked-mining-${key}`}><LockKeyhole size={13} /> requires {info.needs}</button> : autonomous ? <button onClick={() => build(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} data-testid={`button-build-more-${key}`}>{isBuilding ? <><Check size={13} /> queued · construct another</> : <><Plus size={13} /> construct {key === 'water' ? 'pump' : 'burner drill'}</>}</button> : <><button onClick={() => tap(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-tap-${key}`}>{manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} /> tap to mine</>}</button><button onClick={() => build(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${info.label} miner`} data-testid={`button-build-miner-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div></section>; })}</div><div className="mt-5 surface rounded-xl border-[hsl(var(--secondary)/.25)] p-4"><div className="flex items-start gap-3"><div className="text-[hsl(var(--secondary))]"><Lightbulb size={17} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Mining rule</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Manual taps now take 0.5 seconds and only one resource can be mined by hand at a time. Hand-mined output can exceed storage capacity.</p></div></div></div></PageFrame>;
+  return <PageFrame><Header eyebrow="Raw material control" title="Mining" copy="Tap the ground to start. Build burner mining drills to make the ore line autonomous — each drill consumes coal while it operates." action={<Tag><Pickaxe size={11} /> 7 resource sections</Tag>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{rawKeys.map((key) => { const info = rawInfo[key]; const locked = !!info.research && !state.research.includes(info.research); const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key]; const isBurnerOre = burnerMinerKeys.includes(key); const fuelRate = count * burnerMiningDrillCoalPerSecond; const autonomous = count > 0; const productionRate = miningProductionRateFor(state, key); const peakProductionRate = peakProductionRateFor(state, key); const demandRate = demandRateFor(state, key); const peakDemandRate = peakDemandRateFor(state, key); const manualMiningJob = state.manualMining?.resourceKey === key ? state.manualMining : null; const manualMiningBusy = Boolean(state.manualMining && !manualMiningJob); const constructionAction = key === 'water' ? 'pump' : key === 'uranium' ? 'uraniumMiner' : 'miner'; const constructionItems = state.queue.filter((item) => item.action === constructionAction && (constructionAction !== 'miner' || item.targetId === key)); const isBuilding = constructionItems.length > 0; const constructionLabel = key === 'water' ? 'Water pump' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} burner mining drill`; return <section className={`surface rounded-xl p-4 ${locked ? 'locked-wash opacity-75' : ''}`} key={key} data-testid={`section-mining-${key}`}><div className="flex items-start gap-3"><div className="resource-orb"><ResourceIcon item={key} size={29} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">{info.label}</h2>{locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <Tag><span className="status-dot status-running" /> autonomous</Tag> : <Tag tone="amber">manual</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{info.description}</p></div></div><div className="mt-4 flex items-end justify-between"><div><div className="eyebrow">Buffer</div><div className="mono mt-1 text-[18px]">{fmt(state.raw[key])}<span className="text-[10px] text-[hsl(var(--muted-foreground))]"> / {capFor(state, key)}</span></div></div><div className="text-right">{isBurnerOre ? <div className="eyebrow flex items-center justify-end gap-1"><ResourceIcon item="burner-mining-drill" size={14} /> burner drills</div> : <div className="eyebrow">{key === 'water' ? 'pumps' : 'acid miners'}</div>}<div className="mono mt-1 text-[18px] text-[hsl(var(--secondary))]">{count}</div></div></div><CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakDemand={peakDemandRate} net={productionRate - demandRate} storage={state.raw[key]} capacity={capFor(state, key)} /><Progress value={state.raw[key] / capFor(state, key) * 100} />{manualMiningJob && <ManualMiningProgress job={manualMiningJob} />}{isBurnerOre && <><div className="data-row mt-3 flex items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="burner-mining-drill" size={18} /><span className="text-[10px] font-semibold">Burner drill fuel</span><span className="ml-auto flex items-center gap-1 mono text-[10px] text-[hsl(var(--primary))]"><ResourceIcon item="coal" size={15} /> {fuelRate.toFixed(2)} /s</span><span className="text-[9px] text-[hsl(var(--muted-foreground))]">no electricity</span></div><div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Build: {burnerMiningDrillCost.gear} gears + {burnerMiningDrillCost.ironPlate} iron plates + {burnerMiningDrillCost.stone} stone · {burnerMiningDrillRecipe.energyRequired}s</div></>}<BuildProgress items={constructionItems} label={constructionLabel} /><div className="mt-4 flex gap-2">{locked ? <button onClick={() => notice(`${info.needs} research required`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-locked-mining-${key}`}><LockKeyhole size={13} /> requires {info.needs}</button> : autonomous ? <button onClick={() => build(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} data-testid={`button-build-more-${key}`}>{isBuilding ? <><Check size={13} /> queued · construct another</> : <><Plus size={13} /> construct {key === 'water' ? 'pump' : 'burner drill'}</>}</button> : <><button onClick={() => tap(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-tap-${key}`}>{manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} /> tap to mine</>}</button><button onClick={() => build(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${info.label} miner`} data-testid={`button-build-miner-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div></section>; })}</div><div className="mt-5 surface rounded-xl border-[hsl(var(--secondary)/.25)] p-4"><div className="flex items-start gap-3"><div className="text-[hsl(var(--secondary))]"><Lightbulb size={17} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Mining rule</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Manual taps now take 0.5 seconds and only one resource can be mined by hand at a time. Hand-mined output can exceed storage capacity.</p></div></div></div></PageFrame>;
 }
 
 function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
@@ -576,7 +602,9 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       const primaryOutput = outputs[0];
       const count = state.assemblers[key] ?? 0;
       const productionRate = recipeProductionRateFor(state, recipe);
+      const peakProductionRate = primaryOutput ? peakProductionRateFor(state, primaryOutput.key) : 0;
       const demandRate = primaryOutput ? demandRateFor(state, primaryOutput.key) : 0;
+      const peakDemandRate = primaryOutput ? peakDemandRateFor(state, primaryOutput.key) : 0;
       const netRate = productionRate - demandRate;
       const smelting = isSmeltingRecipe(recipe);
       const building = productionBuildingFor(recipe);
@@ -605,7 +633,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
           </div>
         </div>
         {smelting && recipe.fuel && <div className="mt-2 flex items-center gap-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] px-3 py-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto mono text-[hsl(var(--primary))]">{amountLabel(materialAmount(recipe.fuel))} coal / item</span></div>}
-        <CompactMetricsRow production={productionRate} demand={demandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} />
+        <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakDemand={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} />
         {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} />}
         <div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${prettyLabel(key)} ${buildingLabel.toLowerCase()} is running at ${productionRate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button>{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-more-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => handcraft(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-handcraft-production-${key}`}><Plus size={13} /> handcraft</button><button onClick={() => buildProductionUnit(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-${buildingAction}-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div>
       </section>;
