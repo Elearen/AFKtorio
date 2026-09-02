@@ -1208,7 +1208,8 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const handcraft = (key: ComponentKey) => {
     const recipe = recipeMap[key];
     if (state.handcraft) return notice(state.handcraft.recipeKey === key ? `already handcrafting ${prettyLabel(key)}` : `finish handcrafting ${prettyLabel(state.handcraft.recipeKey)} first`);
-    if (!hasInputs(state, recipeInputs(recipe))) return notice('missing recipe inputs');
+    const missing = missingBuildMaterials(state, recipeBuildCosts(recipe));
+    if (missing) return notice(`need ${missing}`);
     const outputs = recipeOutputs(recipe);
     setState((s) => {
       const next = { ...s, raw: { ...s.raw }, products: { ...s.products } };
