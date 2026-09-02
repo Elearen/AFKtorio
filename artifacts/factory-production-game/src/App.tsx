@@ -281,28 +281,23 @@ const burnerMinerCoalRate = (state: GameState) => fueledBurnerMinerCount(state) 
 const boilerPeakSteamRateFor = (state: GameState) => state.research.includes('steam-power') ? state.boilers * boilerSteamPerSecond * 60 * state.simulationSpeed : 0;
 const boilerPeakCoalUsageFor = (state: GameState) => state.research.includes('steam-power') ? state.boilers * boilerCoalPerSecond * 60 * state.simulationSpeed : 0;
 const boilerPeakWaterUsageFor = (state: GameState) => state.research.includes('steam-power') ? state.boilers * boilerWaterPerSecond * 60 * state.simulationSpeed : 0;
-const steamFuelRatioFor = (state: GameState) => {
-  const coalDemand = boilerPeakCoalUsageFor(state);
-  const waterDemand = boilerPeakWaterUsageFor(state);
-  return Math.min(
-    1,
-    coalDemand > 0 ? state.raw.coal / coalDemand : 1,
-    waterDemand > 0 ? state.raw.water / waterDemand : 1,
-  );
-};
-const boilerSteamRateFor = (state: GameState) => boilerPeakSteamRateFor(state) * steamFuelRatioFor(state);
-const boilerCoalUsageFor = (state: GameState) => boilerPeakCoalUsageFor(state) * steamFuelRatioFor(state);
-const boilerWaterUsageFor = (state: GameState) => boilerPeakWaterUsageFor(state) * steamFuelRatioFor(state);
+const boilerSteamRateFor = (state: GameState) => boilerPeakSteamRateFor(state);
+const boilerCoalUsageFor = (state: GameState) => boilerPeakCoalUsageFor(state);
+const boilerWaterUsageFor = (state: GameState) => boilerPeakWaterUsageFor(state);
 const steamEnginePeakSteamUsageFor = (state: GameState) => state.research.includes('steam-power') ? state.steamEngines * steamEngineSteamPerSecond * 60 * state.simulationSpeed : 0;
-const steamEngineSteamUsageFor = (state: GameState) => Math.min(boilerSteamRateFor(state), steamEnginePeakSteamUsageFor(state));
-const steamEnginePeakPowerFor = (state: GameState) => state.research.includes('steam-power') ? Math.min(state.boilers, state.steamEngines) * steamEnginePowerMw * state.simulationSpeed : 0;
-const steamEnginePowerFor = (state: GameState) => steamEnginePeakPowerFor(state) * steamFuelRatioFor(state);
+const steamEngineSteamUsageFor = (state: GameState) => steamEnginePeakSteamUsageFor(state);
+const steamEnginePeakPowerFor = (state: GameState) => state.research.includes('steam-power') ? state.steamEngines * steamEnginePowerMw * state.simulationSpeed : 0;
+const steamEnginePowerFor = (state: GameState) => steamEnginePeakPowerFor(state);
 const solarPowerFor = (state: GameState) => state.research.includes('solar-energy') ? solarPanelPowerMw * state.simulationSpeed : 0;
 const nuclearPowerFor = (state: GameState) => state.research.includes('nuclear-power') ? 180 * state.simulationSpeed : 0;
 const powerProductionFor = (state: GameState) => steamEnginePowerFor(state) + solarPowerFor(state) + nuclearPowerFor(state);
 const electricPowerDraw = (state: GameState) => {
   const assemblerPower = electricAssemblerCount(state) * assemblyMachineOnePowerKw;
   return (state.labs * labPowerKw + assemblerPower) * (1 - state.upgrades.powerEfficiency * 0.06) / 1000;
+};
+const electricPowerRatioFor = (state: GameState) => {
+  const required = electricPowerDraw(state);
+  return required > 0 ? Math.min(1, powerProductionFor(state) / required) : 1;
 };
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
 const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines;
@@ -359,9 +354,10 @@ const miningBaseProductionRateFor = (state: GameState, key: RawKey) => {
   const base = key === 'uranium' ? 0.32 : key === 'water' ? 0.7 : key === 'copper' ? 0.88 : 1;
   return count * base * 60 * state.simulationSpeed;
 };
+const coalAvailableAfterBoilersFor = (state: GameState) => Math.max(0, state.raw.coal - boilerPeakCoalUsageFor(state));
 const miningProductionRateFor = (state: GameState, key: RawKey) => {
   if (key === 'coal') return Math.max(0, miningBaseProductionRateFor(state, key) - state.miners.coal * burnerMiningDrillCoalPerSecond * 60 * state.simulationSpeed);
-  const fuelRatio = fueledBurnerMinerCount(state) ? Math.min(1, state.raw.coal / Math.max(0.01, burnerMinerCoalRate(state) * 60 * state.simulationSpeed)) : 1;
+  const fuelRatio = fueledBurnerMinerCount(state) ? Math.min(1, coalAvailableAfterBoilersFor(state) / Math.max(0.01, burnerMinerCoalRate(state) * 60 * state.simulationSpeed)) : 1;
   return miningBaseProductionRateFor(state, key) * (fueledBurnerMinerKeys.includes(key) ? fuelRatio : 1);
 };
 const peakProductionRateFor = (state: GameState, key: TrackedKey) => {
@@ -380,7 +376,7 @@ const scienceCostAmountFor = (technology: TechnologyDefinition | undefined, key:
   return cost?.amount ?? 0;
 };
 const peakDemandRateFor = (state: GameState, key: TrackedKey) => {
-  let rate = key === 'coal' ? burnerMinerCoalRate(state) * 60 * state.simulationSpeed : 0;
+  let rate = key === 'coal' ? boilerPeakCoalUsageFor(state) + burnerMinerCoalRate(state) * 60 * state.simulationSpeed : key === 'water' ? boilerPeakWaterUsageFor(state) : 0;
   componentKeys.forEach((recipeKey) => {
     const recipe = recipeMap[recipeKey];
     const input = automatedRecipeInputs(recipe)[key];
@@ -388,7 +384,7 @@ const peakDemandRateFor = (state: GameState, key: TrackedKey) => {
   });
   if (scienceKeys.includes(key as ScienceKey)) {
     const technology = activeResearchFor(state);
-    if (technology) rate += scienceLabRateFor(state, technology) * scienceCostAmountFor(technology, key);
+    if (technology) rate += scienceLabRateFor(state, technology, false) * scienceCostAmountFor(technology, key);
   }
   return rate;
 };
@@ -415,7 +411,7 @@ const furnaceCoalUsageFor = (state: GameState, recipe: Recipe, peak = false) => 
   const outputRate = peak ? recipeCycleRateFor(state, recipe) * output.amount : recipeProductionRateFor(state, recipe);
   return outputRate * furnaceCoalPerItemFor(recipe);
 };
-const scienceLabRateFor = (state: GameState, technology?: TechnologyDefinition) => state.labs * labBaseResearchSpeed * 60 * state.simulationSpeed / technologyResearchTimeFor(technology);
+const scienceLabRateFor = (state: GameState, technology?: TechnologyDefinition, applyPowerRatio = true) => state.labs * labBaseResearchSpeed * 60 * state.simulationSpeed / technologyResearchTimeFor(technology) * (applyPowerRatio ? electricPowerRatioFor(state) : 1);
 const sciencePackProductionRateFor = (state: GameState, key: string) => {
   const recipeKey = scienceRecipeKeys[key as ScienceKey];
   const recipe = recipeKey ? recipeMap[recipeKey] : undefined;
@@ -430,7 +426,7 @@ const scienceCurrentSpmFor = (state: GameState, requiredKeys: string[]) => {
 const sciencePeakSpmFor = (state: GameState, requiredKeys: string[]) => {
   if (!requiredKeys.length) return 0;
   const technology = activeResearchFor(state);
-  const labRate = scienceLabRateFor(state, technology);
+  const labRate = scienceLabRateFor(state, technology, false);
   return Math.min(...requiredKeys.map((key) => Math.min(
     labRate * scienceCostAmountFor(technology, key),
     sciencePackProductionRateFor(state, key),
@@ -439,16 +435,6 @@ const sciencePeakSpmFor = (state: GameState, requiredKeys: string[]) => {
 const burnerOperatingSeconds = (state: GameState, seconds: number) => {
   const fuelRate = burnerMinerCoalRate(state) * state.simulationSpeed;
   return fuelRate > 0 ? Math.min(seconds, Math.max(0, state.raw.coal) / fuelRate) : seconds;
-};
-const boilerOperatingSeconds = (state: GameState, seconds: number) => {
-  if (!state.research.includes('steam-power') || !state.boilers) return 0;
-  const coalRate = state.boilers * boilerCoalPerSecond * state.simulationSpeed;
-  const waterRate = state.boilers * boilerWaterPerSecond * state.simulationSpeed;
-  return Math.min(
-    seconds,
-    coalRate > 0 ? Math.max(0, state.raw.coal) / coalRate : seconds,
-    waterRate > 0 ? Math.max(0, state.raw.water) / waterRate : seconds,
-  );
 };
 
 function simulate(previous: GameState, seconds: number): GameState {
@@ -462,20 +448,22 @@ function simulate(previous: GameState, seconds: number): GameState {
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null, queue: previous.queue.map((item) => ({ ...item })), research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
   };
   const speed = state.simulationSpeed;
+  const powerRatio = electricPowerRatioFor(state);
+  const boilerCoalDemand = boilerPeakCoalUsageFor(state) * seconds / 60;
+  const boilerWaterDemand = boilerPeakWaterUsageFor(state) * seconds / 60;
+  if (boilerCoalDemand > 0) {
+    state.raw.coal = Math.max(0, state.raw.coal - boilerCoalDemand);
+    liveConsumption.coal += boilerCoalDemand;
+  }
+  if (boilerWaterDemand > 0) {
+    state.raw.water = Math.max(0, state.raw.water - boilerWaterDemand);
+    liveConsumption.water += boilerWaterDemand;
+  }
   const operatingSeconds = burnerOperatingSeconds(state, seconds);
   if (fueledBurnerMinerCount(state)) {
     const coalConsumed = burnerMinerCoalRate(state) * operatingSeconds * speed;
     state.raw.coal = Math.max(0, state.raw.coal - coalConsumed);
     liveConsumption.coal += coalConsumed;
-  }
-  const boilerSeconds = boilerOperatingSeconds(state, seconds);
-  if (boilerSeconds > 0) {
-    const coalConsumed = state.boilers * boilerCoalPerSecond * boilerSeconds * speed;
-    const waterConsumed = state.boilers * boilerWaterPerSecond * boilerSeconds * speed;
-    state.raw.coal = Math.max(0, state.raw.coal - coalConsumed);
-    state.raw.water = Math.max(0, state.raw.water - waterConsumed);
-    liveConsumption.coal += coalConsumed;
-    liveConsumption.water += waterConsumed;
   }
   rawKeys.forEach((key) => {
     const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key];
@@ -493,7 +481,8 @@ function simulate(previous: GameState, seconds: number): GameState {
     const count = state.assemblers[key] ?? 0;
     if (!count) return;
     const recipe = recipeMap[key];
-    state.assemblyProgress[key] = (state.assemblyProgress[key] ?? 0) + count * seconds * speed * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
+    const machinePowerRatio = isSmeltingRecipe(recipe) ? 1 : powerRatio;
+    state.assemblyProgress[key] = (state.assemblyProgress[key] ?? 0) + count * seconds * speed * machinePowerRatio * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
     let cycles = 0;
     while (state.assemblyProgress[key] >= 1 && cycles < 80) {
       const outputs = recipeOutputs(recipe);
@@ -1014,7 +1003,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
   const constructionChips = (costs: BuildMaterialCost[], output: string) => <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Construction</div><div className="flex flex-wrap items-center gap-1.5">{costs.map(({ key, amount }, index) => <span className="contents" key={`${key}-${index}`}><span className="resource-chip"><ResourceIcon item={key} size={17} /><strong>{amount}</strong> {meta[key]?.short ?? prettyLabel(key)}</span>{index < costs.length - 1 && <span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">+</span>}</span>)}<ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--primary)/.4)' }}><ResourceIcon item={output} size={17} /><strong>1</strong> {prettyLabel(output)}</span></div></div>;
   const statusTag = (unlocked: boolean, count: number, queued: number) => unlocked ? count ? <Tag><span className="status-dot status-running" /> auto</Tag> : queued > 0 ? <Tag tone="amber"><Clock3 size={10} /> queued</Tag> : <Tag tone="amber">offline</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>;
   return <PageFrame>
-    <Header eyebrow="Energy network" title="Power" copy="Build the conversion line from fuel and water to steam, then let engines turn that steam into power. Solar Energy adds a zero-input power source as soon as it is unlocked." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{powerLabel(production)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} />
+    <Header eyebrow="Energy network" title="Power" copy="Power producers run at their rated output. Boilers get first claim on coal, while factories scale their electric production when total demand exceeds the available network." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{powerLabel(production)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} />
     <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
       <div className="surface rounded-xl p-4"><div className="eyebrow">Production</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(production)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">current generation</div></div>
       <div className="surface rounded-xl p-4"><div className="eyebrow">Peak potential</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(potential)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">available at full input</div></div>
@@ -1049,7 +1038,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
         </article>
       </div>
     </section>
-    <p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Steam generation is input-limited by stored coal and water. Solar generation has no material cost after Solar Energy is unlocked.</p>
+    <p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Boilers reserve coal before miners and furnaces. Producers stay at maximum output; only electrically powered production slows when network demand is higher than generation.</p>
   </PageFrame>;
 }
 
@@ -1127,7 +1116,7 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
   const labConstructionItems = state.queue.filter((item) => item.action === 'lab');
   const labIsBuilding = labConstructionItems.length > 0;
   const currentLabUsage = requiredScienceKeys.reduce((total, key) => total + demandRateFor(state, key), 0);
-  const peakLabUsage = activeResearch ? activeResearch.scienceCosts.reduce((total, cost) => total + labRate * cost.amount, 0) : 0;
+  const peakLabUsage = activeResearch ? activeResearch.scienceCosts.reduce((total, cost) => total + scienceLabRateFor(state, activeResearch, false) * cost.amount, 0) : 0;
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   return <PageFrame>
     <Header eyebrow="Research fuel" title="Science" copy="Labs consume every science pack required by the active research. SPM is limited by lab capacity and the tightest available pack line." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><FlaskConical size={17} className="text-[hsl(var(--primary))]" /><span className="mono text-[15px]">{currentSpm.toFixed(1)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">SPM</span></span></div>} />
@@ -1147,7 +1136,7 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
         <article className="surface-soft rounded-xl p-3.5 sm:p-4" data-testid="card-science-labs">
             <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="lab" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Science labs</h2><div className="flex items-center gap-2">{state.labs ? <Tag><span className="status-dot status-running" /> auto</Tag> : labIsBuilding ? <Tag tone="amber"><Clock3 size={10} /> queued</Tag> : <Tag tone="amber">offline</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Science lab count"><ResourceIcon item="lab" size={17} /><span className="mono text-[13px]">{state.labs}</span></div></div></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Research facility · {activeResearch ? `${activeResearch.time ?? 5}s cycle` : 'standby'} · Science lab</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={activeResearch ? 'teal' : 'amber'}>{activeResearch ? 'active research' : 'select research'}</Tag>{labIsBuilding && <Tag tone="muted">construction queued</Tag>}</div></div></div>
            <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Construction</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><ResourceIcon item="ironPlate" size={17} /><strong>12</strong> iron plates</span><span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">+</span><span className="resource-chip"><ResourceIcon item="circuit" size={17} /><strong>4</strong> circuits</span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--primary)/.4)' }}><ResourceIcon item="lab" size={17} /><strong>1</strong> lab</span></div></div>
-           <div className="mt-3 grid grid-cols-3 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">current usage</div><div className="mono mt-1 text-[13px] text-[hsl(var(--primary))]">{currentLabUsage.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">packs / min</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">peak usage</div><div className="mono mt-1 text-[13px] text-[hsl(var(--secondary))]">{peakLabUsage.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">packs / min</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">capacity</div><div className="mono mt-1 text-[13px]">{labRate.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">cycles / min</div></div></div>
+            <div className="mt-3 grid grid-cols-3 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">current usage</div><div className="mono mt-1 text-[13px] text-[hsl(var(--primary))]">{currentLabUsage.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">packs / min</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">peak usage</div><div className="mono mt-1 text-[13px] text-[hsl(var(--secondary))]">{peakLabUsage.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">packs / min</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">capacity</div><div className="mono mt-1 text-[13px]">{labRate.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">cycles / min</div></div></div>
            <BuildProgress items={labConstructionItems} label="Science lab" />
            <div className="mt-4 flex gap-2">{state.labs ? <><button onClick={() => notice(`science labs are using ${currentLabUsage.toFixed(1)} packs / min`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-science-labs"><Gauge size={13} /> inspect usage</button><button onClick={buildLab} className={`button-base flex-1 !py-2 ${labIsBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label="Construct another science lab" data-testid="button-build-more-lab">{labIsBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={buildLab} className={`button-base button-primary flex-1 !py-2 ${labIsBuilding ? 'button-build-active' : ''}`} data-testid="button-build-lab">{labIsBuilding ? <><Check size={13} /> queued · build lab</> : <><Hammer size={13} /> construct lab</>}</button>}</div>
         </article>
@@ -1158,7 +1147,7 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
           const productionCapacity = unlocked ? sciencePackProductionRateFor(state, key) : 0;
           const currentProduction = unlocked ? productionRateFor(state, key) : 0;
           const currentConsumption = required ? demandRateFor(state, key) : 0;
-           const peakConsumption = required ? labRate * scienceCostAmountFor(activeResearch, key) : 0;
+            const peakConsumption = required ? scienceLabRateFor(state, activeResearch, false) * scienceCostAmountFor(activeResearch, key) : 0;
           const ingredients = recipe.ingredients.map((ingredient) => `${amountLabel(materialAmount(ingredient))} ${prettyLabel(keyForSource(ingredient.name))}`).join(' + ');
           return <article className={`rounded-xl border p-3.5 sm:p-4 ${unlocked ? 'surface-soft' : 'locked-wash opacity-55 grayscale'}`} key={key} data-testid={`card-science-${key}`}>
             <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item={key} size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{meta[key].label}</h2>{unlocked ? <Tag><span className="status-dot status-running" /> unlocked</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>}</div><p className="mt-1 truncate text-[9px] text-[hsl(var(--muted-foreground))]" title={ingredients}>recipe · {ingredients}</p></div></div>
