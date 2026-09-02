@@ -21,6 +21,7 @@ type ResearchKey = string;
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
 type UnitStatus = 'running' | 'starved' | 'blocked';
+const defaultTechnologyResearchTime = 30;
 
 type Recipe = RecipeCatalogEntry;
 type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'storage' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number };
@@ -59,7 +60,8 @@ type GameState = {
 const SAVE_KEY = 'factory-production-game-save-v2';
 const rawKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood', 'water', 'uranium'];
 const scienceKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'chemicalPack', 'militaryPack', 'productionPack', 'utilityPack'];
-const technologyMap: Record<string, TechnologyDefinition> = Object.fromEntries(technologyCatalog.map((technology) => [technology.name, technology]));
+const normalizedTechnologyCatalog = technologyCatalog.map((technology) => ({ ...technology, time: technology.time ?? defaultTechnologyResearchTime }));
+const technologyMap: Record<string, TechnologyDefinition> = Object.fromEntries(normalizedTechnologyCatalog.map((technology) => [technology.name, technology]));
 const legacyResearchAliases: Record<string, string> = { steamPower: 'steam-power', solarPower: 'solar-energy', nuclearPower: 'nuclear-power', steelProcessing: 'steel-processing' };
 const normalizeResearchKey = (key: string) => legacyResearchAliases[key] ?? key;
 const sourceKeyAliases: Record<string, TrackedKey> = {
@@ -79,8 +81,8 @@ const scienceRecipeKeys: Record<ScienceKey, string> = {
   productionPack: 'production-science-pack', utilityPack: 'utility-science-pack',
 };
 const technologyOrderIndex = new Map<string, number>(technologyOrder.map((name, index) => [name, index]));
-const catalogOrderIndex = new Map<string, number>(technologyCatalog.map((technology, index) => [technology.name, index]));
-const orderedTechnologyCatalog = [...technologyCatalog].sort((a, b) => {
+const catalogOrderIndex = new Map<string, number>(normalizedTechnologyCatalog.map((technology, index) => [technology.name, index]));
+const orderedTechnologyCatalog = [...normalizedTechnologyCatalog].sort((a, b) => {
   const orderA = technologyOrderIndex.get(a.name) ?? technologyOrder.length + (catalogOrderIndex.get(a.name) ?? 0);
   const orderB = technologyOrderIndex.get(b.name) ?? technologyOrder.length + (catalogOrderIndex.get(b.name) ?? 0);
   return orderA - orderB;
@@ -130,6 +132,8 @@ const storageBoxCapacity = 180;
 const storageBoxWoodCost = 2;
 const storageBoxBuildSeconds = 1;
 const manualMiningSeconds = 0.5;
+const labBaseResearchSpeed = 1;
+const technologyResearchTimeFor = (technology?: TechnologyDefinition) => Math.max(1, technology?.time ?? defaultTechnologyResearchTime);
 const materialAmount = (material: RecipeMaterial) => {
   const base = material.amount ?? ((material.amountMin ?? 0) + (material.amountMax ?? material.amountMin ?? 0)) / 2;
   const probability = material.probability ?? (material.sharedProbability ? material.sharedProbability.max - material.sharedProbability.min : 1);
@@ -339,6 +343,10 @@ const peakProductionRateFor = (state: GameState, key: TrackedKey) => {
   });
   return rate;
 };
+const scienceCostAmountFor = (technology: TechnologyDefinition | undefined, key: string) => {
+  const cost = technology?.scienceCosts.find((entry) => keyForSource(entry.pack) === key);
+  return cost?.amount ?? 0;
+};
 const peakDemandRateFor = (state: GameState, key: TrackedKey) => {
   let rate = key === 'coal' ? burnerMinerCoalRate(state) * 60 * state.simulationSpeed : 0;
   componentKeys.forEach((recipeKey) => {
@@ -346,7 +354,10 @@ const peakDemandRateFor = (state: GameState, key: TrackedKey) => {
     const input = automatedRecipeInputs(recipe)[key];
     if (input) rate += recipeCycleRateFor(state, recipe) * input;
   });
-  if (scienceKeys.includes(key as ScienceKey)) rate += state.labs * 12 * state.simulationSpeed;
+  if (scienceKeys.includes(key as ScienceKey)) {
+    const technology = activeResearchFor(state);
+    if (technology) rate += scienceLabRateFor(state, technology) * scienceCostAmountFor(technology, key);
+  }
   return rate;
 };
 const rateFromHistory = (state: GameState, key: TrackedKey, field: 'production' | 'consumption') => {
@@ -372,7 +383,7 @@ const furnaceCoalUsageFor = (state: GameState, recipe: Recipe, peak = false) => 
   const outputRate = peak ? recipeCycleRateFor(state, recipe) * output.amount : recipeProductionRateFor(state, recipe);
   return outputRate * furnaceCoalPerItemFor(recipe);
 };
-const scienceLabRateFor = (state: GameState, technology?: TechnologyDefinition) => state.labs * 60 * state.simulationSpeed / Math.max(1, technology?.time ?? 5);
+const scienceLabRateFor = (state: GameState, technology?: TechnologyDefinition) => state.labs * labBaseResearchSpeed * 60 * state.simulationSpeed / technologyResearchTimeFor(technology);
 const sciencePackProductionRateFor = (state: GameState, key: string) => {
   const recipeKey = scienceRecipeKeys[key as ScienceKey];
   const recipe = recipeKey ? recipeMap[recipeKey] : undefined;
@@ -388,7 +399,10 @@ const sciencePeakSpmFor = (state: GameState, requiredKeys: string[]) => {
   if (!requiredKeys.length) return 0;
   const technology = activeResearchFor(state);
   const labRate = scienceLabRateFor(state, technology);
-  return Math.min(labRate, ...requiredKeys.map((key) => sciencePackProductionRateFor(state, key)));
+  return Math.min(...requiredKeys.map((key) => Math.min(
+    labRate * scienceCostAmountFor(technology, key),
+    sciencePackProductionRateFor(state, key),
+  )));
 };
 const burnerOperatingSeconds = (state: GameState, seconds: number) => {
   const fuelRate = burnerMinerCoalRate(state) * state.simulationSpeed;
@@ -463,7 +477,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   if (!activeResearch || activeResearch.researchTrigger || !activeResearch.scienceCosts.length) {
     state.labProgress = 0;
   } else {
-    state.labProgress += state.labs * seconds * speed / Math.max(1, activeResearch.time ?? 5);
+    state.labProgress += scienceLabRateFor(state, activeResearch) * seconds / 60;
     let researchCycles = 0;
     while (state.labProgress >= 1 && researchCycles < 80) {
       const currentResearch = activeResearchFor(state);
@@ -1014,7 +1028,7 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
           const productionCapacity = unlocked ? sciencePackProductionRateFor(state, key) : 0;
           const currentProduction = unlocked ? productionRateFor(state, key) : 0;
           const currentConsumption = required ? demandRateFor(state, key) : 0;
-          const peakConsumption = required ? labRate : 0;
+           const peakConsumption = required ? labRate * scienceCostAmountFor(activeResearch, key) : 0;
           const ingredients = recipe.ingredients.map((ingredient) => `${amountLabel(materialAmount(ingredient))} ${prettyLabel(keyForSource(ingredient.name))}`).join(' + ');
           return <article className={`rounded-xl border p-3.5 sm:p-4 ${unlocked ? 'surface-soft' : 'locked-wash opacity-55 grayscale'}`} key={key} data-testid={`card-science-${key}`}>
             <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item={key} size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{meta[key].label}</h2>{unlocked ? <Tag><span className="status-dot status-running" /> unlocked</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>}</div><p className="mt-1 truncate text-[9px] text-[hsl(var(--muted-foreground))]" title={ingredients}>recipe · {ingredients}</p></div></div>
