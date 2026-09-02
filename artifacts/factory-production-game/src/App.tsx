@@ -20,13 +20,14 @@ type ResearchKey = string;
 type UnitStatus = 'running' | 'starved' | 'blocked';
 
 type Recipe = RecipeCatalogEntry;
-type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number };
+type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'storage' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number };
 type HandcraftJob = { recipeKey: string; seconds: number; total: number };
 type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number };
 type GameState = {
   raw: Record<RawKey, number>;
   products: Record<string, number>;
   storage: Record<TrackedKey, number>;
+  storageBoxes: Record<TrackedKey, number>;
   miners: Record<RawKey, number>;
   pumps: number;
   uraniumMiners: number;
@@ -74,6 +75,9 @@ const assemblyMachineOneRecipe = recipeMap['assembling-machine-1'];
 const assemblyMachineOneBuildCost = { circuit: 3, gear: 5, ironPlate: 9 };
 const assemblyMachineOnePowerKw = 75;
 const labPowerKw = 7000;
+const storageBoxCapacity = 180;
+const storageBoxWoodCost = 2;
+const storageBoxBuildSeconds = 1;
 const manualMiningSeconds = 0.5;
 const materialAmount = (material: RecipeMaterial) => {
   const base = material.amount ?? ((material.amountMin ?? 0) + (material.amountMax ?? material.amountMin ?? 0)) / 2;
@@ -149,7 +153,8 @@ const starterProducts: Record<string, number> = {
 const initialState: GameState = {
   raw: { iron: 62, copper: 38, stone: 26, coal: 31, wood: 18, water: 0, uranium: 0 },
   products: starterProducts,
-  storage: Object.fromEntries(trackedKeys.map((key) => [key, 180])) as Record<TrackedKey, number>,
+  storage: Object.fromEntries(trackedKeys.map((key) => [key, storageBoxCapacity])) as Record<TrackedKey, number>,
+  storageBoxes: Object.fromEntries(trackedKeys.map((key) => [key, 1])) as Record<TrackedKey, number>,
   miners: { iron: 0, copper: 0, stone: 0, coal: 0, wood: 0, water: 0, uranium: 0 },
   pumps: 0, uraniumMiners: 0,
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
@@ -304,7 +309,7 @@ const burnerOperatingSeconds = (state: GameState, seconds: number) => {
 
 function simulate(previous: GameState, seconds: number): GameState {
   const state: GameState = {
-    ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage },
+    ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes },
     assemblers: { ...previous.assemblers }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null, queue: previous.queue.map((item) => ({ ...item })), research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
   };
@@ -373,6 +378,11 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (item.action === 'uraniumMiner') state.uraniumMiners += 1;
      if (item.action === 'assembler' || item.action === 'furnace') state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
     if (item.action === 'lab') { state.labs += 1; recordProduction(state, 'lab', 1); }
+    if (item.action === 'storage') {
+      const key = item.targetId ?? item.target;
+      state.storageBoxes[key] = (state.storageBoxes[key] ?? 1) + 1;
+      state.storage[key] = (state.storage[key] ?? storageBoxCapacity) + storageBoxCapacity;
+    }
     if (item.action === 'upgrade') state.upgrades[(item.targetId ?? item.target) as UpgradeKey] += 1;
   });
   applyResearchTriggers(state);
@@ -389,6 +399,10 @@ function loadState() {
       raw: { ...initialState.raw, ...parsed.raw },
       products: { ...initialState.products, ...parsed.products },
       storage: { ...initialState.storage, ...parsed.storage },
+      storageBoxes: Object.fromEntries(trackedKeys.map((key) => {
+        const savedBoxes = parsed.storageBoxes?.[key];
+        return [key, typeof savedBoxes === 'number' ? Math.max(1, Math.floor(savedBoxes)) : Math.max(1, Math.ceil((parsed.storage?.[key] ?? storageBoxCapacity) / storageBoxCapacity))];
+      })) as Record<TrackedKey, number>,
       miners: { ...initialState.miners, ...parsed.miners },
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
       miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
@@ -401,6 +415,7 @@ function loadState() {
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
       lastSeen: parsed.lastSeen ?? Date.now(),
     } as GameState;
+    Object.keys(state.storageBoxes).forEach((key) => { state.storage[key] = state.storageBoxes[key] * storageBoxCapacity; });
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
     const before = state.totalOutput;
     const recovered = simulate(state, away);
@@ -654,10 +669,47 @@ function PowerPage({ state, notice }: PageProps) {
 }
 function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.8 2.8c.4 3-1.3 4.2-2.4 5.4-1 1-1.2 2.3-.6 3.3.4-1.3 1.5-2.3 2.8-2.7 2.6 2 3.8 4.3 3.2 7.1-.4 1.8-1.7 3.2-3.3 4.1 4.7-.8 7-4 6.2-8.4-.5-2.8-2.5-5.8-5.9-8.8ZM10 12c-3.7 1.4-5.4 4-4.6 6.6.6 2 2.3 3.4 4.5 4-1.2-1.2-1.5-2.6-.6-4.1.7-1.2 1.6-2.1 2.6-2.6-1.1-1-1.8-2.3-1.9-3.9Z"/></svg>; }
 
-function StoragePage({ state, setState, notice }: PageProps) {
-  const upgrade = (key: TrackedKey) => { const cost = 3 + Math.floor(state.storage[key] / 60); if (state.products.gear < cost || state.products.ironPlate < cost * 2) return notice(`need ${cost} gears + ${cost * 2} iron plates`); setState((s) => ({ ...s, products: { ...s.products, gear: s.products.gear - cost, ironPlate: s.products.ironPlate - cost * 2 }, storage: { ...s.storage, [key]: s.storage[key] + 60 } })); notice(`${meta[key].label} capacity expanded`); };
+function StoragePage({ state, setState, enqueue, notice }: PageProps) {
+  const buildStorageBox = (key: TrackedKey) => {
+    const constructionItems = state.queue.filter((item) => item.action === 'storage' && item.targetId === key);
+    if (state.raw.wood < storageBoxWoodCost) return notice(`need ${storageBoxWoodCost} wood`);
+    setState((s) => ({ ...s, raw: { ...s.raw, wood: s.raw.wood - storageBoxWoodCost } }));
+    enqueue('storage', `Wooden box · ${meta[key].label}`, storageBoxBuildSeconds, key);
+    notice(`wooden box for ${meta[key].label} queued`);
+  };
   const visibleKeys = orderedTrackedKeys.filter((key) => unlockedProductKeys(state).has(key));
-  return <PageFrame><Header eyebrow="Buffer control" title="Storage" copy="Every unlocked product gets one honest row, arranged by the imported product tiers. Hidden products appear after their source recipe is researched." action={<Tag><Box size={11} /> {visibleKeys.length} unlocked items</Tag>} /><section className="surface overflow-hidden rounded-xl p-3 sm:p-5"><div className="hidden grid-cols-[minmax(180px,1.3fr)_110px_minmax(160px,1fr)_115px] gap-4 border-b border-[hsl(var(--border))] px-3 pb-3 md:grid"><span className="eyebrow">Item</span><span className="eyebrow">Amount</span><span className="eyebrow">Fill</span><span className="eyebrow text-right">Action</span></div><div className="space-y-2 pt-1">{visibleKeys.map((key) => { const amount = quantityFor(state, key); const capacity = capFor(state, key); const cost = 3 + Math.floor(state.storage[key] / 60); return <div className="data-row grid gap-3 rounded-xl p-3 md:grid-cols-[minmax(180px,1.3fr)_110px_minmax(160px,1fr)_115px] md:items-center md:gap-4" key={key} data-testid={`row-storage-${key}`}><div className="flex items-center gap-3"><div className="resource-orb !h-9 !w-9"><ResourceIcon item={key} size={25} /></div><div><div className="text-[11px] font-bold">{meta[key].label}</div><div className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category} · capacity {capacity}</div></div></div><div className="flex items-baseline justify-between md:block"><span className="eyebrow md:hidden">amount</span><span className="mono text-[14px]">{fmt(amount)} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">/ {capacity}</span></span></div><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span className="md:hidden">fill level</span><span>{Math.floor(amount / capacity * 100)}%</span></div><Progress value={amount / capacity * 100} /></div><button onClick={() => upgrade(key)} className="button-base button-ghost w-full !py-2 md:w-auto" data-testid={`button-upgrade-storage-${key}`}><Plus size={12} /> +60 <span className="hidden sm:inline">capacity</span><span className="mono text-[9px] text-[hsl(var(--primary))]">· {cost}g</span></button></div>; })}</div></section><p className="mt-4 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--primary))]" /> Storage upgrades spend factory-produced gears and iron plates, and affect only the selected row.</p></PageFrame>;
+  return <PageFrame>
+    <Header eyebrow="Buffer control" title="Storage" copy="Compact buffers for every unlocked material. Build wooden boxes to expand a product's capacity." action={<Tag><Box size={11} /> {visibleKeys.length} unlocked items</Tag>} />
+    <section className="surface rounded-xl p-2.5 sm:p-3">
+      <div className="space-y-2">
+        {visibleKeys.map((key) => {
+          const amount = quantityFor(state, key);
+          const capacity = capFor(state, key);
+          const boxCount = state.storageBoxes[key] ?? Math.max(1, Math.ceil((state.storage[key] ?? storageBoxCapacity) / storageBoxCapacity));
+          const constructionItems = state.queue.filter((item) => item.action === 'storage' && item.targetId === key);
+          const isBuilding = constructionItems.length > 0;
+          return <section className="data-row rounded-lg p-2.5" key={key} data-testid={`row-storage-${key}`}>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="resource-orb !h-8 !w-8 shrink-0"><ResourceIcon item={key} size={22} /></div>
+              <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold">{meta[key].label}</div><div className="text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category}</div></div>
+              <div className="flex shrink-0 items-center gap-1.5 text-[hsl(var(--secondary))]" title={`${boxCount} wooden storage box${boxCount === 1 ? '' : 'es'}`}>
+                <ResourceIcon item="wooden-chest" size={17} /><span className="mono text-[11px]">{boxCount}</span>
+              </div>
+              <button onClick={() => buildStorageBox(key)} className={`button-base button-ghost !gap-1 !px-2 !py-1.5 ${isBuilding ? 'button-build-active' : ''}`} aria-label={`Construct another wooden box for ${meta[key].label}`} title={`Construct another wooden box · ${storageBoxWoodCost} wood · ${storageBoxBuildSeconds} sec`} data-testid={`button-build-storage-${key}`}>
+                {isBuilding ? <Check size={12} /> : <Plus size={12} />}<span className="hidden sm:inline">box</span><ResourceIcon item="wood" size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{storageBoxWoodCost}</span>
+              </button>
+            </div>
+            <div className="mt-2 flex items-center gap-2" aria-label={`${meta[key].label}: ${fmt(amount)} in stock, capacity ${fmt(capacity)}`}>
+              <span className="mono w-12 shrink-0 text-[11px]" title="Current stock">{fmt(amount)}</span>
+              <div className="min-w-0 flex-1"><Progress value={amount / capacity * 100} /></div>
+              <span className="mono w-14 shrink-0 text-right text-[11px]" title="Total capacity">{fmt(capacity)}</span>
+            </div>
+            {isBuilding && <BuildProgress items={constructionItems} label={`Wooden box · ${meta[key].label}`} />}
+          </section>;
+        })}
+      </div>
+    </section>
+  </PageFrame>;
 }
 
 function LogisticsPage({ notice }: PageProps) {
@@ -769,7 +821,7 @@ function Game() {
   useEffect(() => { const timer = window.setInterval(() => setState((s) => simulate(s, 1)), 1000); return () => window.clearInterval(timer); }, []);
   useEffect(() => { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }, [state]);
   const saveNow = () => localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, lastSeen: Date.now() }));
-  const reset = () => { localStorage.removeItem(SAVE_KEY); setState({ ...initialState, lastSeen: Date.now(), storage: { ...initialState.storage }, raw: { ...initialState.raw }, products: { ...initialState.products } }); };
+  const reset = () => { localStorage.removeItem(SAVE_KEY); setState({ ...initialState, lastSeen: Date.now(), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, raw: { ...initialState.raw }, products: { ...initialState.products } }); };
   const enqueue = (action: QueueItem['action'], target: string, seconds: number, targetId?: string) => setState((s) => ({ ...s, queue: [...s.queue, { id: `${action}-${Date.now()}`, action, target, targetId, seconds, total: seconds }] }));
   const props = { state, setState, enqueue, saveNow, reset, notice, away, recovered };
   const pageKey = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
