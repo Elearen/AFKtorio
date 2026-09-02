@@ -1,0 +1,42 @@
+Tier
+Technologies
+0
+Electronics, Steam Power
+1
+Automation Science Pack
+2
+Automation, Electric Mining Drill, Fast Inserter, Gun Turret, Lamp, Logistic Science Pack, Logistics, Military, Radar, Repair Pack, Steel Processing, Stone Wall
+3
+Advanced Material Processing, Automation 2, Circuit Network, Electric Energy Distribution 1, Engine, Heavy Armor, Landfill, Logistics 2, Military 2, Physical Projectile Damage 1, Solar Energy, Steel Axe, Toolbelt, Weapon Shooting Speed 1
+4
+Automobilism, Concrete, Fluid Handling, Gate, Military Science Pack, Physical Projectile Damage 2, Railway, Research Speed 1, Stronger Explosives 1, Weapon Shooting Speed 2
+5
+Automated Rail Transportation, Defender, Fluid Wagon, Oil Gathering, Physical Projectile Damage 3, Research Speed 2, Stronger Explosives 2, Weapon Shooting Speed 3
+6
+Follower Robot Count 1, Oil Processing, Physical Projectile Damage 4, Weapon Shooting Speed 4
+7
+Flammables, Follower Robot Count 2, Plastics, Sulfur Processing
+8
+Advanced Circuit, Battery, Explosives, Flamethrower
+9
+Bulk Inserter, Chemical Science Pack, Cliff Explosives, Electric Energy Accumulators, Mining Productivity 1, Modular Armor, Modules, Refined Flammables 1, Rocketry
+10
+Advanced Material Processing 2, Advanced Oil Processing, Braking Force 1, Efficiency Module, Electric Energy Distribution 2, Follower Robot Count 3, Inserter Capacity Bonus 1, Laser, Low Density Structure, Military 3, Mining Productivity 2, Physical Projectile Damage 5, Processing Unit, Productivity Module, Refined Flammables 2, Research Speed 3, Solar Panel Equipment, Speed Module, Stronger Explosives 3, Uranium Mining, Weapon Shooting Speed 5
+11
+Battery Equipment, Belt Immunity Equipment, Braking Force 2, Distractor, Efficiency Module 2, Energy Shield Equipment, Explosive Rocketry, Inserter Capacity Bonus 2, Laser Shooting Speed 1, Laser Turret, Laser Weapons Damage 1, Lubricant, Nightvision Equipment, Production Science Pack, Productivity Module 2, Refined Flammables 3, Research Speed 4, Rocket Fuel, Speed Module 2, Tank, Uranium Processing
+12
+Braking Force 3, Coal Liquefaction, Effect Transmission, Efficiency Module 3, Electric Engine, Inserter Capacity Bonus 3, Laser Shooting Speed 2, Laser Weapons Damage 2, Nuclear Power, Productivity Module 3, Research Speed 5, Speed Module 3
+13
+Braking Force 4, Exoskeleton Equipment, Inserter Capacity Bonus 4, Laser Shooting Speed 3, Laser Weapons Damage 3, Nuclear Fuel Reprocessing, Power Armor, Robotics
+14
+Battery MK2 Equipment, Braking Force 5, Construction Robotics, Discharge Defense Equipment, Energy Shield MK2 Equipment, Inserter Capacity Bonus 5, Laser Shooting Speed 4, Laser Weapons Damage 4, Logistic Robotics, Personal Laser Defense Equipment, Utility Science Pack, Worker Robot Cargo Size 1, Worker Robot Speed 1, Worker Robot Storage 1
+15
+Braking Force 6, Fission Reactor Equipment, Inserter Capacity Bonus 6, Laser Shooting Speed 5, Laser Weapons Damage 5, Logistic System, Military 4, Mining Productivity 3, Personal Roboport Equipment, Physical Projectile Damage 6, Refined Flammables 4, Research Speed 6, Rocket Silo, Stronger Explosives 4, Weapon Shooting Speed 6, Worker Robot Cargo Size 2, Worker Robot Speed 2, Worker Robot Storage 2
+16
+Artillery, Atomic Bomb, Braking Force 7, Destroyer, Inserter Capacity Bonus 7, Laser Shooting Speed 6, Laser Weapons Damage 6, Personal Roboport MK2 Equipment, Power Armor MK2, Refined Flammables 5, Space Science Pack, Spidertron, Stronger Explosives 5, Uranium Ammo, Worker Robot Cargo Size 2?* , Worker Robot Speed 3, Worker Robot Storage 3
+17
+Artillery Shell Range, Artillery Shell Shooting Speed, Follower Robot Count 4, Laser Shooting Speed 7, Physical Projectile Damage 7, Refined Flammables 6, Stronger Explosives 6, Worker Robot Cargo Size 3, Worker Robot Speed 4
+18
+Refined Flammables 7, Stronger Explosives 7, Worker Robot Speed 5
+19
+Worker Robot Speed 6

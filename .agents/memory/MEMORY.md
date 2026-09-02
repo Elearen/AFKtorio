@@ -1,3 +1,4 @@
 - [Construction feedback](construction-feedback.md) — derive queued state and progress from the shared construction queue, not a second timer.
 - [Technology source normalization](technology-source-normalization.md) — parse prototype objects structurally and expand helper-generated technologies without losing metadata.
 - [Science throughput](science-throughput.md) — active research selects required packs; SPM is lab-cycle throughput bottlenecked by each required pack line.
+- [Technology tier ordering](technology-order.md) — the attached tier list is the canonical display and auto-research priority order.

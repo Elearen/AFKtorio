@@ -3,6 +3,7 @@ import { Link, Router as WouterRouter, useLocation } from 'wouter';
 import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial } from './recipeCatalog';
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
+import { technologyOrder } from './technologyOrder';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, Factory as FactoryIcon, FlaskConical, Gauge, Hammer,
@@ -74,10 +75,17 @@ const scienceRecipeKeys: Record<ScienceKey, string> = {
   chemicalPack: 'chemical-science-pack', militaryPack: 'military-science-pack',
   productionPack: 'production-science-pack', utilityPack: 'utility-science-pack',
 };
+const technologyOrderIndex = new Map<string, number>(technologyOrder.map((name, index) => [name, index]));
+const catalogOrderIndex = new Map<string, number>(technologyCatalog.map((technology, index) => [technology.name, index]));
+const orderedTechnologyCatalog = [...technologyCatalog].sort((a, b) => {
+  const orderA = technologyOrderIndex.get(a.name) ?? technologyOrder.length + (catalogOrderIndex.get(a.name) ?? 0);
+  const orderB = technologyOrderIndex.get(b.name) ?? technologyOrder.length + (catalogOrderIndex.get(b.name) ?? 0);
+  return orderA - orderB;
+});
 const technologyPrerequisitesMet = (state: GameState, technology: TechnologyDefinition) => technology.prerequisites.every((prerequisite) => state.research.includes(prerequisite));
 const autoResearchTargetFor = (state: GameState) => {
   const selected = new Set(state.autoResearch ?? []);
-  for (const technology of technologyCatalog) {
+  for (const technology of orderedTechnologyCatalog) {
     if (!selected.has(technology.name) || state.research.includes(technology.name)) continue;
     if (!technologyPrerequisitesMet(state, technology)) return undefined;
     return technology;
@@ -204,7 +212,7 @@ const initialState: GameState = {
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labs: 1, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: technologyCatalog[0]?.name ?? null, researchProgress: {}, autoResearch: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: orderedTechnologyCatalog[0]?.name ?? null, researchProgress: {}, autoResearch: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
 };
 
@@ -276,7 +284,7 @@ const applyResearchTriggers = (state: GameState) => {
   let added = true;
   while (added) {
     added = false;
-    technologyCatalog.forEach((technology) => {
+    orderedTechnologyCatalog.forEach((technology) => {
       if (!technology.researchTrigger || state.research.includes(technology.name) || !researchTriggerMet(state, technology)) return;
       if (!technology.prerequisites.every((prerequisite) => state.research.includes(prerequisite))) return;
       state.research.push(technology.name);
@@ -515,7 +523,7 @@ function loadState() {
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
       currentResearch: parsed.currentResearch ? normalizeResearchKey(String(parsed.currentResearch)) : initialState.currentResearch,
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
-      autoResearch: technologyCatalog.filter((technology) => (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
+      autoResearch: orderedTechnologyCatalog.filter((technology) => (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
       lastSeen: parsed.lastSeen ?? Date.now(),
     } as GameState;
     Object.keys(state.storageBoxes).forEach((key) => { state.storage[key] = state.storageBoxes[key] * storageBoxCapacity; });
@@ -878,7 +886,7 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
 
 function ResearchArt({ accent }: { accent: string }) { return <div className="grid h-16 w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_25%_10%)]" style={{ color: accent }}><svg width="72" height="56" viewBox="0 0 72 56" aria-hidden="true"><path stroke="currentColor" strokeOpacity=".35" d="M6 43 22 27l10 8 15-21 19 14" /><circle cx="22" cy="27" r="5" fill="currentColor" opacity=".85" /><circle cx="47" cy="14" r="5" fill="currentColor" opacity=".65" /><path fill="currentColor" opacity=".18" d="M7 47h58v3H7zM12 10h3v34h-3zm45 13h3v21h-3z" /></svg></div>; }
 function ResearchPage({ state, setState, notice }: PageProps) {
-  const [selected, setSelected] = useState<ResearchKey>(state.currentResearch ?? technologyCatalog[0]?.name ?? '');
+  const [selected, setSelected] = useState<ResearchKey>(state.currentResearch ?? orderedTechnologyCatalog[0]?.name ?? '');
   const [query, setQuery] = useState('');
   const accentFor = (name: string) => ['#65afba', '#df7165', '#dfb05c', '#8ea9db', '#92c86b', '#c9d3d0'][name.length % 6];
   const selectResearch = (name: ResearchKey) => {
@@ -890,15 +898,15 @@ function ResearchPage({ state, setState, notice }: PageProps) {
       const selectedAuto = new Set(s.autoResearch ?? []);
       if (selectedAuto.has(name)) selectedAuto.delete(name);
       else selectedAuto.add(name);
-      const autoResearch = technologyCatalog.filter((technology) => selectedAuto.has(technology.name)).map((technology) => technology.name);
+      const autoResearch = orderedTechnologyCatalog.filter((technology) => selectedAuto.has(technology.name)).map((technology) => technology.name);
       return { ...s, autoResearch, currentResearch: s.currentResearch ?? name };
     });
   };
-  const visibleTechnologies = useMemo(() => technologyCatalog.filter((technology) => {
+  const visibleTechnologies = useMemo(() => orderedTechnologyCatalog.filter((technology) => {
     const haystack = `${technology.name} ${technology.prerequisites.join(' ')} ${technology.effects.map((effect) => `${effect.type} ${effect.recipe ?? ''}`).join(' ')}`.toLowerCase();
     return !query.trim() || haystack.includes(query.trim().toLowerCase());
   }), [query]);
-  const item = technologyMap[selected] ?? technologyCatalog[0];
+  const item = technologyMap[selected] ?? orderedTechnologyCatalog[0];
   if (!item) return null;
   const selectedDone = state.research.includes(item.name);
   const selectedPrerequisitesMet = technologyPrerequisitesMet(state, item);
