@@ -1025,7 +1025,7 @@ function ResourceIcon({ item, size = 28 }: { item: TrackedKey; size?: number }) 
   return <img src={`${import.meta.env.BASE_URL}item-icons/${iconFileFor[item] ?? item}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
 }
 function BrandLogo({ size = 36 }: { size?: number }) {
-  return <img src={`${import.meta.env.BASE_URL}logo.svg`} width={size} height={size} alt="Factory Production Game logo" className="object-contain" />;
+  return <img src={`${import.meta.env.BASE_URL}icon-192.png`} width={size} height={size} alt="Factory Planet logo" className="object-contain" />;
 }
 function Tag({ children, tone = 'teal' }: { children: ReactNode; tone?: 'teal' | 'amber' | 'red' | 'muted' }) {
   return <span className={`status-tag ${tone === 'teal' ? 'tag-running' : tone === 'amber' ? 'tag-starved' : tone === 'red' ? 'tag-blocked' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{children}</span>;
