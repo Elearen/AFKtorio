@@ -743,6 +743,9 @@ function simulate(previous: GameState, seconds: number): GameState {
   const liveProduction = emptyRateRecord();
   const liveManualProduction = emptyRateRecord();
   const liveConsumption = emptyRateRecord();
+  const activeConstructionIds = new Set(
+    previous.queue.filter((item) => item.started !== false).map((item) => item.id),
+  );
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes }, storageTanks: { ...previous.storageTanks },
     assemblers: { ...previous.assemblers }, oilProcessingAdvanced: previous.oilProcessingAdvanced, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
@@ -864,8 +867,8 @@ function simulate(previous: GameState, seconds: number): GameState {
     researchTargetsProcessed += 1;
   }
   activateReadyConstruction(state.queue);
-  const completed = state.queue.filter((item) => item.started !== false && item.seconds <= seconds);
-  state.queue = state.queue.map((item) => item.started === false ? item : ({ ...item, seconds: Math.max(0, item.seconds - seconds) })).filter((item) => item.started === false || item.seconds > 0);
+  const completed = state.queue.filter((item) => activeConstructionIds.has(item.id) && item.started !== false && item.seconds <= seconds);
+  state.queue = state.queue.map((item) => !activeConstructionIds.has(item.id) || item.started === false ? item : ({ ...item, seconds: Math.max(0, item.seconds - seconds) })).filter((item) => item.started === false || !activeConstructionIds.has(item.id) || item.seconds > 0);
   completed.forEach((item) => {
     if (item.action === 'miner' && (item.targetId ?? item.target) !== 'wood') state.miners[(item.targetId ?? item.target) as RawKey] += 1;
     if (item.action === 'pump') state.pumps += 1;

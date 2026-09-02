@@ -14,3 +14,9 @@ Construction warnings should report only the remaining deficit for each unavaila
 **Why:** Full-cost warnings obscure the actionable blocker when the player already owns some of the required materials.
 
 **How to apply:** Compare live raw/product inventory against each construction cost, filter to positive deficits, and keep non-construction warnings unchanged.
+
+Newly funded construction must not consume build time in the same simulation tick that its final material is reserved; its full timer starts on the following tick.
+
+**Why:** A one-second storage build could otherwise be marked complete immediately when the last missing material arrived, making capacity increase before the request visibly finished.
+
+**How to apply:** Track which queue items were already active at simulation start, decrement only those items during the current tick, and apply completion effects only to them.
