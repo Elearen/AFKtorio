@@ -454,9 +454,12 @@ const furnaceCoalUsageFor = (state: GameState, recipe: Recipe, peak = false) => 
   return outputRate * furnaceCoalPerItemFor(recipe);
 };
 const scienceLabRateFor = (state: GameState, technology?: TechnologyDefinition, applyPowerRatio = true) => state.labs * labBaseResearchSpeed * 60 * state.simulationSpeed / technologyResearchTimeFor(technology) * (applyPowerRatio ? electricPowerRatioFor(state) : 1);
-const sciencePackProductionRateFor = (state: GameState, key: string) => {
+const scienceRecipeFor = (key: string) => {
   const recipeKey = scienceRecipeKeys[key as ScienceKey];
-  const recipe = recipeKey ? recipeMap[recipeKey] : undefined;
+  return recipeKey ? recipeMap[recipeKey] : undefined;
+};
+const sciencePackProductionRateFor = (state: GameState, key: string) => {
+  const recipe = scienceRecipeFor(key);
   if (!recipe || !recipeIsUnlocked(recipe, state)) return 0;
   const output = recipeOutputs(recipe).find((entry) => entry.key === key);
   return output ? recipeCycleRateFor(state, recipe) * output.amount : 0;
@@ -555,30 +558,32 @@ function simulate(previous: GameState, seconds: number): GameState {
       state.manualMining = null;
     }
   }
-  const activeResearch = activeResearchFor(state);
-  if (!activeResearch || activeResearch.researchTrigger || !activeResearch.scienceCosts.length) {
-    state.labProgress = 0;
-  } else {
-    state.labProgress += scienceLabRateFor(state, activeResearch) * seconds / 60;
-    let researchCycles = 0;
-    while (state.labProgress >= 1 && researchCycles < 80) {
-      const currentResearch = activeResearchFor(state);
-      if (!currentResearch || currentResearch.researchTrigger || !currentResearch.scienceCosts.length) break;
-      const costs = Object.fromEntries(currentResearch.scienceCosts.map((cost) => [keyForSource(cost.pack), cost.amount]));
-      if (!hasInputs(state, costs)) break;
-      spendInputs(state, costs, liveConsumption);
-      const totalUnits = researchUnitsFor(currentResearch);
-      const nextProgress = Math.min(totalUnits, (state.researchProgress[currentResearch.name] ?? 0) + 1);
-      state.researchProgress[currentResearch.name] = nextProgress;
-      state.labProgress -= 1;
-      researchCycles += 1;
-      if (nextProgress >= totalUnits) {
-        markResearchComplete(state, currentResearch);
-        state.currentResearch = autoResearchTargetFor(state)?.name ?? currentResearch.name;
-        state.labProgress = 0;
-        break;
-      }
-    }
+  state.labProgress = 0;
+  let remainingResearchSeconds = seconds;
+  let researchTargetsProcessed = 0;
+  while (remainingResearchSeconds > 0 && researchTargetsProcessed < 100) {
+    const currentResearch = activeResearchFor(state);
+    if (!currentResearch || currentResearch.researchTrigger || !currentResearch.scienceCosts.length) break;
+    const researchRate = scienceLabRateFor(state, currentResearch);
+    if (researchRate <= 0) break;
+    const totalUnits = researchUnitsFor(currentResearch);
+    const currentProgress = Math.min(totalUnits, state.researchProgress[currentResearch.name] ?? 0);
+    const requestedUnits = Math.min(totalUnits - currentProgress, researchRate * remainingResearchSeconds / 60);
+    const availableUnits = Math.min(...currentResearch.scienceCosts.map((cost) => {
+      const key = keyForSource(cost.pack);
+      return quantityFor(state, key) / Math.max(0.0001, cost.amount);
+    }));
+    const completedUnits = Math.max(0, Math.min(requestedUnits, availableUnits));
+    if (completedUnits <= 0) break;
+    const costs = Object.fromEntries(currentResearch.scienceCosts.map((cost) => [keyForSource(cost.pack), cost.amount * completedUnits]));
+    spendInputs(state, costs, liveConsumption);
+    const nextProgress = Math.min(totalUnits, currentProgress + completedUnits);
+    state.researchProgress[currentResearch.name] = nextProgress;
+    remainingResearchSeconds -= completedUnits / researchRate * 60;
+    if (nextProgress < totalUnits) break;
+    markResearchComplete(state, currentResearch);
+    state.currentResearch = autoResearchTargetFor(state)?.name ?? currentResearch.name;
+    researchTargetsProcessed += 1;
   }
   const completed = state.queue.filter((item) => item.seconds <= seconds);
   state.queue = state.queue.map((item) => ({ ...item, seconds: Math.max(0, item.seconds - seconds) })).filter((item) => item.seconds > 0);
@@ -1202,18 +1207,20 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
            <div className="mt-4 flex gap-2">{state.labs ? <><button onClick={() => notice(`science labs are using ${currentLabUsage.toFixed(1)} packs / min`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-science-labs"><Gauge size={13} /> inspect usage</button><button onClick={buildLab} className={`button-base flex-1 !py-2 ${labIsBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label="Construct another science lab" data-testid="button-build-more-lab">{labIsBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={buildLab} className={`button-base button-primary flex-1 !py-2 ${labIsBuilding ? 'button-build-active' : ''}`} data-testid="button-build-lab">{labIsBuilding ? <><Check size={13} /> queued · build lab</> : <><Hammer size={13} /> construct lab</>}</button>}</div>
         </article>
         {scienceKeys.map((key) => {
-          const recipe = recipeMap[scienceRecipeKeys[key]];
+          const recipe = scienceRecipeFor(key);
+          if (!recipe) return null;
           const unlocked = recipeIsUnlocked(recipe, state);
           const required = requiredScienceKeys.includes(key);
           const productionCapacity = unlocked ? sciencePackProductionRateFor(state, key) : 0;
           const currentProduction = unlocked ? productionRateFor(state, key) : 0;
           const currentConsumption = required ? demandRateFor(state, key) : 0;
-            const peakConsumption = required ? scienceLabRateFor(state, activeResearch, false) * scienceCostAmountFor(activeResearch, key) : 0;
+          const peakConsumption = required ? scienceLabRateFor(state, activeResearch, false) * scienceCostAmountFor(activeResearch, key) : 0;
           const ingredients = recipe.ingredients.map((ingredient) => `${amountLabel(materialAmount(ingredient))} ${prettyLabel(keyForSource(ingredient.name))}`).join(' + ');
+          const outputs = recipeOutputs(recipe).map(({ key: outputKey, amount }) => `${amountLabel(amount)} ${prettyLabel(outputKey)}`).join(' + ');
           return <article className={`rounded-xl border p-3.5 sm:p-4 ${unlocked ? 'surface-soft' : 'locked-wash opacity-55 grayscale'}`} key={key} data-testid={`card-science-${key}`}>
-            <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item={key} size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{meta[key].label}</h2>{unlocked ? <Tag><span className="status-dot status-running" /> unlocked</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>}</div><p className="mt-1 truncate text-[9px] text-[hsl(var(--muted-foreground))]" title={ingredients}>recipe · {ingredients}</p></div></div>
+            <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item={key} size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{meta[key].label}</h2>{unlocked ? <Tag><span className="status-dot status-running" /> unlocked</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>}</div><p className="mt-1 truncate text-[9px] text-[hsl(var(--muted-foreground))]" title={`${ingredients} → ${outputs}`}>recipe · {ingredients} → {outputs} · {recipe.energyRequired}s cycle</p></div></div>
             <CompactMetricsRow production={currentProduction} peakProduction={productionCapacity} demand={currentConsumption} peakConsumption={peakConsumption} net={currentProduction - currentConsumption} storage={state.products[key] ?? 0} capacity={capFor(state, key)} />
-            <div className="mt-3 flex items-center justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span>{required ? 'required by active research' : 'not required by active research'}</span><span className="mono">{Math.min(productionCapacity, required ? labRate : productionCapacity).toFixed(1)} supported / min</span></div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[9px] text-[hsl(var(--muted-foreground))]"><span>{required ? 'required by active research' : 'not required by active research'}</span><span className="text-right"><span className="mono">{recipe.energyRequired}s</span> / cycle · <span className="mono">{amountLabel(recipeOutputs(recipe).reduce((total, output) => total + output.amount, 0))}</span> output</span></div>
           </article>;
         })}
       </div>
