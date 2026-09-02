@@ -541,15 +541,24 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (!count) return;
     const recipe = recipeMap[key];
     const machinePowerRatio = isSmeltingRecipe(recipe) ? 1 : powerRatio;
-    state.assemblyProgress[key] = (state.assemblyProgress[key] ?? 0) + count * seconds * speed * machinePowerRatio * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
+    // Progress represents an in-flight cycle, not a queue of completed
+    // cycles. Clamp legacy/starved backlog before advancing the line so a
+    // machine cannot burst above its steady-state rate when inputs return.
+    state.assemblyProgress[key] = Math.min(state.assemblyProgress[key] ?? 0, 0.999999)
+      + count * seconds * speed * machinePowerRatio * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
     let cycles = 0;
+    let blocked = false;
     while (state.assemblyProgress[key] >= 1 && cycles < 80) {
       const outputs = recipeOutputs(recipe);
-       if (!hasInputs(state, automatedRecipeInputs(recipe)) || outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) break;
+       if (!hasInputs(state, automatedRecipeInputs(recipe)) || outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) {
+        blocked = true;
+        break;
+      }
        spendInputs(state, automatedRecipeInputs(recipe), liveConsumption);
       outputs.forEach(({ key: outputKey, amount }) => { addTracked(state, outputKey, amount); recordProduction(state, outputKey, amount, liveProduction); });
       state.assemblyProgress[key] -= 1; state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0); cycles += 1;
     }
+    if (blocked && state.assemblyProgress[key] >= 1) state.assemblyProgress[key] %= 1;
   });
   if (state.handcraft) {
     state.handcraft.seconds = Math.max(0, state.handcraft.seconds - seconds * speed);

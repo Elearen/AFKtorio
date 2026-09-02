@@ -23,6 +23,12 @@ Recent production samples distinguish automated output from manual output, and l
 
 **How to apply:** Keep peak production source-compatible with current production, and invalidate transient rate history whenever its source model changes.
 
+Assembler cycle progress must never accumulate completed-cycle backlog while inputs, power, or output storage are blocked; retain only fractional in-cycle progress.
+
+**Why:** Releasing starvation backlog later creates a short production burst above the theoretical machine peak, even though the long-run recipe rate is correct.
+
+**How to apply:** Clamp legacy progress before each tick and reduce blocked residual progress modulo one cycle after attempted production.
+
 **Why:** The game needs deterministic one-at-a-time progression while still allowing players to plan a research path ahead of available prerequisites.
 
 **How to apply:** Keep auto selections normalized to catalog order and block later entries when the first pending selection is not yet available.
