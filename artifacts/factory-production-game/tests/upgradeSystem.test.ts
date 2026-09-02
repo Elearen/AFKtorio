@@ -13,6 +13,7 @@ import {
   craftingSpeedFor,
   cyclesPerMinuteFor,
   stoneFurnaceCraftingSpeed,
+  steelFurnaceCraftingSpeed,
 } from '../src/productionSystem.js';
 
 const baseState = (overrides: Partial<UpgradeStartState> = {}): UpgradeStartState => ({
@@ -141,6 +142,15 @@ test('save migration preserves an in-progress Iron Chests job', () => {
   assert.equal(migrated.queue[0].targetId, 'iron-chests');
 });
 
+test('save migration preserves an in-progress Steel Furnaces job', () => {
+  const migrated = migrateMachineUpgradeState({
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
+    queue: [{ id: 'steel', action: 'upgrade', target: 'Upgrade all furnaces to Steel Furnaces', targetId: 'steel-furnaces', machineCount: 4, seconds: 6, total: 12 }],
+  });
+
+  assert.equal(migrated.queue[0].targetId, 'steel-furnaces');
+});
+
 test('full storage reports zero mining output when there is no downstream demand', () => {
   assert.equal(bufferedActualRateFor(60, 180, 180, 0), 0);
   assert.equal(bufferedActualRateFor(60, 170, 180, 0), 60);
@@ -151,8 +161,10 @@ test('full storage reports zero mining output when there is no downstream demand
 test('building crafting speeds use absolute machine speeds', () => {
   assert.equal(assemblyMachineOneCraftingSpeed, 0.5);
   assert.equal(stoneFurnaceCraftingSpeed, 1);
+  assert.equal(steelFurnaceCraftingSpeed, 2);
   assert.equal(craftingSpeedFor(false, assemblyMachineOneCraftingSpeed), 0.5);
   assert.equal(craftingSpeedFor(true, assemblyMachineOneCraftingSpeed), 1);
+  assert.equal(craftingSpeedFor(true, assemblyMachineOneCraftingSpeed, steelFurnaceCraftingSpeed), 2);
   assert.equal(cyclesPerMinuteFor(1, 1, 10, 0.5), 3);
   assert.equal(cyclesPerMinuteFor(1, 1, 10, 1), 6);
 });

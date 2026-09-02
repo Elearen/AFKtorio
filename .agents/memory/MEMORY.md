@@ -9,3 +9,4 @@
 - [Coal mining exception](coal-mining-exception.md) — coal miners self-fuel and report net yield without consuming stored coal.
 - [Power generation model](power-generation-model.md) — boilers consume coal/water for virtual steam, engines convert it to power, and unlocked solar is zero-input.
 - [Storage chest tiers](storage-chest-tiers.md) — item-storage chest material is a global tier; fluid tanks remain independent and are never affected by chest upgrades.
+- [Furnace conversion](furnace-upgrade.md) — Steel Furnaces convert existing smelters globally; new construction follows the active furnace recipe.

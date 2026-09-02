@@ -4,7 +4,7 @@ import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial, type Recip
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
-import { assemblyMachineOneCraftingSpeed, craftingSpeedFor, cyclesPerMinuteFor } from './productionSystem';
+import { assemblyMachineOneCraftingSpeed, craftingSpeedFor, cyclesPerMinuteFor, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, fulfillConstructionReservation, normalizeConstructionQueue, reserveConstructionMaterials } from './constructionSystem';
 import {
   applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
@@ -87,6 +87,7 @@ type GameState = {
   produced: Record<string, number>;
   rateHistory: RateSample[];
   machineVariants: MachineVariants;
+  furnaceVariant: 'stone-furnace' | 'steel-furnace';
   totalOutput: number;
   lastSeen: number;
   simulationSpeed: number;
@@ -171,7 +172,7 @@ const pumpjackRecipe = recipeMap['pumpjack'];
 const fueledBurnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone'];
 const smeltingRecipeKeys = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
 const stoneFurnaceRecipe = recipeMap['stone-furnace'];
-const stoneFurnaceBuildCost = { stone: 5 };
+const steelFurnaceRecipe = recipeMap['steel-furnace'];
 const assemblyMachineOneRecipe = recipeMap['assembling-machine-1'];
 const assemblyMachineOneBuildCost = { circuit: 3, gear: 5, ironPlate: 9 };
 const assemblyMachineOnePowerKw = 75;
@@ -226,7 +227,16 @@ const automatedRecipeInputs = (recipe: Recipe) => {
   return inputs;
 };
 const isSmeltingRecipe = (recipe: Recipe) => smeltingRecipeKeys.has(recipe.name) && recipe.category === 'smelting';
-const productionBuildingFor = (state: GameState, recipe: Recipe) => isSmeltingRecipe(recipe) ? 'stone-furnace' : state.machineVariants.assembly;
+const furnaceCraftingSpeedFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? steelFurnaceCraftingSpeed : 1;
+const furnaceFuelMultiplierFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? 0.5 : 1;
+const automatedRecipeInputsFor = (state: GameState, recipe: Recipe) => {
+  const inputs = automatedRecipeInputs(recipe);
+  if (isSmeltingRecipe(recipe) && inputs.coal) inputs.coal *= furnaceFuelMultiplierFor(state);
+  return inputs;
+};
+const furnaceLabelFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? 'Steel Furnace' : 'Stone Furnace';
+const furnaceBuildRecipeFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? steelFurnaceRecipe : stoneFurnaceRecipe;
+const productionBuildingFor = (state: GameState, recipe: Recipe) => isSmeltingRecipe(recipe) ? state.furnaceVariant : state.machineVariants.assembly;
 const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
 const trackedKeys: TrackedKey[] = Array.from(new Set([
   ...rawKeys,
@@ -319,7 +329,7 @@ const initialState: GameState = {
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace',
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
 };
 
@@ -354,6 +364,7 @@ const storageCapacityFor = (state: GameState, key: TrackedKey) => calculateStora
 const capFor = (state: GameState, key: TrackedKey) => Math.floor(state.storage[key] ?? storageCapacityFor(state, key));
 const burnerMinerCount = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
 const electricAssemblerCount = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && !isSmeltingRecipe(recipeMap[recipeKey]) ? count : 0), 0);
+const smeltingFurnaceCountFor = (state: GameState) => Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => total + (state.assemblers[recipeKey] ?? 0), 0);
 const productionUnitCount = (state: GameState) => Object.values(state.assemblers).reduce((total, count) => total + count, 0);
 const assemblyMachineProductionSpeedFor = (state: GameState) => state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoProductionSpeed : assemblyMachineOneProductionSpeed;
 const assemblyMachinePowerFor = (state: GameState) => state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoPowerKw : assemblyMachineOnePowerKw;
@@ -468,7 +479,7 @@ const recipeCycleRateFor = (state: GameState, recipe: Recipe) => cyclesPerMinute
   state.assemblers[recipe.name] ?? 0,
   state.simulationSpeed,
   recipe.energyRequired,
-  craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state)),
+  craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state), furnaceCraftingSpeedFor(state)),
 );
 const miningBaseProductionRateFor = (state: GameState, key: RawKey) => {
   const count = miningMachineCountFor(state, key);
@@ -555,7 +566,7 @@ const peakDemandRateFor = (state: GameState, key: TrackedKey) => {
   let rate = key === 'coal' ? boilerPeakCoalUsageFor(state) + burnerMinerCoalRate(state) * 60 * state.simulationSpeed : key === 'water' ? boilerPeakWaterUsageFor(state) : 0;
   componentKeys.forEach((recipeKey) => {
     const recipe = recipeMap[recipeKey];
-    const input = automatedRecipeInputs(recipe)[key];
+    const input = automatedRecipeInputsFor(state, recipe)[key];
     if (input) rate += recipeCycleRateFor(state, recipe) * input;
   });
   if (scienceKeys.includes(key as ScienceKey)) {
@@ -591,15 +602,15 @@ const recipeProductionRateFor = (state: GameState, recipe: Recipe) => {
   const output = recipeOutputs(recipe)[0];
   return output ? productionRateFor(state, output.key) : 0;
 };
-const furnaceCoalPerItemFor = (recipe: Recipe) => {
+const furnaceCoalPerItemFor = (state: GameState, recipe: Recipe) => {
   const output = recipeOutputs(recipe)[0];
-  return recipe.fuel && output ? materialAmount(recipe.fuel) / Math.max(0.01, output.amount) : 0;
+  return recipe.fuel && output ? materialAmount(recipe.fuel) * furnaceFuelMultiplierFor(state) / Math.max(0.01, output.amount) : 0;
 };
 const furnaceCoalUsageFor = (state: GameState, recipe: Recipe, peak = false) => {
   const output = recipeOutputs(recipe)[0];
   if (!recipe.fuel || !output) return 0;
   const outputRate = peak ? recipeCycleRateFor(state, recipe) * output.amount : recipeProductionRateFor(state, recipe);
-  return outputRate * furnaceCoalPerItemFor(recipe);
+  return outputRate * furnaceCoalPerItemFor(state, recipe);
 };
 const scienceLabRateFor = (state: GameState, technology?: TechnologyDefinition, applyPowerRatio = true) => state.labs * labBaseResearchSpeed * 60 * state.simulationSpeed / technologyResearchTimeFor(technology) * (applyPowerRatio ? electricPowerRatioFor(state) : 1);
 const activeResearchTimeRemainingFor = (state: GameState, technology?: TechnologyDefinition) => {
@@ -688,18 +699,18 @@ function simulate(previous: GameState, seconds: number): GameState {
     // Progress represents an in-flight cycle, not a queue of completed
     // cycles. Clamp legacy/starved backlog before advancing the line so a
     // machine cannot burst above its steady-state rate when inputs return.
-    const machineCraftingSpeed = craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state));
+    const machineCraftingSpeed = craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state), furnaceCraftingSpeedFor(state));
     state.assemblyProgress[key] = Math.min(state.assemblyProgress[key] ?? 0, 0.999999)
       + cyclesPerMinuteFor(count, speed, recipe.energyRequired, machineCraftingSpeed) * seconds / 60 * machinePowerRatio * storageThrottle;
     let cycles = 0;
     let blocked = false;
     while (state.assemblyProgress[key] >= 1 && cycles < 80) {
       const outputs = recipeOutputs(recipe);
-       if (!hasInputs(state, automatedRecipeInputs(recipe)) || outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) {
+       if (!hasInputs(state, automatedRecipeInputsFor(state, recipe)) || outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) {
         blocked = true;
         break;
       }
-       spendInputs(state, automatedRecipeInputs(recipe), liveConsumption);
+       spendInputs(state, automatedRecipeInputsFor(state, recipe), liveConsumption);
       outputs.forEach(({ key: outputKey, amount }) => { addTracked(state, outputKey, amount); recordProduction(state, outputKey, amount, liveProduction); });
       state.assemblyProgress[key] -= 1; state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0); cycles += 1;
     }
@@ -782,6 +793,8 @@ function simulate(previous: GameState, seconds: number): GameState {
       if (upgradeId === 'iron-chests') {
         state.storageBoxType = 'iron';
         state.storage = Object.fromEntries(trackedKeys.map((key) => [key, storageCapacityFor(state, key)])) as Record<TrackedKey, number>;
+      } else if (upgradeId === 'steel-furnaces') {
+        state.furnaceVariant = 'steel-furnace';
       } else {
         state.machineVariants = applyUpgradeCompletion(state.machineVariants, upgradeId);
       }
@@ -810,6 +823,7 @@ function loadState() {
       return storage;
     })();
     const storageBoxType = parsed.storageBoxType === 'iron' ? 'iron' : 'wooden';
+    const furnaceVariant = parsed.furnaceVariant === 'steel-furnace' ? 'steel-furnace' : 'stone-furnace';
     const migratedStorage = migrateStorageState({
       trackedKeys,
       fluidKeys,
@@ -832,6 +846,7 @@ function loadState() {
       storageBoxes: migratedStorage.storageBoxes as Record<TrackedKey, number>,
       storageTanks: migratedStorage.storageTanks as Record<TrackedKey, number>,
       storageBoxType,
+      furnaceVariant,
       miners: { ...initialState.miners, ...parsed.miners },
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
       labs: migratedLabCount,
@@ -1047,7 +1062,7 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
   const activeAssemblers = productionUnitCount(state);
   const starvedLines = componentKeys.filter((key) => {
     const recipe = recipeMap[key];
-    return (state.assemblers[key] ?? 0) > 0 && !hasInputs(state, automatedRecipeInputs(recipe));
+    return (state.assemblers[key] ?? 0) > 0 && !hasInputs(state, automatedRecipeInputsFor(state, recipe));
   }).length;
   const rawDemandLines = rawKeys.filter((key) => peakDemandRateFor(state, key) > 0);
   const rawShortages = rawDemandLines.filter((key) => miningProductionRateFor(state, key) < peakDemandRateFor(state, key)).length;
@@ -1263,6 +1278,10 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const [category, setCategory] = useState('all');
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
   const automationUnlocked = state.research.includes('automation');
+  const currentFurnaceLabel = furnaceLabelFor(state);
+  const currentFurnaceBuildRecipe = furnaceBuildRecipeFor(state);
+  const currentFurnaceCosts = recipeBuildCosts(currentFurnaceBuildRecipe);
+  const currentFurnaceCoalPerItem = furnaceCoalPerItemFor(state, recipeMap['iron-plate']);
   const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
   const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => !['solar-panel', 'pumpjack'].includes(recipe.name) && recipeIsUnlocked(recipe, state)).filter((recipe) => {
     const matchesQuery = !query.trim() || `${recipe.name} ${recipe.category}`.toLowerCase().includes(query.trim().toLowerCase());
@@ -1286,7 +1305,9 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const buildProductionUnit = (key: ComponentKey) => {
     const recipe = recipeMap[key];
     if (isSmeltingRecipe(recipe)) {
-      enqueue('furnace', `${prettyLabel(key)} stone furnace`, stoneFurnaceRecipe.energyRequired, key, [{ key: 'stone', amount: stoneFurnaceBuildCost.stone, source: 'raw' }]);
+      if (state.queue.some((item) => item.action === 'upgrade' && item.targetId === 'steel-furnaces')) return notice('finish the furnace conversion before building more furnaces');
+      const furnaceRecipe = furnaceBuildRecipeFor(state);
+      enqueue('furnace', `${prettyLabel(key)} ${currentFurnaceLabel.toLowerCase()}`, furnaceRecipe.energyRequired, key, recipeBuildCosts(furnaceRecipe));
       return;
     }
     if (!automationUnlocked) return notice('Automation technology required');
@@ -1310,7 +1331,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
         </select>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source data includes hidden and disabled definitions.</span><span className="mono">{visibleRecipes.length} visible · {recipeCatalog.filter((recipe) => recipe.scienceChain === 'Core').length} core / {recipeCatalog.filter((recipe) => recipe.scienceChain === 'Non-Core').length} non-core</span></div>
-      <div className="data-row mt-3 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="stone-furnace" size={18} /><span className="text-[10px] font-semibold">Stone Furnace</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">5 stone · {stoneFurnaceRecipe.energyRequired}s build · smelting fuel 0.1 coal/item</span></div>
+       <div className="data-row mt-3 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item={state.furnaceVariant} size={18} /><span className="text-[10px] font-semibold">Additional builds · {currentFurnaceLabel}</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceCosts.map((cost) => `${amountLabel(cost.amount)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · {currentFurnaceBuildRecipe.energyRequired}s recipe build · speed {furnaceCraftingSpeedFor(state)} · {currentFurnaceCoalPerItem.toFixed(2)} coal/item</span></div>
       <div className="data-row mt-2 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item={state.machineVariants.assembly} size={18} /><span className="text-[10px] font-semibold">{productionMachineLabelFor(state)}</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">{productionMachineBuildCostFor(state).map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · {productionMachineRecipeFor(state).energyRequired}s build · {assemblyMachineProductionSpeedFor(state).toFixed(2)} speed · {assemblyMachinePowerFor(state)} kW</span></div>
     </section>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{visibleRecipes.map((recipe) => {
@@ -1325,7 +1346,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       const netRate = productionRate - demandRate;
       const smelting = isSmeltingRecipe(recipe);
        const building = productionBuildingFor(state, recipe);
-       const buildingLabel = smelting ? 'Stone Furnace' : productionMachineLabelFor(state);
+       const buildingLabel = smelting ? currentFurnaceLabel : productionMachineLabelFor(state);
       const buildingAction: QueueItem['action'] = smelting ? 'furnace' : 'assembler';
       const constructionItems = state.queue.filter((item) => item.action === buildingAction && item.targetId === key);
       const isBuilding = constructionItems.length > 0;
@@ -1349,7 +1370,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
             {outputs.map(({ key: outputKey, amount }, index) => <span className="resource-chip" style={{ borderColor: `${meta[outputKey].color}66` }} key={`${outputKey}-${index}`}><ResourceIcon item={outputKey} size={17} /><strong>{amountLabel(amount)}</strong> {meta[outputKey].short}</span>)}
           </div>
         </div>
-        {smelting && recipe.fuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">coal usage</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
+         {smelting && recipe.fuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
          <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} />
          <div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${prettyLabel(key)} ${buildingLabel.toLowerCase()} is running at ${productionRate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button>{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-more-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => handcraft(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-handcraft-production-${key}`}><Plus size={13} /> handcraft</button><button onClick={() => buildProductionUnit(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-${buildingAction}-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div>
          {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} />}
@@ -1506,6 +1527,13 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
   const storageUpgradeCosts = [{ key: 'ironPlate', amount: ironChestUpgradeCostFor(storageBoxCount), source: 'products' as const }];
   const storageUpgradeTotalSeconds = ironChestUpgradeTimeFor(storageBoxCount);
   const storageUpgradeMissing = storageUpgradeComplete || !storageBoxCount ? '' : missingBuildMaterials(state, storageUpgradeCosts);
+  const furnaceCount = smeltingFurnaceCountFor(state);
+  const furnaceUpgradeComplete = state.furnaceVariant === 'steel-furnace';
+  const furnaceUpgradeQueued = activeUpgrade?.targetId === 'steel-furnaces';
+  const furnaceUpgradeCostPerFurnace = recipeBuildCosts(steelFurnaceRecipe);
+  const furnaceUpgradeCosts = scaledBuildCosts(furnaceUpgradeCostPerFurnace, furnaceCount);
+  const furnaceUpgradeTotalSeconds = steelFurnaceRecipe.energyRequired * furnaceCount;
+  const furnaceUpgradeMissing = furnaceUpgradeComplete || !furnaceCount ? '' : missingBuildMaterials(state, furnaceUpgradeCosts);
   const startUpgrade = (upgrade: UpgradeDefinition) => {
     const jobId = `upgrade-${Date.now()}`;
     const result = beginUpgrade({
@@ -1541,8 +1569,30 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     }));
     notice(`Upgrade storage to Iron Chests started for ${storageBoxCount} chest${storageBoxCount === 1 ? '' : 's'}`);
   };
+  const startFurnaceUpgrade = () => {
+    if (furnaceUpgradeComplete) return notice('Steel Furnaces are already installed');
+    if (activeUpgrade) return notice('finish the active upgrade before starting another');
+    if (!furnaceCount) return notice('construct at least one stone furnace first');
+    if (furnaceUpgradeMissing) return notice(`missing ${furnaceUpgradeMissing}`);
+    const job: QueueItem = {
+      id: `upgrade-${Date.now()}`,
+      action: 'upgrade',
+      target: 'Upgrade all furnaces to Steel Furnaces',
+      targetId: 'steel-furnaces',
+      seconds: furnaceUpgradeTotalSeconds,
+      total: furnaceUpgradeTotalSeconds,
+      machineCount: furnaceCount,
+    };
+    setState((s) => {
+      const raw = { ...s.raw };
+      const products = { ...s.products };
+      reserveConstructionMaterials({ raw, products }, furnaceUpgradeCosts);
+      return { ...s, raw, products, queue: [...s.queue, job] };
+    });
+    notice(`Upgrade all furnaces to Steel Furnaces started for ${furnaceCount} furnace${furnaceCount === 1 ? '' : 's'}`);
+  };
   return <PageFrame>
-    <Header eyebrow="Machine + storage conversion" title="Upgrades" copy="Convert machines or upgrade every item-storage chest in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 3 upgrades</Tag>} />
+    <Header eyebrow="Machine + storage conversion" title="Upgrades" copy="Convert machines, furnaces, or item-storage chests in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 4 upgrades</Tag>} />
     <section className="surface mb-5 rounded-xl border-[hsl(var(--primary)/.25)] bg-[linear-gradient(100deg,hsl(34_28%_16%/.82),hsl(216_25%_14%/.96))] p-4 sm:p-5">
       <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">How conversion works</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Costs are calculated from the current number of relevant machines, deducted immediately, and all matching machines change variant together when the timer completes. Construction elsewhere in the factory can continue.</p></div></div>
     </section>
@@ -1574,6 +1624,19 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
           {!complete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{machineCount ? `${machineCount} machines · ${totalSeconds.toFixed(1)}s · total cost` : 'No relevant machines built'}</div></div><button onClick={() => startUpgrade(item)} disabled={!canStart} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-start-upgrade-${item.id}`}><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : missing ? `need ${missing}` : !prerequisiteMet ? 'locked' : !machineCount ? 'build machines first' : 'start upgrade'}</button></div>{machineCount > 0 && <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Total reserved now: {totalCosts.map(costLabel).join(' + ')}</div>}</div>}
         </section>;
       })}
+       <section className="surface rounded-xl p-4 sm:p-5" data-testid="card-upgrade-steel-furnaces">
+         <div className="flex items-start gap-3">
+           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><FlameIcon /></div>
+           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">Upgrade all furnaces to Steel Furnaces</h2>{furnaceUpgradeComplete ? <Tag><Check size={10} /> installed</Tag> : furnaceUpgradeQueued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : <Tag tone="amber">available</Tag>}</div><p className="mt-1 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">Convert every constructed stone furnace together. Steel Furnaces run at twice the speed and use half the coal per item.</p></div>
+         </div>
+         {furnaceUpgradeQueued && activeUpgrade && <div className="construction-panel mt-4 rounded-lg p-3" aria-live="polite" data-testid="panel-upgrade-progress-steel-furnaces"><div className="flex items-start justify-between gap-3"><div><div className="eyebrow text-[hsl(var(--primary))]">Upgrade in progress</div><div className="mt-1 text-[10px] font-bold">{activeUpgrade.machineCount} stone furnace{activeUpgrade.machineCount === 1 ? '' : 's'} converting</div></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(activeUpgrade.seconds)}</span></div><div className="mt-2"><Progress value={(1 - activeUpgrade.seconds / activeUpgrade.total) * 100} tone="amber" /></div><div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(Math.max(0, (1 - activeUpgrade.seconds / activeUpgrade.total) * 100))}% complete</span><span>{activeUpgrade.total.toFixed(1)}s total</span></div></div>}
+         <div className="mt-4 grid gap-2 text-[10px]">
+           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Current furnaces</div><div className="mt-1 flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 font-semibold"><ResourceIcon item={state.furnaceVariant} size={18} />{furnaceLabelFor(state)}s</span><span className="mono text-[hsl(var(--secondary))]">{furnaceUpgradeQueued ? activeUpgrade?.machineCount : furnaceCount} built</span></div></div>
+           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Upgrade cost · {steelFurnaceRecipe.energyRequired}s per furnace</div><div className="mt-2">{costChips(furnaceUpgradeCostPerFurnace)}</div></div>
+           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">New furnace</div><div className="mt-1 flex items-center justify-between gap-2 font-semibold"><span className="flex items-center gap-1.5"><ResourceIcon item="steel-furnace" size={18} />Steel Furnaces</span><span className="mono text-[hsl(var(--secondary))]">speed {steelFurnaceCraftingSpeed} · 0.05 coal/item</span></div></div>
+         </div>
+         {!furnaceUpgradeComplete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{furnaceCount ? `${furnaceCount} furnaces · ${furnaceUpgradeTotalSeconds.toFixed(1)}s · total cost` : 'No stone furnaces built'}</div></div><button onClick={startFurnaceUpgrade} disabled={!!activeUpgrade || !furnaceCount || !!furnaceUpgradeMissing} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-upgrade-steel-furnaces"><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : furnaceUpgradeMissing ? `need ${furnaceUpgradeMissing}` : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</button></div>{furnaceCount > 0 && <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Total reserved now: {furnaceUpgradeCosts.map(costLabel).join(' + ')}</div>}</div>}
+       </section>
        <section className="surface rounded-xl p-4 sm:p-5" data-testid="card-upgrade-iron-chests">
          <div className="flex items-start gap-3">
            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><Box size={18} /></div>
