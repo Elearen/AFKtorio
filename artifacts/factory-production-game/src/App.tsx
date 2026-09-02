@@ -186,9 +186,9 @@ const spendInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number
     else state.products[key] = (state.products[key] ?? 0) - (value ?? 0);
   });
 };
-const addTracked = (state: GameState, key: TrackedKey, amount: number) => {
-  if (rawKeys.includes(key as RawKey)) state.raw[key as RawKey] = Math.min(capFor(state, key), state.raw[key as RawKey] + amount);
-  else state.products[key] = Math.min(capFor(state, key), (state.products[key] ?? 0) + amount);
+const addTracked = (state: GameState, key: TrackedKey, amount: number, ignoreCapacity = false) => {
+  if (rawKeys.includes(key as RawKey)) state.raw[key as RawKey] = ignoreCapacity ? state.raw[key as RawKey] + amount : Math.min(capFor(state, key), state.raw[key as RawKey] + amount);
+  else state.products[key] = ignoreCapacity ? (state.products[key] ?? 0) + amount : Math.min(capFor(state, key), (state.products[key] ?? 0) + amount);
 };
 const recordProduction = (state: GameState, key: TrackedKey, amount: number) => {
   state.produced[key] = (state.produced[key] ?? 0) + amount;
@@ -287,12 +287,9 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (state.handcraft.seconds <= 0) {
       const recipe = recipeMap[state.handcraft.recipeKey];
       const outputs = recipeOutputs(recipe);
-      const outputFits = outputs.every(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount <= capFor(state, outputKey));
-      if (outputFits) {
-        outputs.forEach(({ key: outputKey, amount }) => { addTracked(state, outputKey, amount); recordProduction(state, outputKey, amount); });
-        state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0);
-        state.handcraft = null;
-      }
+      outputs.forEach(({ key: outputKey, amount }) => { addTracked(state, outputKey, amount, true); recordProduction(state, outputKey, amount); });
+      state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0);
+      state.handcraft = null;
     }
   }
   state.labProgress += state.labs * seconds * speed / 5;
@@ -396,20 +393,20 @@ function BuildProgress({ items, label }: { items: QueueItem[]; label: string }) 
 }
 function HandcraftProgress({ job, recipe }: { job: HandcraftJob; recipe: Recipe }) {
   const output = recipeOutputs(recipe)[0];
-  const blocked = job.seconds <= 0;
+  const finishing = job.seconds <= 0;
   return <div className="construction-panel mt-3 rounded-lg p-3" aria-live="polite" data-testid={`panel-handcraft-${job.recipeKey}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-2">
         <div className="construction-pulse mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md">{output && <ResourceIcon item={output.key} size={15} />}</div>
         <div className="min-w-0">
-          <div className="eyebrow text-[hsl(var(--primary))]">{blocked ? 'Handcraft waiting' : 'Handcraft in progress'}</div>
+          <div className="eyebrow text-[hsl(var(--primary))]">{finishing ? 'Handcraft completing' : 'Handcraft in progress'}</div>
           <div className="mt-1 truncate text-[10px] font-bold">{prettyLabel(job.recipeKey)}</div>
         </div>
       </div>
-      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{blocked ? 'storage full' : `${job.seconds.toFixed(2)}s`}</span>
+      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{finishing ? 'finishing' : `${job.seconds.toFixed(2)}s`}</span>
     </div>
     <div className="mt-2"><Progress value={(1 - job.seconds / job.total) * 100} tone="amber" /></div>
-    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{blocked ? 'clear output storage to finish' : `${Math.floor(Math.max(0, 1 - job.seconds / job.total) * 100)}% complete`}</span><span>one item at a time</span></div>
+    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{finishing ? 'output will be stored above capacity if needed' : `${Math.floor(Math.max(0, 1 - job.seconds / job.total) * 100)}% complete`}</span><span>one item at a time</span></div>
   </div>;
 }
 
@@ -470,7 +467,6 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
     if (state.handcraft) return notice(state.handcraft.recipeKey === key ? `already handcrafting ${prettyLabel(key)}` : `finish handcrafting ${prettyLabel(state.handcraft.recipeKey)} first`);
     if (!hasInputs(state, recipeInputs(recipe))) return notice('missing recipe inputs');
     const outputs = recipeOutputs(recipe);
-    if (outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) return notice('output storage is full');
     setState((s) => {
       const next = { ...s, raw: { ...s.raw }, products: { ...s.products } };
       spendInputs(next, recipeInputs(recipe));
