@@ -4,6 +4,7 @@ import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial, type Recip
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
+import { canBuildRocketSilo, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
 import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, fulfillConstructionReservation, normalizeConstructionQueue, reserveConstructionMaterials } from './constructionSystem';
 import {
@@ -22,7 +23,7 @@ import {
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, Factory as FactoryIcon, FlaskConical, Gauge, Hammer,
-  Info, Layers3, Lightbulb, LockKeyhole, Pickaxe, Plus, Power,
+  Info, Layers3, Lightbulb, LockKeyhole, Pickaxe, Plus, Power, Rocket,
   RotateCcw, Save, Settings2, ShieldAlert, Sparkles, Sun, Trash2,
   TrendingUp, TriangleAlert, Truck, Waves, X, Zap,
 } from 'lucide-react';
@@ -42,7 +43,7 @@ type SupplyStatus = { tone: SupplyStatusTone; label: string; detail: string };
 type Recipe = RecipeCatalogEntry;
 type QueueItem = {
   id: string;
-  action: 'miner' | 'pump' | 'pumpjack' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'storage' | 'upgrade';
+  action: 'miner' | 'pump' | 'pumpjack' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'storage' | 'upgrade' | 'rocketSilo' | 'rocketParts';
   target: string;
   targetId?: string;
   seconds: number;
@@ -92,6 +93,13 @@ type GameState = {
   totalOutput: number;
   lastSeen: number;
   simulationSpeed: number;
+  rocketSiloBuilt: boolean;
+  rocketPartsBuilt: number;
+  rocketReadyAcknowledged: boolean;
+  rocketLaunched: boolean;
+  gameComplete: boolean;
+  completionTotalOutput: number | null;
+  completionStats: Record<string, number> | null;
 };
 
 const SAVE_KEY = 'factory-production-game-save-v2';
@@ -291,6 +299,8 @@ const recipeIsUnlocked = (recipe: Recipe, state: GameState) => recipe.name === '
   ? state.oilProcessingAdvanced
   : recipe.name === 'basic-oil-processing'
     ? !state.oilProcessingAdvanced && (recipeUnlockResearch[recipe.name] ?? []).some((technology) => state.research.includes(technology))
+    : recipe.name === 'space-science-pack'
+      ? state.research.includes('space-science-pack')
     : recipe.enabled || (recipeUnlockResearch[recipe.name] ?? []).some((technology) => state.research.includes(technology));
 const unlockedProductKeys = (state: GameState) => new Set([
   ...rawKeys.filter((key) => rawProductIsUnlocked(key, state)),
@@ -322,6 +332,11 @@ const recipeBuildCosts = (recipe: Recipe): BuildMaterialCost[] => Object.entries
   amount: amount ?? 0,
   source: rawKeys.includes(key as RawKey) ? 'raw' : 'products',
 }));
+const rocketSiloRecipe = recipeMap['rocket-silo'];
+const rocketPartRecipe = recipeMap['rocket-part'];
+const rocketSiloBuildCost: BuildMaterialCost[] = recipeBuildCostsForRocket(rocketSiloRecipe);
+const rocketPartBuildCost: BuildMaterialCost[] = recipeBuildCostsForRocket(rocketPartRecipe);
+const rocketPartBatchCost: BuildMaterialCost[] = scaleRocketCosts(rocketPartBuildCost, ROCKET_PART_TARGET);
 const solarPanelBuildCost = recipeBuildCosts(solarPanelRecipe);
 const pumpjackBuildCost = recipeBuildCosts(pumpjackRecipe);
 const storageTankBuildCost = recipeBuildCosts(storageTankRecipe);
@@ -349,7 +364,7 @@ const initialState: GameState = {
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace',
-  totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
+  totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null,
 };
 
 const nav = [
@@ -832,6 +847,20 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (item.action === 'boiler') state.boilers += 1;
     if (item.action === 'steamEngine') state.steamEngines += 1;
     if (item.action === 'solarPanel') state.solarPanels += 1;
+    if (item.action === 'rocketSilo') {
+      state.rocketSiloBuilt = true;
+      recordProduction(state, 'rocket-silo', 1, liveProduction);
+      state.totalOutput += 1;
+    }
+    if (item.action === 'rocketParts') {
+      const constructed = rocketPartCountAfterConstruction(state.rocketPartsBuilt, item.machineCount ?? ROCKET_PART_TARGET);
+      const producedParts = constructed - state.rocketPartsBuilt;
+      state.rocketPartsBuilt = constructed;
+      if (producedParts > 0) {
+        recordProduction(state, 'rocket-part', producedParts, liveProduction);
+        state.totalOutput += producedParts;
+      }
+    }
     if (item.action === 'storage') {
       const key = item.targetId ?? item.target;
       const completedStorage = completeStorageConstruction({
@@ -943,6 +972,13 @@ function loadState() {
       autoResearch: orderedTechnologyCatalog.filter((technology) => (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
       researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
       lastSeen: parsed.lastSeen ?? Date.now(),
+      rocketSiloBuilt: parsed.rocketSiloBuilt === true,
+      rocketPartsBuilt: Math.min(ROCKET_PART_TARGET, Math.max(0, Number(parsed.rocketPartsBuilt) || 0)),
+      rocketReadyAcknowledged: parsed.rocketReadyAcknowledged === true,
+      rocketLaunched: parsed.rocketLaunched === true,
+      gameComplete: parsed.gameComplete === true,
+      completionTotalOutput: typeof parsed.completionTotalOutput === 'number' ? Math.max(0, parsed.completionTotalOutput) : null,
+      completionStats: parsed.completionStats && typeof parsed.completionStats === 'object' ? { ...parsed.completionStats } : null,
     } as GameState;
     delete (state as GameState & { upgrades?: unknown }).upgrades;
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
@@ -1107,6 +1143,52 @@ function ManualMiningProgress({ job }: { job: ManualMiningJob }) {
     <div className="mt-2"><Progress value={complete} tone="amber" /></div>
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{complete}% complete</span><span>one item at a time</span></div>
   </div>;
+}
+
+function RocketEndgameCard({ state, enqueue, notice }: Pick<PageProps, 'state' | 'enqueue' | 'notice'>) {
+  const siloQueued = state.queue.some((item) => item.action === 'rocketSilo');
+  const partsQueued = state.queue.some((item) => item.action === 'rocketParts');
+  const siloCanBuild = canBuildRocketSilo(state.rocketSiloBuilt, siloQueued);
+  const partsRemaining = Math.max(0, ROCKET_PART_TARGET - state.rocketPartsBuilt);
+  const partsComplete = state.rocketPartsBuilt >= ROCKET_PART_TARGET;
+  const costLabel = (cost: BuildMaterialCost) => `${fmt(cost.amount)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`;
+  const buildSilo = () => {
+    if (!siloCanBuild) return notice(state.rocketSiloBuilt ? 'only one Rocket Silo can be built' : 'Rocket Silo construction is already queued');
+    enqueue('rocketSilo', 'Rocket Silo', rocketSiloRecipe.energyRequired, 'rocket-silo', rocketSiloBuildCost);
+    notice('Rocket Silo construction queued');
+  };
+  const buildParts = () => {
+    if (!state.rocketSiloBuilt) return notice('construct the Rocket Silo first');
+    if (partsComplete) return notice('all 100 rocket parts are complete');
+    if (partsQueued) return notice('rocket part construction is already queued');
+    enqueue('rocketParts', `Rocket Parts · ${ROCKET_PART_TARGET}`, rocketPartBatchTimeFor(rocketPartRecipe), 'rocket-part', rocketPartBatchCost);
+    notice(`${ROCKET_PART_TARGET} rocket parts queued`);
+  };
+  return <article className="surface rounded-xl border-[hsl(var(--primary)/.55)] bg-[linear-gradient(145deg,hsl(35_24%_16%),hsl(216_25%_12%))] p-4 shadow-lg sm:p-5 md:col-span-2 xl:col-span-3" data-testid="card-win-factory-planet">
+    <div className="flex items-start gap-3">
+      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[hsl(var(--primary)/.55)] bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Rocket size={22} /></div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow text-[hsl(var(--primary))]">Endgame sequence</div><h2 className="mt-1 text-[15px] font-extrabold">Win Factory Planet</h2></div><Tag tone={partsComplete ? 'teal' : 'amber'}>{partsComplete ? <><Check size={10} /> rocket ready</> : state.rocketSiloBuilt ? 'silo online' : 'silo required'}</Tag></div>
+        <p className="mt-2 max-w-3xl text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">Complete the launch sequence: construct one Rocket Silo, then build 100 Rocket Parts. The construction queue will reserve available materials and fund the sequence as production arrives.</p>
+      </div>
+    </div>
+    <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <div className={`rounded-xl border p-3.5 ${state.rocketSiloBuilt ? 'border-[hsl(var(--secondary)/.35)] bg-[hsl(var(--secondary)/.06)]' : 'border-[hsl(var(--primary)/.3)] bg-[hsl(216_24%_10%/.7)]'}`} data-testid="panel-rocket-silo-step">
+        <div className="flex items-center justify-between gap-2"><div className="eyebrow">01 · Rocket Silo</div><span className="mono text-[10px] text-[hsl(var(--secondary))]">{state.rocketSiloBuilt ? 'constructed' : siloQueued ? 'queued' : '1 required'}</span></div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">{rocketSiloBuildCost.map((cost) => <span className="resource-chip !px-1.5 !py-1" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={15} />{costLabel(cost)}</span>)}<span className="resource-chip !px-1.5 !py-1"><Clock3 size={14} />{rocketSiloRecipe.energyRequired}s</span></div>
+        {siloQueued && <BuildProgress items={state.queue.filter((item) => item.action === 'rocketSilo')} label="Rocket Silo" />}
+        <button onClick={buildSilo} disabled={!siloCanBuild} className={`button-base mt-4 w-full !py-2 ${state.rocketSiloBuilt || siloQueued ? 'button-ghost' : 'button-primary'} disabled:cursor-not-allowed disabled:opacity-45`} data-testid="button-build-rocket-silo">{state.rocketSiloBuilt ? <><Check size={13} /> Rocket Silo constructed</> : siloQueued ? <><Clock3 size={13} /> construction queued</> : <><Hammer size={13} /> construct Rocket Silo</>}</button>
+      </div>
+      <div className={`rounded-xl border p-3.5 ${partsComplete ? 'border-[hsl(var(--secondary)/.45)] bg-[hsl(var(--secondary)/.08)]' : 'border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.7)]'}`} data-testid="panel-rocket-parts-step">
+        <div className="flex items-center justify-between gap-2"><div className="eyebrow">02 · Rocket Parts</div><span className="mono text-[10px] text-[hsl(var(--secondary))]">{fmt(state.rocketPartsBuilt)} / {ROCKET_PART_TARGET}</span></div>
+        <div className="mt-2"><Progress value={state.rocketPartsBuilt / ROCKET_PART_TARGET * 100} tone={partsComplete ? 'teal' : 'amber'} /></div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">{rocketPartBuildCost.map((cost) => <span className="resource-chip !px-1.5 !py-1" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={15} />{costLabel(cost)} / part</span>)}<span className="resource-chip !px-1.5 !py-1"><Clock3 size={14} />{rocketPartRecipe.energyRequired}s / part</span></div>
+        <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Batch requirement: {partsRemaining ? `${fmt(partsRemaining)} more · ${fmt(rocketPartBatchCost.reduce((total, cost) => total + cost.amount, 0))} total materials shown by line` : '100 parts complete'}</div>
+        {partsQueued && <BuildProgress items={state.queue.filter((item) => item.action === 'rocketParts')} label={`Rocket Parts · ${ROCKET_PART_TARGET}`} />}
+        <button onClick={buildParts} disabled={!state.rocketSiloBuilt || partsComplete || partsQueued} className={`button-base mt-4 w-full !py-2 ${partsComplete ? 'button-ghost' : 'button-primary'} disabled:cursor-not-allowed disabled:opacity-45`} data-testid="button-build-rocket-parts">{!state.rocketSiloBuilt ? <><LockKeyhole size={13} /> requires Rocket Silo</> : partsComplete ? <><Check size={13} /> 100 parts complete</> : partsQueued ? <><Clock3 size={13} /> construction queued</> : <><Hammer size={13} /> construct 100 rocket parts</>}</button>
+      </div>
+    </div>
+  </article>;
 }
 
 function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
@@ -1345,7 +1427,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const currentFurnaceCosts = recipeBuildCosts(currentFurnaceBuildRecipe);
   const currentFurnaceCoalPerItem = furnaceCoalPerItemFor(state, recipeMap['iron-plate']);
   const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
-  const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => !['solar-panel', 'pumpjack'].includes(recipe.name) && recipeIsUnlocked(recipe, state)).filter((recipe) => {
+  const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => !['solar-panel', 'pumpjack', 'rocket-silo', 'rocket-part'].includes(recipe.name) && recipeIsUnlocked(recipe, state)).filter((recipe) => {
     const matchesQuery = !query.trim() || `${recipe.name} ${recipe.category}`.toLowerCase().includes(query.trim().toLowerCase());
     return matchesQuery && (category === 'all' || recipe.category === category) && (scienceFilter === 'all' || recipe.scienceChain === scienceFilter);
   }), [category, query, scienceFilter, state]);
@@ -1398,7 +1480,9 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
        <div className="data-row mt-3 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item={state.furnaceVariant} size={18} /><span className="text-[10px] font-semibold">Additional builds · {currentFurnaceLabel}</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceCosts.map((cost) => `${amountLabel(cost.amount)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · {currentFurnaceBuildRecipe.energyRequired}s recipe build · speed {furnaceCraftingSpeedFor(state)} · {currentFurnaceCoalPerItem.toFixed(2)} coal/item</span></div>
       <div className="data-row mt-2 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item={state.machineVariants.assembly} size={18} /><span className="text-[10px] font-semibold">{productionMachineLabelFor(state)}</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">{productionMachineBuildCostFor(state).map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · {productionMachineRecipeFor(state).energyRequired}s build · {assemblyMachineProductionSpeedFor(state).toFixed(2)} speed · {assemblyMachinePowerFor(state)} kW</span></div>
     </section>
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{visibleRecipes.map((recipe) => {
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {state.research.includes('rocket-silo') && !state.gameComplete && <RocketEndgameCard state={state} enqueue={enqueue} notice={notice} />}
+      {visibleRecipes.map((recipe) => {
       const key = recipe.name;
       const outputs = recipeOutputs(recipe);
       const primaryOutput = outputs[0];
@@ -1441,7 +1525,8 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
          <div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${prettyLabel(key)} ${buildingLabel.toLowerCase()} is running at ${productionRate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button>{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-more-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => handcraft(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-handcraft-production-${key}`}><Plus size={13} /> handcraft</button><button onClick={() => buildProductionUnit(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-${buildingAction}-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div>
          {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} />}
       </section>;
-    })}</div>
+      })}
+    </div>
   </PageFrame>;
 }
 
@@ -1977,6 +2062,32 @@ function ResearchCompletionModal({ state, setState }: Pick<PageProps, 'state' | 
   </div>;
 }
 
+function RocketReadyModal({ onLaunch }: { onLaunch: () => void }) {
+  return <div className="fixed inset-0 z-[75] grid place-items-center bg-[hsl(0_0%_0%/.8)] p-4 backdrop-blur-sm" role="presentation">
+    <section className="surface w-full max-w-[520px] rounded-2xl border-[hsl(var(--primary)/.7)] bg-[linear-gradient(145deg,hsl(35_30%_18%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="rocket-ready-title" data-testid="dialog-rocket-ready">
+      <div className="flex items-center justify-between gap-3"><Tag tone="amber"><Rocket size={11} /> launch sequence</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">100 / 100 parts</span></div>
+      <div className="mt-5 flex items-center gap-4"><div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl border border-[hsl(var(--primary)/.5)] bg-[hsl(216_25%_10%)]"><Rocket size={42} className="text-[hsl(var(--primary))]" /></div><div><h2 id="rocket-ready-title" className="text-2xl font-extrabold">Rocket Ready</h2><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">The silo is fueled, the rocket is assembled, and Factory Planet is ready for its first launch.</p></div></div>
+      <div className="surface-soft mt-5 rounded-xl border-[hsl(var(--primary)/.3)] p-3 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">Launching will complete the factory objective and unlock the existing Space Science Pack technology.</div>
+      <button onClick={onLaunch} className="button-base button-primary mt-5 w-full !py-3 text-[12px]" data-testid="button-launch-rocket"><Rocket size={15} /> Launch</button>
+    </section>
+  </div>;
+}
+
+function GameCompleteModal({ totalOutput, stats, onClose }: { totalOutput: number; stats: Record<string, number>; onClose: () => void }) {
+  const lifetimeStats = Object.entries(stats).filter(([, amount]) => amount > 0).sort(([, a], [, b]) => b - a).slice(0, 8);
+  return <div className="fixed inset-0 z-[75] grid place-items-center bg-[hsl(0_0%_0%/.82)] p-4 backdrop-blur-sm" role="presentation">
+    <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--secondary)/.75)] bg-[linear-gradient(145deg,hsl(174_28%_16%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="game-complete-title" data-testid="dialog-game-complete">
+      <div className="flex items-center justify-between gap-3"><Tag><Check size={11} /> mission complete</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">SECTOR 07 · WON</span></div>
+      <div className="mt-4 overflow-hidden rounded-xl border border-[hsl(var(--secondary)/.35)] bg-[radial-gradient(circle_at_50%_115%,hsl(35_48%_30%/.7),transparent_42%),linear-gradient(180deg,hsl(216_34%_12%),hsl(216_30%_8%))] p-4">
+        <div className="flex h-36 items-center justify-center"><img src={`${import.meta.env.BASE_URL}item-icons/rocket.png`} width={128} height={128} alt="Flying Factorio rocket" className="h-28 w-28 object-contain drop-shadow-[0_12px_12px_hsl(35_90%_55%/.35)]" /></div>
+      </div>
+      <div className="mt-5 text-center"><h2 id="game-complete-title" className="text-2xl font-extrabold">Game complete</h2><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Planet has reached orbit. Your production record is preserved below.</p></div>
+      <div className="surface-soft mt-5 rounded-xl p-3" data-testid="panel-lifetime-production"><div className="eyebrow">Lifetime item production</div><div className="mono mt-1 text-2xl text-[hsl(var(--secondary))]">{fmt(totalOutput)}</div><div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-[hsl(var(--border))] pt-3 sm:grid-cols-4">{lifetimeStats.map(([key, amount]) => <div key={key} className="min-w-0"><div className="truncate text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key]?.label ?? prettyLabel(key)}</div><div className="mono text-[11px] text-[hsl(var(--foreground))]">{fmt(amount)}</div></div>)}</div></div>
+      <button onClick={onClose} className="button-base button-primary mt-5 w-full !py-3" data-testid="button-close-game-complete"><Check size={14} /> OK</button>
+    </section>
+  </div>;
+}
+
 function SettingsPage({ state, setState, saveNow, reset, notice }: PageProps) {
   const [confirm, setConfirm] = useState(false);
   return <PageFrame><Header eyebrow="Control room preferences" title="Settings" copy="Local controls for this browser instance. Nothing here changes the scope of the simulation." action={<Tag><Save size={11} /> local save</Tag>} /><div className="grid gap-5 lg:grid-cols-2"><section className="surface rounded-xl p-5"><SectionTitle>Local save controls</SectionTitle><div className="rounded-xl bg-[hsl(216_24%_10%/.7)] p-4"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><Save size={16} /></div><div><div className="text-[12px] font-bold">Browser save is active</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Production ticks and settings survive a reload.</div></div></div><div className="mt-4 flex gap-2"><button onClick={() => { saveNow(); notice('save committed now'); }} className="button-base button-primary" data-testid="button-save-now"><Save size={13} /> save now</button><button onClick={() => setConfirm(true)} className="button-base button-ghost text-[hsl(var(--destructive))]" data-testid="button-reset-save"><Trash2 size={13} /> reset progress</button></div></div>{confirm && <div className="mt-3 rounded-xl border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] p-4" data-testid="panel-reset-confirm"><div className="flex gap-2"><ShieldAlert size={16} className="text-[hsl(var(--destructive))]" /><div><div className="text-[12px] font-bold">Reset this factory?</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">This removes the local save and starts a new sector. This cannot be undone.</p></div></div><div className="mt-3 flex gap-2"><button onClick={() => { reset(); setConfirm(false); notice('new sector initialized'); }} className="button-base bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]" data-testid="button-confirm-reset">confirm reset</button><button onClick={() => setConfirm(false)} className="button-base button-ghost" data-testid="button-cancel-reset">cancel</button></div></div>}</section><section className="surface rounded-xl p-5"><SectionTitle>Simulation speed</SectionTitle><div className="grid grid-cols-3 gap-2">{[.5, 1, 2].map((speed) => <button onClick={() => setState((s) => ({ ...s, simulationSpeed: speed }))} className={`button-base py-3 ${state.simulationSpeed === speed ? 'button-primary' : 'button-ghost'}`} key={speed} data-testid={`button-speed-${speed}`}>{speed}x</button>)}</div><div className="mt-5 border-t border-[hsl(var(--border))] pt-4"><SectionTitle>Control legend</SectionTitle><div className="space-y-3 text-[11px] text-[hsl(var(--muted-foreground))]"><div className="flex items-center gap-2"><span className="status-dot status-running" /><span><strong className="text-[hsl(var(--foreground))]">Green</strong> means a unit is consuming and producing.</span></div><div className="flex items-center gap-2"><span className="status-dot status-starved" /><span><strong className="text-[hsl(var(--foreground))]">Yellow</strong> means an input is below recipe demand.</span></div><div className="flex items-center gap-2"><span className="status-dot status-blocked" /><span><strong className="text-[hsl(var(--foreground))]">Red</strong> means output or a control path is blocked.</span></div></div></div></section></div><section className="surface mt-5 rounded-xl p-5"><div className="flex items-start gap-3"><CircleHelp size={17} className="text-[hsl(var(--primary))]" /><div><div className="eyebrow">About this slice</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Production Game is a local, playable incremental factory. The resource art, production loop, and control-room language are original to this interface.</p></div></div></section></PageFrame>;
@@ -1992,13 +2103,21 @@ function Game() {
   const [away] = useState(initial.away);
   const [recovered] = useState(initial.recovered);
   const [toast, setToast] = useState('');
+  const [endgameModal, setEndgameModal] = useState<'rocket-ready' | 'game-complete' | null>(null);
   const [location] = useLocation();
   const notice = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 1800); };
   useEffect(() => { const timer = window.setInterval(() => setState((s) => simulate(s, 1)), 1000); return () => window.clearInterval(timer); }, []);
   useEffect(() => { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }, [state]);
+  useEffect(() => {
+    if (state.gameComplete) setEndgameModal(null);
+    else if (state.rocketLaunched) setEndgameModal('game-complete');
+    else if (state.rocketPartsBuilt >= ROCKET_PART_TARGET && !state.rocketReadyAcknowledged) setEndgameModal('rocket-ready');
+  }, [state.gameComplete, state.rocketLaunched, state.rocketPartsBuilt, state.rocketReadyAcknowledged]);
   const saveNow = () => localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, lastSeen: Date.now() }));
-  const reset = () => { localStorage.removeItem(SAVE_KEY); setState({ ...initialState, lastSeen: Date.now(), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] }); };
+  const reset = () => { localStorage.removeItem(SAVE_KEY); setEndgameModal(null); setState({ ...initialState, lastSeen: Date.now(), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] }); };
   const enqueue = (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => setState((s) => {
+    if (action === 'rocketSilo' && !canBuildRocketSilo(s.rocketSiloBuilt, s.queue.some((item) => item.action === 'rocketSilo'))) return s;
+    if (action === 'rocketParts' && (!s.rocketSiloBuilt || s.rocketPartsBuilt >= ROCKET_PART_TARGET || s.queue.some((item) => item.action === 'rocketParts'))) return s;
     const raw = { ...s.raw };
     const products = { ...s.products };
     const requestCosts = costs?.map((cost) => ({ ...cost }));
@@ -2017,6 +2136,14 @@ function Game() {
     };
     return { ...s, raw, products, queue: [...s.queue, item] };
   });
+  const launchRocket = () => {
+    setState((s) => ({ ...s, rocketReadyAcknowledged: true, rocketLaunched: true, completionTotalOutput: s.totalOutput, completionStats: { ...s.produced } }));
+    setEndgameModal('game-complete');
+  };
+  const finishGame = () => {
+    setState((s) => ({ ...s, gameComplete: true, research: unlockSpaceScienceAfterLaunch(s.research) }));
+    setEndgameModal(null);
+  };
   const props = { state, setState, enqueue, saveNow, reset, notice, away, recovered };
   const pageKey = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
   let page: ReactNode;
@@ -2030,7 +2157,7 @@ function Game() {
   else if (pageKey === 'research') page = <ResearchPage {...props} />;
   else if (pageKey === 'settings') page = <SettingsPage {...props} />;
   else page = <FactoryPage {...props} />;
-  return <Shell state={state}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}</Shell>;
+  return <Shell state={state}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{endgameModal === 'game-complete' && <GameCompleteModal totalOutput={state.completionTotalOutput ?? state.totalOutput} stats={state.completionStats ?? state.produced} onClose={finishGame} />}</Shell>;
 }
 
 function App() { return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Game /></WouterRouter>; }
