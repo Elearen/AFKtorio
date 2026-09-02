@@ -4,6 +4,7 @@ import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial, type Recip
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
+import { assemblyMachineOneCraftingSpeed, craftingSpeedFor, cyclesPerMinuteFor } from './productionSystem';
 import {
   applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
   migrateMachineUpgradeState, scaledBuildCosts, upgradeData, upgradeMap,
@@ -142,7 +143,7 @@ const stoneFurnaceBuildCost = { stone: 5 };
 const assemblyMachineOneRecipe = recipeMap['assembling-machine-1'];
 const assemblyMachineOneBuildCost = { circuit: 3, gear: 5, ironPlate: 9 };
 const assemblyMachineOnePowerKw = 75;
-const assemblyMachineOneProductionSpeed = 0.5;
+const assemblyMachineOneProductionSpeed = assemblyMachineOneCraftingSpeed;
 const assemblyMachineTwoRecipe = recipeMap['assembling-machine-2'];
 const assemblyMachineTwoBuildCost = upgradeMap['assembly-machine-2'].newMachineMaterialCost;
 const assemblyMachineTwoPowerKw = upgradeMap['assembly-machine-2'].newMachinePowerDraw;
@@ -383,11 +384,12 @@ const applyResearchTriggers = (state: GameState) => {
     });
   }
 };
-const recipeCycleRateFor = (state: GameState, recipe: Recipe) => {
-  const count = state.assemblers[recipe.name] ?? 0;
-  const machineSpeedRatio = isSmeltingRecipe(recipe) ? 1 : assemblyMachineProductionSpeedFor(state) / assemblyMachineOneProductionSpeed;
-  return count * 60 * state.simulationSpeed * machineSpeedRatio / recipe.energyRequired;
-};
+const recipeCycleRateFor = (state: GameState, recipe: Recipe) => cyclesPerMinuteFor(
+  state.assemblers[recipe.name] ?? 0,
+  state.simulationSpeed,
+  recipe.energyRequired,
+  craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state)),
+);
 const miningBaseProductionRateFor = (state: GameState, key: RawKey) => {
   const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key];
   const base = key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'copper' ? 0.88 : 1;
@@ -597,9 +599,9 @@ function simulate(previous: GameState, seconds: number): GameState {
     // Progress represents an in-flight cycle, not a queue of completed
     // cycles. Clamp legacy/starved backlog before advancing the line so a
     // machine cannot burst above its steady-state rate when inputs return.
-    const machineSpeedRatio = isSmeltingRecipe(recipe) ? 1 : assemblyMachineProductionSpeedFor(state) / assemblyMachineOneProductionSpeed;
+    const machineCraftingSpeed = craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state));
     state.assemblyProgress[key] = Math.min(state.assemblyProgress[key] ?? 0, 0.999999)
-      + count * seconds * speed * machinePowerRatio * storageThrottle * machineSpeedRatio / recipe.energyRequired;
+      + cyclesPerMinuteFor(count, speed, recipe.energyRequired, machineCraftingSpeed) * seconds / 60 * machinePowerRatio * storageThrottle;
     let cycles = 0;
     let blocked = false;
     while (state.assemblyProgress[key] >= 1 && cycles < 80) {

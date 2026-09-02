@@ -8,6 +8,12 @@ import {
   upgradeMap,
   type UpgradeStartState,
 } from '../src/upgradeSystem.js';
+import {
+  assemblyMachineOneCraftingSpeed,
+  craftingSpeedFor,
+  cyclesPerMinuteFor,
+  stoneFurnaceCraftingSpeed,
+} from '../src/productionSystem.js';
 
 const baseState = (overrides: Partial<UpgradeStartState> = {}): UpgradeStartState => ({
   raw: { coal: 40, stone: 20 },
@@ -131,4 +137,13 @@ test('full storage reports zero mining output when there is no downstream demand
   assert.equal(bufferedActualRateFor(60, 170, 180, 0), 60);
   assert.equal(bufferedActualRateFor(60, 180, 180, 12), 12);
   assert.equal(bufferedActualRateFor(60, 150, 180, 0), 60);
+});
+
+test('building crafting speeds use absolute machine speeds', () => {
+  assert.equal(assemblyMachineOneCraftingSpeed, 0.5);
+  assert.equal(stoneFurnaceCraftingSpeed, 1);
+  assert.equal(craftingSpeedFor(false, assemblyMachineOneCraftingSpeed), 0.5);
+  assert.equal(craftingSpeedFor(true, assemblyMachineOneCraftingSpeed), 1);
+  assert.equal(cyclesPerMinuteFor(1, 1, 10, 0.5), 3);
+  assert.equal(cyclesPerMinuteFor(1, 1, 10, 1), 6);
 });
