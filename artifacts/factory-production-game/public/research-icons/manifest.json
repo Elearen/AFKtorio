@@ -1,0 +1,732 @@
+{
+  "source": "Official Factorio Wiki",
+  "sourcePattern": "https://wiki.factorio.com/images/{wikiFile}",
+  "images": [
+    {
+      "key": "advanced-circuit",
+      "wikiFile": "Advanced_circuit_(research).png",
+      "url": "https://wiki.factorio.com/images/Advanced_circuit_(research).png",
+      "localFile": "advanced-circuit.png"
+    },
+    {
+      "key": "advanced-combinators",
+      "wikiFile": "Advanced_combinators_(research).png",
+      "url": "https://wiki.factorio.com/images/Advanced_combinators_(research).png",
+      "localFile": "advanced-combinators.png"
+    },
+    {
+      "key": "advanced-material-processing",
+      "wikiFile": "Advanced_material_processing_(research).png",
+      "url": "https://wiki.factorio.com/images/Advanced_material_processing_(research).png",
+      "localFile": "advanced-material-processing.png"
+    },
+    {
+      "key": "advanced-material-processing-2",
+      "wikiFile": "Advanced_material_processing_2_(research).png",
+      "url": "https://wiki.factorio.com/images/Advanced_material_processing_2_(research).png",
+      "localFile": "advanced-material-processing-2.png"
+    },
+    {
+      "key": "advanced-oil-processing",
+      "wikiFile": "Advanced_oil_processing_(research).png",
+      "url": "https://wiki.factorio.com/images/Advanced_oil_processing_(research).png",
+      "localFile": "advanced-oil-processing.png"
+    },
+    {
+      "key": "armor-making",
+      "wikiFile": "Armor_crafting_(research).png",
+      "url": "https://wiki.factorio.com/images/Armor_crafting_(research).png",
+      "localFile": "armor-making.png"
+    },
+    {
+      "key": "artillery",
+      "wikiFile": "Artillery_(research).png",
+      "url": "https://wiki.factorio.com/images/Artillery_(research).png",
+      "localFile": "artillery.png"
+    },
+    {
+      "key": "artillery-range",
+      "wikiFile": "Artillery_shell_range_(research).png",
+      "url": "https://wiki.factorio.com/images/Artillery_shell_range_(research).png",
+      "localFile": "artillery-range.png"
+    },
+    {
+      "key": "artillery-shell",
+      "wikiFile": "Artillery_shell_damage_(research).png",
+      "url": "https://wiki.factorio.com/images/Artillery_shell_damage_(research).png",
+      "localFile": "artillery-shell.png"
+    },
+    {
+      "key": "atomic-bomb",
+      "wikiFile": "Atomic_bomb_(research).png",
+      "url": "https://wiki.factorio.com/images/Atomic_bomb_(research).png",
+      "localFile": "atomic-bomb.png"
+    },
+    {
+      "key": "automated-rail-transportation",
+      "wikiFile": "Automated_rail_transportation_(research).png",
+      "url": "https://wiki.factorio.com/images/Automated_rail_transportation_(research).png",
+      "localFile": "automated-rail-transportation.png"
+    },
+    {
+      "key": "automation-1",
+      "wikiFile": "Automation_(research).png",
+      "url": "https://wiki.factorio.com/images/Automation_(research).png",
+      "localFile": "automation-1.png"
+    },
+    {
+      "key": "automation-2",
+      "wikiFile": "Automation_2_(research).png",
+      "url": "https://wiki.factorio.com/images/Automation_2_(research).png",
+      "localFile": "automation-2.png"
+    },
+    {
+      "key": "automation-3",
+      "wikiFile": "Automation_3_(research).png",
+      "url": "https://wiki.factorio.com/images/Automation_3_(research).png",
+      "localFile": "automation-3.png"
+    },
+    {
+      "key": "automation-science-pack",
+      "wikiFile": "Automation_science_pack_(research).png",
+      "url": "https://wiki.factorio.com/images/Automation_science_pack_(research).png",
+      "localFile": "automation-science-pack.png"
+    },
+    {
+      "key": "automobilism",
+      "wikiFile": "Automobilism_(research).png",
+      "url": "https://wiki.factorio.com/images/Automobilism_(research).png",
+      "localFile": "automobilism.png"
+    },
+    {
+      "key": "battery",
+      "wikiFile": "Battery_(research).png",
+      "url": "https://wiki.factorio.com/images/Battery_(research).png",
+      "localFile": "battery.png"
+    },
+    {
+      "key": "battery-equipment",
+      "wikiFile": "Personal_battery_(research).png",
+      "url": "https://wiki.factorio.com/images/Personal_battery_(research).png",
+      "localFile": "battery-equipment.png"
+    },
+    {
+      "key": "battery-mk2-equipment",
+      "wikiFile": "Personal_battery_MK2_(research).png",
+      "url": "https://wiki.factorio.com/images/Personal_battery_MK2_(research).png",
+      "localFile": "battery-mk2-equipment.png"
+    },
+    {
+      "key": "belt-immunity-equipment",
+      "wikiFile": "Belt_immunity_equipment_(research).png",
+      "url": "https://wiki.factorio.com/images/Belt_immunity_equipment_(research).png",
+      "localFile": "belt-immunity-equipment.png"
+    },
+    {
+      "key": "braking-force",
+      "wikiFile": "Braking_force_(research).png",
+      "url": "https://wiki.factorio.com/images/Braking_force_(research).png",
+      "localFile": "braking-force.png"
+    },
+    {
+      "key": "bulk-inserter",
+      "wikiFile": "Bulk_inserter_(research).png",
+      "url": "https://wiki.factorio.com/images/Bulk_inserter_(research).png",
+      "localFile": "bulk-inserter.png"
+    },
+    {
+      "key": "chemical-science-pack",
+      "wikiFile": "Chemical_science_pack_(research).png",
+      "url": "https://wiki.factorio.com/images/Chemical_science_pack_(research).png",
+      "localFile": "chemical-science-pack.png"
+    },
+    {
+      "key": "circuit-network",
+      "wikiFile": "Circuit_network_(research).png",
+      "url": "https://wiki.factorio.com/images/Circuit_network_(research).png",
+      "localFile": "circuit-network.png"
+    },
+    {
+      "key": "cliff-explosives",
+      "wikiFile": "Cliff_explosives_(research).png",
+      "url": "https://wiki.factorio.com/images/Cliff_explosives_(research).png",
+      "localFile": "cliff-explosives.png"
+    },
+    {
+      "key": "coal-liquefaction",
+      "wikiFile": "Coal_liquefaction_(research).png",
+      "url": "https://wiki.factorio.com/images/Coal_liquefaction_(research).png",
+      "localFile": "coal-liquefaction.png"
+    },
+    {
+      "key": "concrete",
+      "wikiFile": "Concrete_(research).png",
+      "url": "https://wiki.factorio.com/images/Concrete_(research).png",
+      "localFile": "concrete.png"
+    },
+    {
+      "key": "construction-robotics",
+      "wikiFile": "Construction_robotics_(research).png",
+      "url": "https://wiki.factorio.com/images/Construction_robotics_(research).png",
+      "localFile": "construction-robotics.png"
+    },
+    {
+      "key": "defender",
+      "wikiFile": "Defender_(research).png",
+      "url": "https://wiki.factorio.com/images/Defender_(research).png",
+      "localFile": "defender.png"
+    },
+    {
+      "key": "destroyer",
+      "wikiFile": "Destroyer_(research).png",
+      "url": "https://wiki.factorio.com/images/Destroyer_(research).png",
+      "localFile": "destroyer.png"
+    },
+    {
+      "key": "discharge-defense-equipment",
+      "wikiFile": "Discharge_defense_(research).png",
+      "url": "https://wiki.factorio.com/images/Discharge_defense_(research).png",
+      "localFile": "discharge-defense-equipment.png"
+    },
+    {
+      "key": "distractor",
+      "wikiFile": "Distractor_(research).png",
+      "url": "https://wiki.factorio.com/images/Distractor_(research).png",
+      "localFile": "distractor.png"
+    },
+    {
+      "key": "effect-transmission",
+      "wikiFile": "Effect_transmission_(research).png",
+      "url": "https://wiki.factorio.com/images/Effect_transmission_(research).png",
+      "localFile": "effect-transmission.png"
+    },
+    {
+      "key": "efficiency-module-1",
+      "wikiFile": "Efficiency_module_(research).png",
+      "url": "https://wiki.factorio.com/images/Efficiency_module_(research).png",
+      "localFile": "efficiency-module-1.png"
+    },
+    {
+      "key": "efficiency-module-2",
+      "wikiFile": "Efficiency_module_2_(research).png",
+      "url": "https://wiki.factorio.com/images/Efficiency_module_2_(research).png",
+      "localFile": "efficiency-module-2.png"
+    },
+    {
+      "key": "efficiency-module-3",
+      "wikiFile": "Efficiency_module_3_(research).png",
+      "url": "https://wiki.factorio.com/images/Efficiency_module_3_(research).png",
+      "localFile": "efficiency-module-3.png"
+    },
+    {
+      "key": "electric-energy-acumulators",
+      "wikiFile": "Electric_energy_accumulators_(research).png",
+      "url": "https://wiki.factorio.com/images/Electric_energy_accumulators_(research).png",
+      "localFile": "electric-energy-acumulators.png"
+    },
+    {
+      "key": "electric-energy-distribution-1",
+      "wikiFile": "Electric_energy_distribution_1_(research).png",
+      "url": "https://wiki.factorio.com/images/Electric_energy_distribution_1_(research).png",
+      "localFile": "electric-energy-distribution-1.png"
+    },
+    {
+      "key": "electric-energy-distribution-2",
+      "wikiFile": "Electric_energy_distribution_2_(research).png",
+      "url": "https://wiki.factorio.com/images/Electric_energy_distribution_2_(research).png",
+      "localFile": "electric-energy-distribution-2.png"
+    },
+    {
+      "key": "electric-engine",
+      "wikiFile": "Electric_engine_(research).png",
+      "url": "https://wiki.factorio.com/images/Electric_engine_(research).png",
+      "localFile": "electric-engine.png"
+    },
+    {
+      "key": "electric-mining-drill",
+      "wikiFile": "Electric_mining_drill_(research).png",
+      "url": "https://wiki.factorio.com/images/Electric_mining_drill_(research).png",
+      "localFile": "electric-mining-drill.png"
+    },
+    {
+      "key": "electronics",
+      "wikiFile": "Electronics_(research).png",
+      "url": "https://wiki.factorio.com/images/Electronics_(research).png",
+      "localFile": "electronics.png"
+    },
+    {
+      "key": "energy-shield-equipment",
+      "wikiFile": "Energy_shield_equipment_(research).png",
+      "url": "https://wiki.factorio.com/images/Energy_shield_equipment_(research).png",
+      "localFile": "energy-shield-equipment.png"
+    },
+    {
+      "key": "energy-shield-mk2-equipment",
+      "wikiFile": "Energy_shield_MK2_equipment_(research).png",
+      "url": "https://wiki.factorio.com/images/Energy_shield_MK2_equipment_(research).png",
+      "localFile": "energy-shield-mk2-equipment.png"
+    },
+    {
+      "key": "engine",
+      "wikiFile": "Engine_(research).png",
+      "url": "https://wiki.factorio.com/images/Engine_(research).png",
+      "localFile": "engine.png"
+    },
+    {
+      "key": "exoskeleton-equipment",
+      "wikiFile": "Exoskeleton_equipment_(research).png",
+      "url": "https://wiki.factorio.com/images/Exoskeleton_equipment_(research).png",
+      "localFile": "exoskeleton-equipment.png"
+    },
+    {
+      "key": "explosive-rocketry",
+      "wikiFile": "Explosive_rocketry_(research).png",
+      "url": "https://wiki.factorio.com/images/Explosive_rocketry_(research).png",
+      "localFile": "explosive-rocketry.png"
+    },
+    {
+      "key": "explosives",
+      "wikiFile": "Explosives_(research).png",
+      "url": "https://wiki.factorio.com/images/Explosives_(research).png",
+      "localFile": "explosives.png"
+    },
+    {
+      "key": "fast-inserter",
+      "wikiFile": "Fast_inserter_(research).png",
+      "url": "https://wiki.factorio.com/images/Fast_inserter_(research).png",
+      "localFile": "fast-inserter.png"
+    },
+    {
+      "key": "fission-reactor-equipment",
+      "wikiFile": "Portable_fission_reactor_(research).png",
+      "url": "https://wiki.factorio.com/images/Portable_fission_reactor_(research).png",
+      "localFile": "fission-reactor-equipment.png"
+    },
+    {
+      "key": "flamethrower",
+      "wikiFile": "Flamethrower_(research).png",
+      "url": "https://wiki.factorio.com/images/Flamethrower_(research).png",
+      "localFile": "flamethrower.png"
+    },
+    {
+      "key": "flammables",
+      "wikiFile": "Flammables_(research).png",
+      "url": "https://wiki.factorio.com/images/Flammables_(research).png",
+      "localFile": "flammables.png"
+    },
+    {
+      "key": "fluid-handling",
+      "wikiFile": "Fluid_handling_(research).png",
+      "url": "https://wiki.factorio.com/images/Fluid_handling_(research).png",
+      "localFile": "fluid-handling.png"
+    },
+    {
+      "key": "fluid-wagon",
+      "wikiFile": "Fluid_wagon_(research).png",
+      "url": "https://wiki.factorio.com/images/Fluid_wagon_(research).png",
+      "localFile": "fluid-wagon.png"
+    },
+    {
+      "key": "follower-robots",
+      "wikiFile": "Follower_robot_count_(research).png",
+      "url": "https://wiki.factorio.com/images/Follower_robot_count_(research).png",
+      "localFile": "follower-robots.png"
+    },
+    {
+      "key": "gate",
+      "wikiFile": "Gate_(research).png",
+      "url": "https://wiki.factorio.com/images/Gate_(research).png",
+      "localFile": "gate.png"
+    },
+    {
+      "key": "gun-turret",
+      "wikiFile": "Gun_turret_(research).png",
+      "url": "https://wiki.factorio.com/images/Gun_turret_(research).png",
+      "localFile": "gun-turret.png"
+    },
+    {
+      "key": "heavy-armor",
+      "wikiFile": "Heavy_armor_(research).png",
+      "url": "https://wiki.factorio.com/images/Heavy_armor_(research).png",
+      "localFile": "heavy-armor.png"
+    },
+    {
+      "key": "inserter-capacity",
+      "wikiFile": "Inserter_capacity_bonus_(research).png",
+      "url": "https://wiki.factorio.com/images/Inserter_capacity_bonus_(research).png",
+      "localFile": "inserter-capacity.png"
+    },
+    {
+      "key": "kovarex-enrichment-process",
+      "wikiFile": "Kovarex_enrichment_process_(research).png",
+      "url": "https://wiki.factorio.com/images/Kovarex_enrichment_process_(research).png",
+      "localFile": "kovarex-enrichment-process.png"
+    },
+    {
+      "key": "lamp",
+      "wikiFile": "Lamp_(research).png",
+      "url": "https://wiki.factorio.com/images/Lamp_(research).png",
+      "localFile": "lamp.png"
+    },
+    {
+      "key": "land-mine",
+      "wikiFile": "Land_mines_(research).png",
+      "url": "https://wiki.factorio.com/images/Land_mines_(research).png",
+      "localFile": "land-mine.png"
+    },
+    {
+      "key": "landfill",
+      "wikiFile": "Landfill_(research).png",
+      "url": "https://wiki.factorio.com/images/Landfill_(research).png",
+      "localFile": "landfill.png"
+    },
+    {
+      "key": "laser",
+      "wikiFile": "Laser_(research).png",
+      "url": "https://wiki.factorio.com/images/Laser_(research).png",
+      "localFile": "laser.png"
+    },
+    {
+      "key": "laser-turret",
+      "wikiFile": "Laser_turret_(research).png",
+      "url": "https://wiki.factorio.com/images/Laser_turret_(research).png",
+      "localFile": "laser-turret.png"
+    },
+    {
+      "key": "logistic-robotics",
+      "wikiFile": "Logistic_robotics_(research).png",
+      "url": "https://wiki.factorio.com/images/Logistic_robotics_(research).png",
+      "localFile": "logistic-robotics.png"
+    },
+    {
+      "key": "logistic-science-pack",
+      "wikiFile": "Logistic_science_pack_(research).png",
+      "url": "https://wiki.factorio.com/images/Logistic_science_pack_(research).png",
+      "localFile": "logistic-science-pack.png"
+    },
+    {
+      "key": "logistic-system",
+      "wikiFile": "Logistic_system_(research).png",
+      "url": "https://wiki.factorio.com/images/Logistic_system_(research).png",
+      "localFile": "logistic-system.png"
+    },
+    {
+      "key": "logistics-1",
+      "wikiFile": "Logistics_(research).png",
+      "url": "https://wiki.factorio.com/images/Logistics_(research).png",
+      "localFile": "logistics-1.png"
+    },
+    {
+      "key": "logistics-2",
+      "wikiFile": "Logistics_2_(research).png",
+      "url": "https://wiki.factorio.com/images/Logistics_2_(research).png",
+      "localFile": "logistics-2.png"
+    },
+    {
+      "key": "logistics-3",
+      "wikiFile": "Logistics_3_(research).png",
+      "url": "https://wiki.factorio.com/images/Logistics_3_(research).png",
+      "localFile": "logistics-3.png"
+    },
+    {
+      "key": "low-density-structure",
+      "wikiFile": "Low_density_structure_(research).png",
+      "url": "https://wiki.factorio.com/images/Low_density_structure_(research).png",
+      "localFile": "low-density-structure.png"
+    },
+    {
+      "key": "lubricant",
+      "wikiFile": "Lubricant_(research).png",
+      "url": "https://wiki.factorio.com/images/Lubricant_(research).png",
+      "localFile": "lubricant.png"
+    },
+    {
+      "key": "military",
+      "wikiFile": "Military_(research).png",
+      "url": "https://wiki.factorio.com/images/Military_(research).png",
+      "localFile": "military.png"
+    },
+    {
+      "key": "military-science-pack",
+      "wikiFile": "Military_science_pack_(research).png",
+      "url": "https://wiki.factorio.com/images/Military_science_pack_(research).png",
+      "localFile": "military-science-pack.png"
+    },
+    {
+      "key": "mining-productivity",
+      "wikiFile": "Mining_productivity_(research).png",
+      "url": "https://wiki.factorio.com/images/Mining_productivity_(research).png",
+      "localFile": "mining-productivity.png"
+    },
+    {
+      "key": "module",
+      "wikiFile": "Modules_(research).png",
+      "url": "https://wiki.factorio.com/images/Modules_(research).png",
+      "localFile": "module.png"
+    },
+    {
+      "key": "night-vision-equipment",
+      "wikiFile": "Nightvision_equipment_(research).png",
+      "url": "https://wiki.factorio.com/images/Nightvision_equipment_(research).png",
+      "localFile": "night-vision-equipment.png"
+    },
+    {
+      "key": "nuclear-fuel-reprocessing",
+      "wikiFile": "Nuclear_fuel_reprocessing_(research).png",
+      "url": "https://wiki.factorio.com/images/Nuclear_fuel_reprocessing_(research).png",
+      "localFile": "nuclear-fuel-reprocessing.png"
+    },
+    {
+      "key": "nuclear-power",
+      "wikiFile": "Nuclear_power_(research).png",
+      "url": "https://wiki.factorio.com/images/Nuclear_power_(research).png",
+      "localFile": "nuclear-power.png"
+    },
+    {
+      "key": "oil-gathering",
+      "wikiFile": "Oil_gathering_(research).png",
+      "url": "https://wiki.factorio.com/images/Oil_gathering_(research).png",
+      "localFile": "oil-gathering.png"
+    },
+    {
+      "key": "oil-processing",
+      "wikiFile": "Oil_processing_(research).png",
+      "url": "https://wiki.factorio.com/images/Oil_processing_(research).png",
+      "localFile": "oil-processing.png"
+    },
+    {
+      "key": "personal-laser-defense-equipment",
+      "wikiFile": "Personal_laser_defense_(research).png",
+      "url": "https://wiki.factorio.com/images/Personal_laser_defense_(research).png",
+      "localFile": "personal-laser-defense-equipment.png"
+    },
+    {
+      "key": "personal-roboport-equipment",
+      "wikiFile": "Personal_roboport_(research).png",
+      "url": "https://wiki.factorio.com/images/Personal_roboport_(research).png",
+      "localFile": "personal-roboport-equipment.png"
+    },
+    {
+      "key": "personal-roboport-mk2-equipment",
+      "wikiFile": "Personal_roboport_MK2_(research).png",
+      "url": "https://wiki.factorio.com/images/Personal_roboport_MK2_(research).png",
+      "localFile": "personal-roboport-mk2-equipment.png"
+    },
+    {
+      "key": "plastics",
+      "wikiFile": "Plastics_(research).png",
+      "url": "https://wiki.factorio.com/images/Plastics_(research).png",
+      "localFile": "plastics.png"
+    },
+    {
+      "key": "power-armor",
+      "wikiFile": "Power_armor_(research).png",
+      "url": "https://wiki.factorio.com/images/Power_armor_(research).png",
+      "localFile": "power-armor.png"
+    },
+    {
+      "key": "power-armor-mk2",
+      "wikiFile": "Power_armor_MK2_(research).png",
+      "url": "https://wiki.factorio.com/images/Power_armor_MK2_(research).png",
+      "localFile": "power-armor-mk2.png"
+    },
+    {
+      "key": "processing-unit",
+      "wikiFile": "Processing_unit_(research).png",
+      "url": "https://wiki.factorio.com/images/Processing_unit_(research).png",
+      "localFile": "processing-unit.png"
+    },
+    {
+      "key": "production-science-pack",
+      "wikiFile": "Production_science_pack_(research).png",
+      "url": "https://wiki.factorio.com/images/Production_science_pack_(research).png",
+      "localFile": "production-science-pack.png"
+    },
+    {
+      "key": "productivity-module-1",
+      "wikiFile": "Productivity_module_(research).png",
+      "url": "https://wiki.factorio.com/images/Productivity_module_(research).png",
+      "localFile": "productivity-module-1.png"
+    },
+    {
+      "key": "productivity-module-2",
+      "wikiFile": "Productivity_module_2_(research).png",
+      "url": "https://wiki.factorio.com/images/Productivity_module_2_(research).png",
+      "localFile": "productivity-module-2.png"
+    },
+    {
+      "key": "productivity-module-3",
+      "wikiFile": "Productivity_module_3_(research).png",
+      "url": "https://wiki.factorio.com/images/Productivity_module_3_(research).png",
+      "localFile": "productivity-module-3.png"
+    },
+    {
+      "key": "radar",
+      "wikiFile": "Radar_(research).png",
+      "url": "https://wiki.factorio.com/images/Radar_(research).png",
+      "localFile": "radar.png"
+    },
+    {
+      "key": "railway",
+      "wikiFile": "Railway_(research).png",
+      "url": "https://wiki.factorio.com/images/Railway_(research).png",
+      "localFile": "railway.png"
+    },
+    {
+      "key": "repair-pack",
+      "wikiFile": "Repair_pack_(research).png",
+      "url": "https://wiki.factorio.com/images/Repair_pack_(research).png",
+      "localFile": "repair-pack.png"
+    },
+    {
+      "key": "research-speed",
+      "wikiFile": "Lab_research_speed_(research).png",
+      "url": "https://wiki.factorio.com/images/Lab_research_speed_(research).png",
+      "localFile": "research-speed.png"
+    },
+    {
+      "key": "robotics",
+      "wikiFile": "Robotics_(research).png",
+      "url": "https://wiki.factorio.com/images/Robotics_(research).png",
+      "localFile": "robotics.png"
+    },
+    {
+      "key": "rocket-fuel",
+      "wikiFile": "Rocket_fuel_(research).png",
+      "url": "https://wiki.factorio.com/images/Rocket_fuel_(research).png",
+      "localFile": "rocket-fuel.png"
+    },
+    {
+      "key": "rocket-silo",
+      "wikiFile": "Rocket_silo_(research).png",
+      "url": "https://wiki.factorio.com/images/Rocket_silo_(research).png",
+      "localFile": "rocket-silo.png"
+    },
+    {
+      "key": "rocketry",
+      "wikiFile": "Rocketry_(research).png",
+      "url": "https://wiki.factorio.com/images/Rocketry_(research).png",
+      "localFile": "rocketry.png"
+    },
+    {
+      "key": "solar-energy",
+      "wikiFile": "Solar_energy_(research).png",
+      "url": "https://wiki.factorio.com/images/Solar_energy_(research).png",
+      "localFile": "solar-energy.png"
+    },
+    {
+      "key": "solar-panel-equipment",
+      "wikiFile": "Portable_solar_panel_(research).png",
+      "url": "https://wiki.factorio.com/images/Portable_solar_panel_(research).png",
+      "localFile": "solar-panel-equipment.png"
+    },
+    {
+      "key": "space-science-pack",
+      "wikiFile": "Space_science_pack_(research).png",
+      "url": "https://wiki.factorio.com/images/Space_science_pack_(research).png",
+      "localFile": "space-science-pack.png"
+    },
+    {
+      "key": "speed-module-1",
+      "wikiFile": "Speed_module_(research).png",
+      "url": "https://wiki.factorio.com/images/Speed_module_(research).png",
+      "localFile": "speed-module-1.png"
+    },
+    {
+      "key": "speed-module-2",
+      "wikiFile": "Speed_module_2_(research).png",
+      "url": "https://wiki.factorio.com/images/Speed_module_2_(research).png",
+      "localFile": "speed-module-2.png"
+    },
+    {
+      "key": "speed-module-3",
+      "wikiFile": "Speed_module_3_(research).png",
+      "url": "https://wiki.factorio.com/images/Speed_module_3_(research).png",
+      "localFile": "speed-module-3.png"
+    },
+    {
+      "key": "spidertron",
+      "wikiFile": "Spidertron_(research).png",
+      "url": "https://wiki.factorio.com/images/Spidertron_(research).png",
+      "localFile": "spidertron.png"
+    },
+    {
+      "key": "steam-power",
+      "wikiFile": "Steam_power_(research).png",
+      "url": "https://wiki.factorio.com/images/Steam_power_(research).png",
+      "localFile": "steam-power.png"
+    },
+    {
+      "key": "steel-axe",
+      "wikiFile": "Steel_axe_(research).png",
+      "url": "https://wiki.factorio.com/images/Steel_axe_(research).png",
+      "localFile": "steel-axe.png"
+    },
+    {
+      "key": "steel-processing",
+      "wikiFile": "Steel_processing_(research).png",
+      "url": "https://wiki.factorio.com/images/Steel_processing_(research).png",
+      "localFile": "steel-processing.png"
+    },
+    {
+      "key": "stone-wall",
+      "wikiFile": "Stone_wall_(research).png",
+      "url": "https://wiki.factorio.com/images/Stone_wall_(research).png",
+      "localFile": "stone-wall.png"
+    },
+    {
+      "key": "sulfur-processing",
+      "wikiFile": "Sulfur_processing_(research).png",
+      "url": "https://wiki.factorio.com/images/Sulfur_processing_(research).png",
+      "localFile": "sulfur-processing.png"
+    },
+    {
+      "key": "tank",
+      "wikiFile": "Tank_(research).png",
+      "url": "https://wiki.factorio.com/images/Tank_(research).png",
+      "localFile": "tank.png"
+    },
+    {
+      "key": "toolbelt",
+      "wikiFile": "Toolbelt_(research).png",
+      "url": "https://wiki.factorio.com/images/Toolbelt_(research).png",
+      "localFile": "toolbelt.png"
+    },
+    {
+      "key": "uranium-ammo",
+      "wikiFile": "Uranium_ammo_(research).png",
+      "url": "https://wiki.factorio.com/images/Uranium_ammo_(research).png",
+      "localFile": "uranium-ammo.png"
+    },
+    {
+      "key": "uranium-mining",
+      "wikiFile": "Uranium_mining_(research).png",
+      "url": "https://wiki.factorio.com/images/Uranium_mining_(research).png",
+      "localFile": "uranium-mining.png"
+    },
+    {
+      "key": "uranium-processing",
+      "wikiFile": "Uranium_processing_(research).png",
+      "url": "https://wiki.factorio.com/images/Uranium_processing_(research).png",
+      "localFile": "uranium-processing.png"
+    },
+    {
+      "key": "utility-science-pack",
+      "wikiFile": "Utility_science_pack_(research).png",
+      "url": "https://wiki.factorio.com/images/Utility_science_pack_(research).png",
+      "localFile": "utility-science-pack.png"
+    },
+    {
+      "key": "worker-robots-speed",
+      "wikiFile": "Worker_robot_speed_(research).png",
+      "url": "https://wiki.factorio.com/images/Worker_robot_speed_(research).png",
+      "localFile": "worker-robots-speed.png"
+    },
+    {
+      "key": "worker-robots-storage",
+      "wikiFile": "Worker_robot_cargo_size_(research).png",
+      "url": "https://wiki.factorio.com/images/Worker_robot_cargo_size_(research).png",
+      "localFile": "worker-robots-storage.png"
+    }
+  ]
+}
