@@ -18,7 +18,7 @@ import {
   TrendingUp, TriangleAlert, Truck, Waves, Zap,
 } from 'lucide-react';
 
-type RawKey = 'iron' | 'copper' | 'stone' | 'coal' | 'wood' | 'water' | 'uranium';
+type RawKey = 'iron' | 'copper' | 'stone' | 'coal' | 'wood' | 'water' | 'uranium' | 'crudeOil';
 type ComponentKey = string;
 type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militaryPack' | 'productionPack' | 'utilityPack';
 type TrackedKey = string;
@@ -31,7 +31,7 @@ type SupplyStatusTone = 'teal' | 'amber' | 'red' | 'muted';
 type SupplyStatus = { tone: SupplyStatusTone; label: string; detail: string };
 
 type Recipe = RecipeCatalogEntry;
-type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'storage' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number; machineCount?: number };
+type QueueItem = { id: string; action: 'miner' | 'pump' | 'pumpjack' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'storage' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number; machineCount?: number };
 type HandcraftJob = { recipeKey: string; seconds: number; total: number };
 type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number };
 type RateSample = { seconds: number; production: Record<TrackedKey, number>; manualProduction?: Record<TrackedKey, number>; consumption: Record<TrackedKey, number> };
@@ -42,6 +42,7 @@ type GameState = {
   storageBoxes: Record<TrackedKey, number>;
   miners: Record<RawKey, number>;
   pumps: number;
+  pumpjacks: number;
   uraniumMiners: number;
   assemblers: Record<string, number>;
   labs: number;
@@ -69,14 +70,14 @@ type GameState = {
 };
 
 const SAVE_KEY = 'factory-production-game-save-v2';
-const rawKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood', 'water', 'uranium'];
+const rawKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood', 'water', 'uranium', 'crudeOil'];
 const scienceKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'chemicalPack', 'militaryPack', 'productionPack', 'utilityPack'];
 const normalizedTechnologyCatalog = technologyCatalog.map((technology) => ({ ...technology, time: technology.time ?? defaultTechnologyResearchTime }));
 const technologyMap: Record<string, TechnologyDefinition> = Object.fromEntries(normalizedTechnologyCatalog.map((technology) => [technology.name, technology]));
 const legacyResearchAliases: Record<string, string> = { steamPower: 'steam-power', solarPower: 'solar-energy', nuclearPower: 'nuclear-power', steelProcessing: 'steel-processing' };
 const normalizeResearchKey = (key: string) => legacyResearchAliases[key] ?? key;
 const sourceKeyAliases: Record<string, TrackedKey> = {
-  'iron-ore': 'iron', 'copper-ore': 'copper', 'uranium-ore': 'uranium',
+  'iron-ore': 'iron', 'copper-ore': 'copper', 'uranium-ore': 'uranium', 'crude-oil': 'crudeOil',
   'iron-plate': 'ironPlate', 'copper-plate': 'copperPlate', 'steel-plate': 'steel',
   'iron-gear-wheel': 'gear', 'electronic-circuit': 'circuit',
   'automation-science-pack': 'automationPack', 'logistic-science-pack': 'logisticsPack',
@@ -142,6 +143,7 @@ const electricMiningDrillBuildCost = upgradeMap['electric-mining-drill'].newMach
 const electricMiningDrillPowerKw = upgradeMap['electric-mining-drill'].newMachinePowerDraw;
 const electricMiningDrillProductionSpeed = upgradeMap['electric-mining-drill'].newMachineProductionSpeed;
 const waterPumpPerSecond = 1200;
+const pumpjackRecipe = recipeMap['pumpjack'];
 const fueledBurnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'wood'];
 const smeltingRecipeKeys = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
 const stoneFurnaceRecipe = recipeMap['stone-furnace'];
@@ -219,9 +221,10 @@ const recipeUnlockResearch: Record<string, string[]> = {};
 technologyCatalog.forEach((technology) => technology.effects.forEach((effect) => {
   if (effect.type === 'unlock-recipe' && effect.recipe) recipeUnlockResearch[effect.recipe] = [...(recipeUnlockResearch[effect.recipe] ?? []), technology.name];
 }));
-const rawProductIsUnlocked = (key: string, state: GameState) => key !== 'water' && key !== 'uranium'
+const rawProductIsUnlocked = (key: string, state: GameState) => key !== 'water' && key !== 'uranium' && key !== 'crudeOil'
   || key === 'water' && state.research.includes('steam-power')
-  || key === 'uranium' && state.research.includes('nuclear-power');
+  || key === 'uranium' && state.research.includes('nuclear-power')
+  || key === 'crudeOil' && state.research.includes('oil-gathering');
 const recipeIsUnlocked = (recipe: Recipe, state: GameState) => recipe.enabled
   || (recipeUnlockResearch[recipe.name] ?? []).some((technology) => state.research.includes(technology));
 const unlockedProductKeys = (state: GameState) => new Set([
@@ -233,7 +236,7 @@ const baseMeta: Record<string, { label: string; short: string; color: string; ca
   iron: { label: 'Iron ore', short: 'iron', color: '#bd7b45', category: 'Raw' }, copper: { label: 'Copper ore', short: 'copper', color: '#dc9361', category: 'Raw' },
   stone: { label: 'Stone', short: 'stone', color: '#9ba6a4', category: 'Raw' }, coal: { label: 'Coal', short: 'coal', color: '#929aaa', category: 'Fuel' },
   wood: { label: 'Wood', short: 'wood', color: '#b9996b', category: 'Raw' }, water: { label: 'Water', short: 'water', color: '#65afba', category: 'Fluid' },
-  uranium: { label: 'Uranium ore', short: 'uranium', color: '#92c86b', category: 'Raw' }, ironPlate: { label: 'Iron plates', short: 'Fe plate', color: '#c9d3d0', category: 'Component' },
+  uranium: { label: 'Uranium ore', short: 'uranium', color: '#92c86b', category: 'Raw' }, crudeOil: { label: 'Crude oil', short: 'crude oil', color: '#9b7653', category: 'Raw' }, ironPlate: { label: 'Iron plates', short: 'Fe plate', color: '#c9d3d0', category: 'Component' },
   copperPlate: { label: 'Copper plates', short: 'Cu plate', color: '#e6a067', category: 'Component' }, steel: { label: 'Steel', short: 'steel', color: '#aabac3', category: 'Component' },
   gear: { label: 'Gears', short: 'gear', color: '#dfb05c', category: 'Component' }, pipe: { label: 'Pipes', short: 'pipe', color: '#8da8a7', category: 'Component' },
   circuit: { label: 'Circuits', short: 'circuit', color: '#54b8a8', category: 'Component' }, automationPack: { label: 'Automation science', short: 'automation', color: '#df7165', category: 'Science' },
@@ -254,6 +257,7 @@ const recipeBuildCosts = (recipe: Recipe): BuildMaterialCost[] => Object.entries
   source: rawKeys.includes(key as RawKey) ? 'raw' : 'products',
 }));
 const solarPanelBuildCost = recipeBuildCosts(solarPanelRecipe);
+const pumpjackBuildCost = recipeBuildCosts(pumpjackRecipe);
 const missingBuildMaterials = (state: GameState, costs: BuildMaterialCost[]) => costs
   .map(({ key, amount, source }) => ({ key, missing: Math.max(0, amount - ((state[source] as Record<string, number>)[key] ?? 0)) }))
   .filter(({ missing }) => missing > 0)
@@ -265,12 +269,12 @@ const starterProducts: Record<string, number> = {
 };
 
 const initialState: GameState = {
-  raw: { iron: 62, copper: 38, stone: 26, coal: 31, wood: 18, water: 0, uranium: 0 },
+  raw: { iron: 62, copper: 38, stone: 26, coal: 31, wood: 18, water: 0, uranium: 0, crudeOil: 0 },
   products: starterProducts,
   storage: Object.fromEntries(trackedKeys.map((key) => [key, storageBoxCapacity])) as Record<TrackedKey, number>,
   storageBoxes: Object.fromEntries(trackedKeys.map((key) => [key, 1])) as Record<TrackedKey, number>,
-  miners: { iron: 0, copper: 0, stone: 0, coal: 0, wood: 0, water: 0, uranium: 0 },
-  pumps: 0, uraniumMiners: 0,
+  miners: { iron: 0, copper: 0, stone: 0, coal: 0, wood: 0, water: 0, uranium: 0, crudeOil: 0 },
+  pumps: 0, pumpjacks: 0, uraniumMiners: 0,
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labs: 1, boilers: 0, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
@@ -293,6 +297,7 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
   wood: { label: 'Wood', description: 'Manual-start biomass for early structures.' },
   water: { label: 'Water', description: 'Pumped fluid required to turn heat into power.', research: 'steam-power', needs: 'Steam Power' },
   uranium: { label: 'Uranium', description: 'Dense fuel for the late-stage reactor chain.', research: 'nuclear-power', needs: 'Nuclear Power' },
+  crudeOil: { label: 'Crude oil', description: 'Raw hydrocarbon feedstock for refining and the chemical chain.', research: 'oil-gathering', needs: 'Oil Gathering' },
 };
 
 const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
@@ -333,10 +338,12 @@ const electricPowerRatioFor = (state: GameState) => {
   return required > 0 ? Math.min(1, powerProductionFor(state) / required) : 1;
 };
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
-const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels;
+const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.pumpjacks + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels;
 const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade);
 const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
+const miningMachineCountFor = (state: GameState, key: RawKey) => key === 'water' ? state.pumps : key === 'crudeOil' ? state.pumpjacks : key === 'uranium' ? state.uraniumMiners : state.miners[key];
+const miningOutputPerSecondFor = (key: RawKey) => key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'crudeOil' ? 50 : key === 'copper' ? 0.88 : 1;
 const miningMachineBuildCostFor = (state: GameState): BuildMaterialCost[] => state.machineVariants.mining === 'electric-mining-drill'
   ? electricMiningDrillBuildCost
   : [{ key: 'gear', amount: burnerMiningDrillCost.gear, source: 'products' }, { key: 'ironPlate', amount: burnerMiningDrillCost.ironPlate, source: 'products' }, { key: 'stone', amount: burnerMiningDrillCost.stone, source: 'raw' }];
@@ -397,8 +404,8 @@ const recipeCycleRateFor = (state: GameState, recipe: Recipe) => cyclesPerMinute
   craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state)),
 );
 const miningBaseProductionRateFor = (state: GameState, key: RawKey) => {
-  const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key];
-  const base = key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'copper' ? 0.88 : 1;
+  const count = miningMachineCountFor(state, key);
+  const base = miningOutputPerSecondFor(key);
   const machineSpeedRatio = burnerMinerKeys.includes(key) ? miningMachineProductionSpeedFor(state) / burnerMiningDrillProductionSpeed : 1;
   return count * base * 60 * state.simulationSpeed * machineSpeedRatio;
 };
@@ -592,9 +599,9 @@ function simulate(previous: GameState, seconds: number): GameState {
     liveConsumption.coal += coalConsumed;
   }
   rawKeys.forEach((key) => {
-    const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key];
+    const count = miningMachineCountFor(state, key);
     if (!count) return;
-    const base = key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'copper' ? 0.88 : 1;
+    const base = miningOutputPerSecondFor(key);
     const minerSeconds = fueledBurnerMinerKeys.includes(key) ? operatingSeconds : seconds;
       const outputRate = key === 'coal' && miningUsesStoredCoal(state) ? base - burnerMiningDrillCoalPerSecond : base;
     state.miningProgress[key] += count * outputRate * minerSeconds * speed * miningStorageThrottleFor(state, key);
@@ -682,6 +689,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   completed.forEach((item) => {
     if (item.action === 'miner') state.miners[(item.targetId ?? item.target) as RawKey] += 1;
     if (item.action === 'pump') state.pumps += 1;
+    if (item.action === 'pumpjack') state.pumpjacks += 1;
     if (item.action === 'uraniumMiner') state.uraniumMiners += 1;
      if (item.action === 'assembler' || item.action === 'furnace') state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
     if (item.action === 'lab') { state.labs += 1; recordProduction(state, 'lab', 1, liveProduction); }
@@ -775,7 +783,7 @@ function loadState() {
 }
 
 const iconFileFor: Record<string, string> = {
-  chemicalPack: 'chemical-science-pack', militaryPack: 'military-science-pack',
+  crudeOil: 'crude-oil', chemicalPack: 'chemical-science-pack', militaryPack: 'military-science-pack',
   productionPack: 'researchPack', utilityPack: 'utility-science-pack',
 };
 function ResourceIcon({ item, size = 28 }: { item: TrackedKey; size?: number }) {
@@ -951,6 +959,22 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
   };
   const build = (key: RawKey) => {
     if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); const missing = missingBuildMaterials(state, [{ key: 'ironPlate', amount: 10, source: 'products' }, { key: 'gear', amount: 2, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 10, gear: s.products.gear - 2 } })); enqueue('pump', 'Water pump', 40); return; }
+    if (key === 'crudeOil') {
+      if (!state.research.includes('oil-gathering')) return notice('Oil Gathering required');
+      const missing = missingBuildMaterials(state, pumpjackBuildCost);
+      if (missing) return notice(`need ${missing}`);
+      setState((s) => {
+        const raw = { ...s.raw };
+        const products = { ...s.products };
+        pumpjackBuildCost.forEach(({ key: materialKey, amount, source }) => {
+          if (source === 'raw') raw[materialKey as RawKey] -= amount;
+          else products[materialKey] = (products[materialKey] ?? 0) - amount;
+        });
+        return { ...s, raw, products };
+      });
+      enqueue('pumpjack', 'Crude oil pumpjack', pumpjackRecipe.energyRequired);
+      return;
+    }
     if (key === 'uranium') { if (!state.research.includes('nuclear-power')) return notice('Nuclear Power required'); const missing = missingBuildMaterials(state, [{ key: 'steel', amount: 20, source: 'products' }, { key: 'circuit', amount: 8, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, steel: s.products.steel - 20, circuit: s.products.circuit - 8 } })); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90); return; }
     const machineCosts = miningMachineBuildCostFor(state);
     const missing = missingBuildMaterials(state, machineCosts);
@@ -968,12 +992,12 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
     enqueue('miner', `${rawInfo[key].label} ${miningMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key);
   };
   return <PageFrame>
-    <Header eyebrow="Raw material control" title="Mining" copy={miningUsesStoredCoal(state) ? "Tap the ground to start. Build burner mining drills to make the ore line autonomous. Coal drills offset their own fuel use against the coal they produce." : "Electric mining is online. Your upgraded drills run without coal and keep every resource line autonomous."} action={<Tag><Pickaxe size={11} /> 7 resource sections</Tag>} />
+    <Header eyebrow="Raw material control" title="Mining" copy={miningUsesStoredCoal(state) ? "Tap the ground to start. Build burner mining drills to make the ore line autonomous. Coal drills offset their own fuel use against the coal they produce." : "Electric mining is online. Your upgraded drills run without coal and keep every resource line autonomous."} action={<Tag><Pickaxe size={11} /> 8 resource sections</Tag>} />
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {rawKeys.map((key) => {
         const info = rawInfo[key];
         const locked = !!info.research && !state.research.includes(info.research);
-        const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key];
+        const count = miningMachineCountFor(state, key);
         const isBurnerOre = burnerMinerKeys.includes(key);
         const manualCollectionAvailable = isBurnerOre;
         const coalSelfFueled = key === 'coal' && miningUsesStoredCoal(state);
@@ -987,11 +1011,11 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
         const peakDemandRate = peakDemandRateFor(state, key);
         const manualMiningJob = state.manualMining?.resourceKey === key ? state.manualMining : null;
         const manualMiningBusy = Boolean(state.manualMining && !manualMiningJob);
-        const constructionAction = key === 'water' ? 'pump' : key === 'uranium' ? 'uraniumMiner' : 'miner';
+        const constructionAction = key === 'water' ? 'pump' : key === 'crudeOil' ? 'pumpjack' : key === 'uranium' ? 'uraniumMiner' : 'miner';
         const constructionItems = state.queue.filter((item) => item.action === constructionAction && (constructionAction !== 'miner' || item.targetId === key));
         const isBuilding = constructionItems.length > 0;
-        const machineLabel = key === 'water' ? 'Water Pump' : key === 'uranium' ? 'Acid-powered Uranium Miner' : miningMachineLabelFor(state);
-        const constructionLabel = key === 'water' ? 'Water pump' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} ${miningMachineLabelFor(state).toLowerCase()}`;
+        const machineLabel = key === 'water' ? 'Water Pump' : key === 'crudeOil' ? 'Pumpjack' : key === 'uranium' ? 'Acid-powered Uranium Miner' : miningMachineLabelFor(state);
+        const constructionLabel = key === 'water' ? 'Water pump' : key === 'crudeOil' ? 'Crude oil pumpjack' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} ${miningMachineLabelFor(state).toLowerCase()}`;
         const collectionLabel = manualCollectionAvailable ? 'manual collection' : 'machine extraction';
         const manualCollectionControl = <button onClick={() => tap(key)} disabled={!manualCollectionAvailable} className={`button-base !py-2 ${count ? '!px-2' : manualCollectionAvailable ? 'button-primary flex-1' : 'button-ghost flex-1 opacity-60'}`} aria-label={manualCollectionAvailable ? `Collect ${info.label} manually` : `${info.label} requires a machine`} title={manualCollectionAvailable ? 'Collect manually' : 'This material requires a machine'} data-testid={`button-tap-${key}`}>
           {!manualCollectionAvailable ? <><LockKeyhole size={13} />{!count && ' machine only'}</> : manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} />{!count && ' collect manually'}</>}
@@ -1008,12 +1032,12 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
                 <div className="flex shrink-0 items-center gap-2">
                   {locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <Tag><span className="status-dot status-running" /> auto</Tag> : <Tag tone="amber">manual</Tag>}
                   <div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${machineLabel} count`}>
-                    {isBurnerOre ? <ResourceIcon item={state.machineVariants.mining} size={17} /> : key === 'water' ? <Waves size={16} /> : <Pickaxe size={16} />}
+                    {isBurnerOre ? <ResourceIcon item={state.machineVariants.mining} size={17} /> : key === 'water' ? <Waves size={16} /> : key === 'crudeOil' ? <ResourceIcon item="pumpjack" size={17} /> : <Pickaxe size={16} />}
                     <span className="mono text-[13px]">{count}</span>
                   </div>
                 </div>
               </div>
-              <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{key === 'water' ? 'Fluid collection' : 'Raw material'} · {machineLabel}</div>
+              <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{key === 'water' || key === 'crudeOil' ? 'Fluid collection' : 'Raw material'} · {machineLabel}</div>
               <div className="mt-1 flex flex-wrap gap-1"><Tag tone={manualCollectionAvailable ? 'amber' : 'muted'}>{collectionLabel}</Tag>{usesFuel && <Tag tone="muted">coal fueled</Tag>}{coalSelfFueled && <Tag>self-fueled</Tag>}{coalElectric && <Tag>no coal input</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
             </div>
           </div>
@@ -1041,6 +1065,10 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
              <div className="flex items-center gap-2 text-[10px]"><Waves size={17} className="text-[hsl(var(--secondary))]" /><span className="font-semibold">Pump output</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">rated flow</span></div>
              <div className="mono mt-2 text-[13px] text-[hsl(var(--secondary))]">{waterPumpPerSecond.toLocaleString('en-US')} water / sec <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per pump</span></div>
            </div>}
+           {key === 'crudeOil' && <div className="mt-2 rounded-lg border border-[hsl(var(--secondary)/.25)] bg-[hsl(var(--secondary)/.06)] p-3" data-testid="panel-crude-oil-pumpjack-output">
+             <div className="flex items-center gap-2 text-[10px]"><ResourceIcon item="pumpjack" size={17} /><span className="font-semibold">Pumpjack output</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">rated flow</span></div>
+             <div className="mono mt-2 text-[13px] text-[hsl(var(--secondary))]">50 crude oil / sec <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per pumpjack</span></div>
+           </div>}
           <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={productionRate - demandRate} storage={state.raw[key]} capacity={capFor(state, key)} />
           {manualMiningJob && <ManualMiningProgress job={manualMiningJob} />}
           <BuildProgress items={constructionItems} label={constructionLabel} />
@@ -1060,7 +1088,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
   const automationUnlocked = state.research.includes('automation');
   const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
-  const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => recipe.name !== 'solar-panel' && recipeIsUnlocked(recipe, state)).filter((recipe) => {
+  const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => !['solar-panel', 'pumpjack'].includes(recipe.name) && recipeIsUnlocked(recipe, state)).filter((recipe) => {
     const matchesQuery = !query.trim() || `${recipe.name} ${recipe.category}`.toLowerCase().includes(query.trim().toLowerCase());
     return matchesQuery && (category === 'all' || recipe.category === category) && (scienceFilter === 'all' || recipe.scienceChain === scienceFilter);
   }), [category, query, scienceFilter, state]);
