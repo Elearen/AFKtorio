@@ -83,6 +83,14 @@ export const upgradeMap: Record<UpgradeKey, UpgradeDefinition> = Object.fromEntr
 export const scaledBuildCosts = (costs: BuildMaterialCost[], multiplier: number) =>
   costs.map((cost) => ({ ...cost, amount: cost.amount * multiplier }));
 
+export const bufferedActualRateFor = (peakRate: number, stored: number, capacity: number, demandRate: number) => {
+  if (peakRate <= 0) return 0;
+  const constrained = capacity > 0 && stored >= capacity * 0.95;
+  if (!constrained) return peakRate;
+  if (demandRate > 0) return Math.min(peakRate, demandRate);
+  return stored >= capacity ? 0 : peakRate;
+};
+
 export const machineCountForUpgrade = (
   machineCounts: Record<MachineGroup, number>,
   upgrade: UpgradeDefinition,

@@ -5,7 +5,7 @@ import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
 import {
-  applyUpgradeCompletion, beginUpgrade, machineCountForUpgrade as upgradeMachineCountFor,
+  applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
   migrateMachineUpgradeState, scaledBuildCosts, upgradeData, upgradeMap,
   type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
@@ -448,7 +448,7 @@ const storageConstrainedFor = (state: GameState, key: TrackedKey) => {
 const miningActualProductionRateFor = (state: GameState, key: RawKey) => {
   const peakRate = miningProductionRateFor(state, key);
   const requiredRate = demandRateFor(state, key);
-  return storageConstrainedFor(state, key) && requiredRate > 0 ? Math.min(peakRate, requiredRate) : peakRate;
+  return bufferedActualRateFor(peakRate, quantityFor(state, key), capFor(state, key), requiredRate);
 };
 const miningStorageThrottleFor = (state: GameState, key: RawKey) => {
   const peakRate = miningProductionRateFor(state, key);

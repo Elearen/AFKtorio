@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyUpgradeCompletion,
+  bufferedActualRateFor,
   beginUpgrade,
   migrateMachineUpgradeState,
   upgradeMap,
@@ -123,4 +124,11 @@ test('save migration keeps valid state, removes legacy upgrade jobs, and allows 
 
   assert.deepEqual(migrated.machineVariants, { assembly: 'assembling-machine-2', mining: 'burner-mining-drill' });
   assert.deepEqual(migrated.queue.map((item) => item.id), ['build', 'valid']);
+});
+
+test('full storage reports zero mining output when there is no downstream demand', () => {
+  assert.equal(bufferedActualRateFor(60, 180, 180, 0), 0);
+  assert.equal(bufferedActualRateFor(60, 170, 180, 0), 60);
+  assert.equal(bufferedActualRateFor(60, 180, 180, 12), 12);
+  assert.equal(bufferedActualRateFor(60, 150, 180, 0), 60);
 });
