@@ -140,7 +140,8 @@ const researchRequirementLabel = (technology: TechnologyDefinition, cost: Techno
   const quantity = technology.count ? cost.amount * technology.count : technology.countFormula ? `${cost.amount} × ${technology.countFormula}` : cost.amount;
   return `${meta[keyForSource(cost.pack)]?.label ?? prettyLabel(cost.pack)} · ${quantity}`;
 };
-const burnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood'];
+const manualMiningKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood'];
+const burnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal'];
 const burnerMiningDrillRecipe = recipeMap['burner-mining-drill'];
 const burnerMiningDrillCost = { gear: 3, ironPlate: 3, stone: 5 };
 const burnerMiningDrillCoalPerSecond = 0.25;
@@ -151,7 +152,7 @@ const electricMiningDrillPowerKw = upgradeMap['electric-mining-drill'].newMachin
 const electricMiningDrillProductionSpeed = upgradeMap['electric-mining-drill'].newMachineProductionSpeed;
 const waterPumpPerSecond = 1200;
 const pumpjackRecipe = recipeMap['pumpjack'];
-const fueledBurnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'wood'];
+const fueledBurnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone'];
 const smeltingRecipeKeys = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
 const stoneFurnaceRecipe = recipeMap['stone-furnace'];
 const stoneFurnaceBuildCost = { stone: 5 };
@@ -169,7 +170,7 @@ const fluidStorageBaseCapacity = FLUID_STORAGE_BASE_CAPACITY;
 const storageTankCapacity = STORAGE_TANK_CAPACITY;
 const storageBoxWoodCost = 2;
 const storageBoxBuildSeconds = 1;
-const manualMiningSeconds = 0.5;
+const manualMiningSeconds = 2.5;
 const labBaseResearchSpeed = 1;
 const technologyResearchTimeFor = (technology?: TechnologyDefinition) => Math.max(1, technology?.time ?? defaultTechnologyResearchTime);
 const boilerSteamPerSecond = 30;
@@ -363,7 +364,7 @@ const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps +
 const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade);
 const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
-const miningMachineCountFor = (state: GameState, key: RawKey) => key === 'water' ? state.pumps : key === 'crudeOil' ? state.pumpjacks : key === 'uranium' ? state.uraniumMiners : state.miners[key];
+const miningMachineCountFor = (state: GameState, key: RawKey) => key === 'wood' ? 0 : key === 'water' ? state.pumps : key === 'crudeOil' ? state.pumpjacks : key === 'uranium' ? state.uraniumMiners : state.miners[key];
 const miningOutputPerSecondFor = (key: RawKey) => key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'crudeOil' ? 50 : key === 'copper' ? 0.88 : 1;
 const miningMachineBuildCostFor = (state: GameState): BuildMaterialCost[] => state.machineVariants.mining === 'electric-mining-drill'
   ? electricMiningDrillBuildCost
@@ -708,7 +709,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   const completed = state.queue.filter((item) => item.seconds <= seconds);
   state.queue = state.queue.map((item) => ({ ...item, seconds: Math.max(0, item.seconds - seconds) })).filter((item) => item.seconds > 0);
   completed.forEach((item) => {
-    if (item.action === 'miner') state.miners[(item.targetId ?? item.target) as RawKey] += 1;
+    if (item.action === 'miner' && (item.targetId ?? item.target) !== 'wood') state.miners[(item.targetId ?? item.target) as RawKey] += 1;
     if (item.action === 'pump') state.pumps += 1;
     if (item.action === 'pumpjack') state.pumpjacks += 1;
     if (item.action === 'uraniumMiner') state.uraniumMiners += 1;
@@ -1064,12 +1065,13 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
 
 function MiningPage({ state, setState, enqueue, notice }: PageProps) {
   const tap = (key: RawKey) => {
-    if (!burnerMinerKeys.includes(key)) return notice(`${rawInfo[key].label} requires a machine`);
+    if (!manualMiningKeys.includes(key)) return notice(`${rawInfo[key].label} requires a machine`);
     if (state.manualMining) return notice(state.manualMining.resourceKey === key ? `already mining ${rawInfo[key].label.toLowerCase()}` : `finish mining ${rawInfo[state.manualMining.resourceKey].label.toLowerCase()} first`);
     setState((s) => ({ ...s, manualMining: { resourceKey: key, seconds: manualMiningSeconds, total: manualMiningSeconds } }));
     notice(`manual ${rawInfo[key].label.toLowerCase()} mining started`);
   };
   const build = (key: RawKey) => {
+    if (key === 'wood') return notice('Wood can only be collected manually');
     if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); const missing = missingBuildMaterials(state, [{ key: 'ironPlate', amount: 10, source: 'products' }, { key: 'gear', amount: 2, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 10, gear: s.products.gear - 2 } })); enqueue('pump', 'Water pump', 40); return; }
     if (key === 'crudeOil') {
       if (!state.research.includes('oil-gathering')) return notice('Oil Gathering required');
@@ -1104,14 +1106,15 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
     enqueue('miner', `${rawInfo[key].label} ${miningMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key);
   };
   return <PageFrame>
-    <Header eyebrow="Raw material control" title="Mining" copy={miningUsesStoredCoal(state) ? "Tap the ground to start. Build burner mining drills to make the ore line autonomous. Coal drills offset their own fuel use against the coal they produce." : "Electric mining is online. Your upgraded drills run without coal and keep every resource line autonomous."} action={<Tag><Pickaxe size={11} /> 8 resource sections</Tag>} />
+    <Header eyebrow="Raw material control" title="Mining" copy={miningUsesStoredCoal(state) ? "Tap the ground to start. Build burner mining drills to make the ore lines autonomous. Wood remains manual-only, and coal drills offset their own fuel use against the coal they produce." : "Electric mining is online. Your upgraded drills run without coal while wood remains manual-only."} action={<Tag><Pickaxe size={11} /> 8 resource sections</Tag>} />
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {rawKeys.map((key) => {
         const info = rawInfo[key];
         const locked = !!info.research && !state.research.includes(info.research);
         const count = miningMachineCountFor(state, key);
         const isBurnerOre = burnerMinerKeys.includes(key);
-        const manualCollectionAvailable = isBurnerOre;
+        const manualOnly = key === 'wood';
+        const manualCollectionAvailable = manualMiningKeys.includes(key);
         const coalSelfFueled = key === 'coal' && miningUsesStoredCoal(state);
         const coalElectric = key === 'coal' && !miningUsesStoredCoal(state);
         const usesFuel = isBurnerOre && !coalSelfFueled && miningUsesStoredCoal(state);
@@ -1124,15 +1127,15 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
         const manualMiningJob = state.manualMining?.resourceKey === key ? state.manualMining : null;
         const manualMiningBusy = Boolean(state.manualMining && !manualMiningJob);
         const constructionAction = key === 'water' ? 'pump' : key === 'crudeOil' ? 'pumpjack' : key === 'uranium' ? 'uraniumMiner' : 'miner';
-        const constructionItems = state.queue.filter((item) => item.action === constructionAction && (constructionAction !== 'miner' || item.targetId === key));
+        const constructionItems = manualOnly ? [] : state.queue.filter((item) => item.action === constructionAction && (constructionAction !== 'miner' || item.targetId === key));
         const isBuilding = constructionItems.length > 0;
-        const machineLabel = key === 'water' ? 'Water Pump' : key === 'crudeOil' ? 'Pumpjack' : key === 'uranium' ? 'Acid-powered Uranium Miner' : miningMachineLabelFor(state);
+        const machineLabel = manualOnly ? 'Manual collection only' : key === 'water' ? 'Water Pump' : key === 'crudeOil' ? 'Pumpjack' : key === 'uranium' ? 'Acid-powered Uranium Miner' : miningMachineLabelFor(state);
         const constructionLabel = key === 'water' ? 'Water pump' : key === 'crudeOil' ? 'Crude oil pumpjack' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} ${miningMachineLabelFor(state).toLowerCase()}`;
         const collectionLabel = manualCollectionAvailable ? 'manual collection' : 'machine extraction';
         const manualCollectionControl = <button onClick={() => tap(key)} disabled={!manualCollectionAvailable} className={`button-base !py-2 ${count ? '!px-2' : manualCollectionAvailable ? 'button-primary flex-1' : 'button-ghost flex-1 opacity-60'}`} aria-label={manualCollectionAvailable ? `Collect ${info.label} manually` : `${info.label} requires a machine`} title={manualCollectionAvailable ? 'Collect manually' : 'This material requires a machine'} data-testid={`button-tap-${key}`}>
           {!manualCollectionAvailable ? <><LockKeyhole size={13} />{!count && ' machine only'}</> : manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} />{!count && ' collect manually'}</>}
         </button>;
-        const buildControl = <button onClick={() => build(key)} className={`button-base !py-2 ${count ? 'flex-1' : '!px-3'} ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${machineLabel} for ${info.label}`} data-testid={count ? `button-build-more-${key}` : `button-build-miner-${key}`}>
+        const buildControl = manualOnly ? null : <button onClick={() => build(key)} className={`button-base !py-2 ${count ? 'flex-1' : '!px-3'} ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${machineLabel} for ${info.label}`} data-testid={count ? `button-build-more-${key}` : `button-build-miner-${key}`}>
           {isBuilding ? <><Check size={13} />{count && ' queued · build another'}</> : <>{count ? <><Hammer size={13} /> construct another</> : <Hammer size={13} />}</>}
         </button>;
         return <section className={`surface rounded-xl p-4 ${locked ? 'locked-wash opacity-75' : ''}`} key={key} data-testid={`section-mining-${key}`}>
@@ -1190,7 +1193,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
         </section>;
       })}
     </div>
-    <div className="mt-5 surface rounded-xl border-[hsl(var(--secondary)/.25)] p-4"><div className="flex items-start gap-3"><div className="text-[hsl(var(--secondary))]"><Lightbulb size={17} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Mining rule</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Manual collection takes 0.5 seconds and remains available while automated drills run. Only one resource can be collected by hand at a time, and hand-collected output can exceed storage capacity. Coal drills are self-fueled: their usage is offset from mined coal instead of stored fuel.</p></div></div></div>
+    <div className="mt-5 surface rounded-xl border-[hsl(var(--secondary)/.25)] p-4"><div className="flex items-start gap-3"><div className="text-[hsl(var(--secondary))]"><Lightbulb size={17} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Mining rule</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Manual collection takes 2.5 seconds and remains available while automated drills run. Wood is manual-only, and hand-collected output can exceed storage capacity. Only one resource can be collected by hand at a time. Coal drills are self-fueled: their usage is offset from mined coal instead of stored fuel.</p></div></div></div>
   </PageFrame>;
 }
 
