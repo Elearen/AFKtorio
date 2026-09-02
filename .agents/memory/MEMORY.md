@@ -4,3 +4,4 @@
 - [Technology tier ordering](technology-order.md) — the attached tier list is the canonical display and auto-research priority order.
 - [Recipe science-chain classification](recipe-science-chain.md) — classify recipes by recursively walking backward from all science-pack outputs.
 - [Smelting fuel metrics](smelting-fuel-metrics.md) — show normalized cost per item alongside current and peak furnace coal usage.
+- [Mining card layout](mining-card-layout.md) — mining cards mirror Production while keeping manual collection available alongside automated drills.
