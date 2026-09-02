@@ -3,11 +3,11 @@ name: Science throughput
 description: Shared rules for active research, lab consumption, and science-pack production bottlenecks.
 ---
 
-The active research selection is shared between the Research and Science tabs. Labs consume each technology's configured amount of every required science pack per completed research unit.
+The active research selection is shared between the Research and Science tabs. Labs advance continuously at their research-unit rate and consume each technology's configured amount of every required science pack for the matching fractional progress.
 
 **Why:** Science demand depends on the selected technology, not merely on whether any science inventory exists; consuming the first available pack produces incorrect research behavior.
 
-**How to apply:** Treat research-unit speed as labs × lab speed ÷ base research time, with lab speed 1 and a 30-second fallback. Multiply by each pack amount for pack demand; current SPM comes from recent consumption and peak SPM is supply-bottlenecked.
+**How to apply:** Treat research-unit speed as labs × lab speed ÷ base research time, with lab speed 1 and a 30-second fallback. Multiply fractional progress by each pack amount for pack demand; stop progress when any required pack is exhausted. Current SPM comes from recent consumption and peak SPM is supply-bottlenecked.
 
 Auto research is an ordered selection, not a parallel scheduler: the first checked incomplete technology in catalog order owns the labs, and later checked technologies wait until it completes.
 
