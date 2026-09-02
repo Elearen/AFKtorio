@@ -1022,7 +1022,7 @@ function loadState() {
 
 const iconFileFor: Record<string, string> = {
   crudeOil: 'crude-oil', chemicalPack: 'chemical-science-pack', militaryPack: 'military-science-pack',
-  productionPack: 'researchPack', utilityPack: 'utility-science-pack',
+  productionPack: 'researchPack', utilityPack: 'utility-science-pack', spacePack: 'space-science-pack',
 };
 function ResourceIcon({ item, size = 28 }: { item: TrackedKey; size?: number }) {
   return <img src={`${import.meta.env.BASE_URL}item-icons/${iconFileFor[item] ?? item}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
