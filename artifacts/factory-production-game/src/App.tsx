@@ -285,7 +285,7 @@ technologyCatalog.forEach((technology) => technology.effects.forEach((effect) =>
 }));
 const rawProductIsUnlocked = (key: string, state: GameState) => key !== 'water' && key !== 'uranium' && key !== 'crudeOil'
   || key === 'water' && state.research.includes('steam-power')
-  || key === 'uranium' && state.research.includes('nuclear-power')
+  || key === 'uranium' && state.research.includes('uranium-mining')
   || key === 'crudeOil' && state.research.includes('oil-gathering');
 const recipeIsUnlocked = (recipe: Recipe, state: GameState) => recipe.name === 'advanced-oil-processing'
   ? state.oilProcessingAdvanced
@@ -365,7 +365,7 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
   coal: { label: 'Coal', description: 'Dense fuel for boilers and high-heat processing.' },
   wood: { label: 'Wood', description: 'Manual-start biomass for early structures.' },
   water: { label: 'Water', description: 'Pumped fluid required to turn heat into power.', research: 'steam-power', needs: 'Steam Power' },
-  uranium: { label: 'Uranium', description: 'Dense fuel for the late-stage reactor chain.', research: 'nuclear-power', needs: 'Nuclear Power' },
+  uranium: { label: 'Uranium', description: 'Dense fuel for the late-stage reactor chain.', research: 'uranium-mining', needs: 'Uranium Mining' },
   crudeOil: { label: 'Crude oil', description: 'Raw hydrocarbon feedstock for refining and the chemical chain.', research: 'oil-gathering', needs: 'Oil Gathering' },
 };
 
@@ -823,7 +823,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (item.action === 'miner' && (item.targetId ?? item.target) !== 'wood') state.miners[(item.targetId ?? item.target) as RawKey] += 1;
     if (item.action === 'pump') state.pumps += 1;
     if (item.action === 'pumpjack') { state.pumpjacks += 1; recordProduction(state, 'pumpjack', 1); }
-    if (item.action === 'uraniumMiner') state.uraniumMiners += 1;
+    if (item.action === 'uraniumMiner') { state.uraniumMiners += 1; recordProduction(state, 'uranium-miner', 1); }
      if (item.action === 'assembler' || item.action === 'furnace') state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
     if (item.action === 'lab') { state.labs += 1; recordProduction(state, 'lab', 1, liveProduction); }
     if (item.action === 'boiler') state.boilers += 1;
@@ -1235,7 +1235,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
       enqueue('pumpjack', 'Crude oil pumpjack', pumpjackRecipe.energyRequired, undefined, pumpjackBuildCost);
       return;
     }
-    if (key === 'uranium') { if (!state.research.includes('nuclear-power')) return notice('Nuclear Power required'); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90, undefined, [{ key: 'steel', amount: 20, source: 'products' }, { key: 'circuit', amount: 8, source: 'products' }]); return; }
+    if (key === 'uranium') { if (!state.research.includes('uranium-mining')) return notice('Uranium Mining required'); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90, undefined, [{ key: 'steel', amount: 20, source: 'products' }, { key: 'circuit', amount: 8, source: 'products' }]); return; }
     const machineCosts = miningMachineBuildCostFor(state);
     const machine = miningMachineRecipeFor(state);
     enqueue('miner', `${rawInfo[key].label} ${miningMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key, machineCosts);

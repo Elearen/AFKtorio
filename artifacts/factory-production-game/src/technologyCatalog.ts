@@ -6381,7 +6381,9 @@ export const technologyCatalog: TechnologyDefinition[] = [
     ],
     "scienceCosts": [],
     "researchTrigger": {
-      "type": "mine-entity"
+      "type": "construct-item",
+      "item": "uranium-miner",
+      "count": 1
     },
     "effects": [
       {

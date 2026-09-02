@@ -22,3 +22,14 @@ test('Advanced Oil Processing unlocks only the two cracking recipes', () => {
     { type: 'unlock-recipe', recipe: 'light-oil-cracking' },
   ]);
 });
+
+test('Uranium Processing unlocks after constructing the first uranium miner', () => {
+  const uraniumProcessing = technologyCatalog.find((technology) => technology.name === 'uranium-processing');
+
+  assert.ok(uraniumProcessing);
+  assert.deepEqual(uraniumProcessing.researchTrigger, {
+    type: 'construct-item',
+    item: 'uranium-miner',
+    count: 1,
+  });
+});
