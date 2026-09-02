@@ -416,6 +416,10 @@ const handcraftPeakProductionRateFor = (state: GameState, key: TrackedKey) => {
   const output = recipe ? recipeOutputs(recipe).find((entry) => entry.key === key) : undefined;
   return output ? output.amount * 60 * state.simulationSpeed / recipe.energyRequired : 0;
 };
+const storageConstrainedFor = (state: GameState, key: TrackedKey) => {
+  const capacity = capFor(state, key);
+  return capacity > 0 && quantityFor(state, key) >= capacity * 0.95;
+};
 const peakProductionRateFor = (state: GameState, key: TrackedKey) => {
   let rate = rawKeys.includes(key as RawKey) ? miningProductionRateFor(state, key as RawKey) : 0;
   componentKeys.forEach((recipeKey) => {
@@ -451,8 +455,20 @@ const rateFromHistory = (state: GameState, key: TrackedKey, field: 'production' 
   const amount = history.reduce((total, sample) => total + (sample[field][key] ?? 0), 0);
   return amount / seconds * 60;
 };
-const productionRateFor = (state: GameState, key: TrackedKey) => rateFromHistory(state, key, 'production');
 const demandRateFor = (state: GameState, key: TrackedKey) => rateFromHistory(state, key, 'consumption');
+const productionRateFor = (state: GameState, key: TrackedKey) => {
+  const observedRate = rateFromHistory(state, key, 'production');
+  return storageConstrainedFor(state, key) ? Math.min(observedRate, demandRateFor(state, key)) : observedRate;
+};
+const recipeStorageThrottleFor = (state: GameState, recipe: Recipe, machinePowerRatio: number) => {
+  const peakCycleRate = recipeCycleRateFor(state, recipe) * machinePowerRatio;
+  if (peakCycleRate <= 0) return 0;
+  return recipeOutputs(recipe).reduce((throttle, output) => {
+    if (!storageConstrainedFor(state, output.key)) return throttle;
+    const requiredRate = demandRateFor(state, output.key);
+    return Math.min(throttle, requiredRate / Math.max(0.01, peakCycleRate * output.amount));
+  }, 1);
+};
 const recipeProductionRateFor = (state: GameState, recipe: Recipe) => {
   const output = recipeOutputs(recipe)[0];
   return output ? productionRateFor(state, output.key) : 0;
@@ -541,11 +557,12 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (!count) return;
     const recipe = recipeMap[key];
     const machinePowerRatio = isSmeltingRecipe(recipe) ? 1 : powerRatio;
+    const storageThrottle = recipeStorageThrottleFor(state, recipe, machinePowerRatio);
     // Progress represents an in-flight cycle, not a queue of completed
     // cycles. Clamp legacy/starved backlog before advancing the line so a
     // machine cannot burst above its steady-state rate when inputs return.
     state.assemblyProgress[key] = Math.min(state.assemblyProgress[key] ?? 0, 0.999999)
-      + count * seconds * speed * machinePowerRatio * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
+      + count * seconds * speed * machinePowerRatio * storageThrottle * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
     let cycles = 0;
     let blocked = false;
     while (state.assemblyProgress[key] >= 1 && cycles < 80) {
@@ -1131,7 +1148,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
          </article>
       </div>
     </section>
-    <p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Boilers reserve coal before miners and furnaces. Producers stay at maximum output; only electrically powered production slows when network demand is higher than generation.</p>
+     <p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Boilers reserve coal before miners and furnaces. Producers run at maximum while storage has room, then throttle full output buffers to downstream demand; electrically powered production also slows when network demand exceeds generation.</p>
   </PageFrame>;
 }
 
