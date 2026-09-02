@@ -18,6 +18,7 @@ export type RecipeCatalogEntry = {
   category: string;
   ingredients: RecipeMaterial[];
   results: RecipeMaterial[];
+  fuel?: RecipeMaterial;
 };
 
 // Normalized from the attached Factorio recipe definitions.
@@ -2957,6 +2958,11 @@ export const recipeCatalog: RecipeCatalogEntry[] = [
     "enabled": true,
     "hidden": false,
     "category": "smelting",
+    "fuel": {
+      "type": "item",
+      "name": "coal",
+      "amount": 0.1
+    },
     "ingredients": [
       {
         "type": "item",
@@ -2978,6 +2984,11 @@ export const recipeCatalog: RecipeCatalogEntry[] = [
     "enabled": true,
     "hidden": false,
     "category": "smelting",
+    "fuel": {
+      "type": "item",
+      "name": "coal",
+      "amount": 0.1
+    },
     "ingredients": [
       {
         "type": "item",
@@ -2999,6 +3010,11 @@ export const recipeCatalog: RecipeCatalogEntry[] = [
     "enabled": true,
     "hidden": false,
     "category": "smelting",
+    "fuel": {
+      "type": "item",
+      "name": "coal",
+      "amount": 0.1
+    },
     "ingredients": [
       {
         "type": "item",
@@ -3020,6 +3036,11 @@ export const recipeCatalog: RecipeCatalogEntry[] = [
     "enabled": false,
     "hidden": false,
     "category": "smelting",
+    "fuel": {
+      "type": "item",
+      "name": "coal",
+      "amount": 0.1
+    },
     "ingredients": [
       {
         "type": "item",

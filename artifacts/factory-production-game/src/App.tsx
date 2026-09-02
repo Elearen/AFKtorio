@@ -20,7 +20,7 @@ type ResearchKey = string;
 type UnitStatus = 'running' | 'starved' | 'blocked';
 
 type Recipe = RecipeCatalogEntry;
-type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'lab' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number };
+type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number };
 type HandcraftJob = { recipeKey: string; seconds: number; total: number };
 type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number };
 type GameState = {
@@ -67,6 +67,9 @@ const burnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood'];
 const burnerMiningDrillRecipe = recipeMap['burner-mining-drill'];
 const burnerMiningDrillCost = { gear: 3, ironPlate: 3, stone: 5 };
 const burnerMiningDrillCoalPerSecond = 0.25;
+const smeltingRecipeKeys = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
+const stoneFurnaceRecipe = recipeMap['stone-furnace'];
+const stoneFurnaceBuildCost = { stone: 5 };
 const assemblyMachineOneRecipe = recipeMap['assembling-machine-1'];
 const assemblyMachineOneBuildCost = { circuit: 3, gear: 5, ironPlate: 9 };
 const assemblyMachineOnePowerKw = 75;
@@ -85,6 +88,17 @@ const recipeInputs = (recipe: Recipe) => {
   });
   return inputs as Partial<Record<TrackedKey, number>>;
 };
+const recipeFuelInputs = (recipe: Recipe) => {
+  if (!recipe.fuel) return {} as Partial<Record<TrackedKey, number>>;
+  return { [keyForSource(recipe.fuel.name)]: materialAmount(recipe.fuel) } as Partial<Record<TrackedKey, number>>;
+};
+const automatedRecipeInputs = (recipe: Recipe) => {
+  const inputs = { ...recipeInputs(recipe) };
+  Object.entries(recipeFuelInputs(recipe)).forEach(([key, amount]) => { inputs[key] = (inputs[key] ?? 0) + (amount ?? 0); });
+  return inputs;
+};
+const isSmeltingRecipe = (recipe: Recipe) => smeltingRecipeKeys.has(recipe.name) && recipe.category === 'smelting';
+const productionBuildingFor = (recipe: Recipe) => isSmeltingRecipe(recipe) ? 'stone-furnace' : 'assembling-machine-1';
 const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
 const trackedKeys: TrackedKey[] = Array.from(new Set([
   ...rawKeys,
@@ -164,7 +178,7 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
 
 const upgradeData: { id: UpgradeKey; title: string; copy: string; base: number; unit: string }[] = [
   { id: 'manualMining', title: 'Reinforced hand tools', copy: 'Increase every manual mining tap by 1 raw item.', base: 18, unit: 'raw / tap' },
-  { id: 'productionSpeed', title: 'Tighter cycle control', copy: 'All autonomous assemblers complete cycles 10% faster.', base: 24, unit: '% speed' },
+  { id: 'productionSpeed', title: 'Tighter cycle control', copy: 'All autonomous production units complete cycles 10% faster.', base: 24, unit: '% speed' },
   { id: 'storageEfficiency', title: 'Dense rack packing', copy: 'Raise the effective capacity of every storage row by 8%.', base: 28, unit: '% capacity' },
   { id: 'powerEfficiency', title: 'Load balancing', copy: 'Reduce factory power draw by 6% per level.', base: 30, unit: '% efficiency' },
 ];
@@ -173,14 +187,15 @@ const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
 const duration = (n: number) => `${Math.floor(n / 60)}m ${String(Math.max(0, Math.floor(n % 60))).padStart(2, '0')}s`;
 const capFor = (state: GameState, key: TrackedKey) => Math.floor((state.storage[key] ?? 180) * (1 + state.upgrades.storageEfficiency * 0.08));
 const burnerMinerCount = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
-const electricUnitCount = (state: GameState) => Object.values(state.assemblers).reduce((a, b) => a + b, 0) + state.labs;
+const electricAssemblerCount = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && !isSmeltingRecipe(recipeMap[recipeKey]) ? count : 0), 0);
+const productionUnitCount = (state: GameState) => Object.values(state.assemblers).reduce((total, count) => total + count, 0);
 const burnerMinerCoalRate = (state: GameState) => burnerMinerCount(state) * burnerMiningDrillCoalPerSecond;
 const electricPowerDraw = (state: GameState) => {
-  const assemblerPower = Object.values(state.assemblers).reduce((total, count) => total + count * assemblyMachineOnePowerKw, 0);
+  const assemblerPower = electricAssemblerCount(state) * assemblyMachineOnePowerKw;
   return (state.labs * labPowerKw + assemblerPower) * (1 - state.upgrades.powerEfficiency * 0.06) / 1000;
 };
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
-const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.uraniumMiners + electricUnitCount(state);
+const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.uraniumMiners + productionUnitCount(state) + state.labs;
 const quantityFor = (state: GameState, key: TrackedKey) => rawKeys.includes(key as RawKey) ? state.raw[key as RawKey] : state.products[key] ?? 0;
 const hasInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>) => Object.entries(inputs).every(([key, value]) => quantityFor(state, key) >= (value ?? 0));
 const spendInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>) => {
@@ -235,7 +250,7 @@ const netRateFor = (state: GameState, key: TrackedKey) => {
     recipeOutputs(recipe).forEach(({ key: outputKey, amount }) => {
       if (outputKey === key) rate += outputRate * amount;
     });
-    Object.entries(recipeInputs(recipe)).forEach(([input, quantity]) => {
+    Object.entries(automatedRecipeInputs(recipe)).forEach(([input, quantity]) => {
       if (input === key) rate -= outputRate * (quantity ?? 0);
     });
   });
@@ -279,8 +294,8 @@ function simulate(previous: GameState, seconds: number): GameState {
     let cycles = 0;
     while (state.assemblyProgress[key] >= 1 && cycles < 80) {
       const outputs = recipeOutputs(recipe);
-      if (!hasInputs(state, recipeInputs(recipe)) || outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) break;
-      spendInputs(state, recipeInputs(recipe));
+       if (!hasInputs(state, automatedRecipeInputs(recipe)) || outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) break;
+       spendInputs(state, automatedRecipeInputs(recipe));
       outputs.forEach(({ key: outputKey, amount }) => { addTracked(state, outputKey, amount); recordProduction(state, outputKey, amount); });
       state.assemblyProgress[key] -= 1; state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0); cycles += 1;
     }
@@ -318,7 +333,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (item.action === 'miner') state.miners[(item.targetId ?? item.target) as RawKey] += 1;
     if (item.action === 'pump') state.pumps += 1;
     if (item.action === 'uraniumMiner') state.uraniumMiners += 1;
-    if (item.action === 'assembler') state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
+     if (item.action === 'assembler' || item.action === 'furnace') state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
     if (item.action === 'lab') { state.labs += 1; recordProduction(state, 'lab', 1); }
     if (item.action === 'upgrade') state.upgrades[(item.targetId ?? item.target) as UpgradeKey] += 1;
   });
@@ -450,7 +465,7 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
   }, 0));
   const powerProduction = (state.research.includes('steam-power') ? 80 : 0) + (state.research.includes('solar-energy') ? 45 : 0) + (state.research.includes('nuclear-power') ? 180 : 0);
   const draw = electricPowerDraw(state);
-  const bottleneckRecipe = componentKeys.map((key) => recipeMap[key]).find((recipe) => (state.assemblers[recipe.name] ?? 0) > 0 && !hasInputs(state, recipeInputs(recipe)));
+  const bottleneckRecipe = componentKeys.map((key) => recipeMap[key]).find((recipe) => (state.assemblers[recipe.name] ?? 0) > 0 && !hasInputs(state, automatedRecipeInputs(recipe)));
   const bottleneck = keyForSource(bottleneckRecipe?.results[0]?.name ?? 'electronic-circuit');
   return <PageFrame>{away >= 60 && recovered > 0 && <div className="surface mb-5 flex flex-col gap-3 rounded-xl border-[hsl(var(--secondary)/.4)] bg-[linear-gradient(100deg,hsl(174_35%_17%/.8),hsl(216_25%_14%/.96))] p-4 sm:flex-row sm:items-center sm:justify-between enter" data-testid="status-offline-production"><div className="flex items-start gap-3"><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--secondary)/.14)] text-[hsl(var(--secondary))]"><RotateCcw size={18} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Network recovered</div><div className="mt-1 text-[13px] font-bold">{duration(away)} of offline production reconciled</div><div className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">The line added <span className="mono text-[hsl(var(--secondary))]">{fmt(recovered)} items</span> while the control room was closed.</div></div></div><button onClick={() => notice('offline report acknowledged')} className="button-base button-ghost shrink-0" data-testid="button-dismiss-offline">acknowledge <ArrowRight size={13} /></button></div>}
     <Header eyebrow="Live production network" title="Factory" copy="One control surface for the whole operation. Watch the line, then clear the next constraint." action={<Tag><span className="status-dot status-running mini-pulse" /> line online</Tag>} />
@@ -502,14 +517,21 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
     });
     notice(`handcrafting ${prettyLabel(outputs[0]?.key ?? recipe.name)}`);
   };
-  const buildAssembler = (key: ComponentKey) => {
+  const buildProductionUnit = (key: ComponentKey) => {
+    const recipe = recipeMap[key];
+    if (isSmeltingRecipe(recipe)) {
+      if (state.raw.stone < stoneFurnaceBuildCost.stone) return notice('need 5 stone');
+      setState((s) => ({ ...s, raw: { ...s.raw, stone: s.raw.stone - stoneFurnaceBuildCost.stone } }));
+      enqueue('furnace', `${prettyLabel(key)} stone furnace`, stoneFurnaceRecipe.energyRequired, key);
+      return;
+    }
     if (!automationUnlocked) return notice('Automation technology required');
     if (state.products.circuit < assemblyMachineOneBuildCost.circuit || state.products.gear < assemblyMachineOneBuildCost.gear || state.products.ironPlate < assemblyMachineOneBuildCost.ironPlate) return notice('need 3 electronic circuits + 5 iron gears + 9 iron plates');
     setState((s) => ({ ...s, products: { ...s.products, circuit: s.products.circuit - assemblyMachineOneBuildCost.circuit, gear: s.products.gear - assemblyMachineOneBuildCost.gear, ironPlate: s.products.ironPlate - assemblyMachineOneBuildCost.ironPlate } }));
     enqueue('assembler', `${prettyLabel(key)} assembly machine 1`, assemblyMachineOneRecipe.energyRequired, key);
   };
   return <PageFrame>
-    <Header eyebrow="Recipe catalog" title="Production" copy="The attached recipe definitions drive every card below. Search the full line, inspect item and fluid flows, then run any recipe manually or with an Assembly Machine 1 after Automation is unlocked." action={<Tag><Cog size={11} /> {recipeCatalog.length} recipes loaded</Tag>} />
+    <Header eyebrow="Recipe catalog" title="Production" copy="The attached recipe definitions drive every card below. Search the full line, inspect item and fluid flows, then run recipes manually or with the appropriate production building." action={<Tag><Cog size={11} /> {recipeCatalog.length} recipes loaded</Tag>} />
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
       <div className="flex flex-col gap-2 sm:flex-row">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search recipes, items, or fluids" className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search recipes" data-testid="input-search-recipes" />
@@ -519,7 +541,8 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
         </select>
       </div>
       <div className="mt-2 flex items-center justify-between text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source data includes hidden and disabled definitions.</span><span className="mono">{visibleRecipes.length} visible</span></div>
-      <div className="data-row mt-3 flex items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="assembling-machine-1" size={18} /><span className="text-[10px] font-semibold">Assembly Machine 1</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">3 circuits + 5 gears + 9 plates · {assemblyMachineOneRecipe.energyRequired}s build</span></div>
+      <div className="data-row mt-3 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="stone-furnace" size={18} /><span className="text-[10px] font-semibold">Stone Furnace</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">5 stone · {stoneFurnaceRecipe.energyRequired}s build · smelting fuel 0.1 coal/item</span></div>
+      <div className="data-row mt-2 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="assembling-machine-1" size={18} /><span className="text-[10px] font-semibold">Assembly Machine 1</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">3 circuits + 5 gears + 9 plates · {assemblyMachineOneRecipe.energyRequired}s build</span></div>
     </section>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{visibleRecipes.map((recipe) => {
       const key = recipe.name;
@@ -528,7 +551,11 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       const count = state.assemblers[key] ?? 0;
       const rate = count * 60 / recipe.energyRequired * (1 + state.upgrades.productionSpeed * .1);
       const netRate = primaryOutput ? netRateFor(state, primaryOutput.key) : 0;
-      const constructionItems = state.queue.filter((item) => item.action === 'assembler' && item.targetId === key);
+      const smelting = isSmeltingRecipe(recipe);
+      const building = productionBuildingFor(recipe);
+      const buildingLabel = smelting ? 'Stone Furnace' : 'Assembly Machine 1';
+      const buildingAction: QueueItem['action'] = smelting ? 'furnace' : 'assembler';
+      const constructionItems = state.queue.filter((item) => item.action === buildingAction && item.targetId === key);
       const isBuilding = constructionItems.length > 0;
       const handcraftJob = state.handcraft?.recipeKey === key ? state.handcraft : null;
       const handcraftBusy = Boolean(state.handcraft && !handcraftJob);
@@ -537,8 +564,8 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
         <div className="flex items-start gap-3">
           <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <Tag><span className="status-dot status-running" /> auto</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Assembly machine 1 count"><ResourceIcon item="assembling-machine-1" size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
-            <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle</div>
+            <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <Tag><span className="status-dot status-running" /> auto</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
+            <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle · {buildingLabel}</div>
             <div className="mt-1 flex flex-wrap gap-1">{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
           </div>
         </div>
@@ -550,9 +577,10 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
             {outputs.map(({ key: outputKey, amount }, index) => <span className="resource-chip" style={{ borderColor: `${meta[outputKey].color}66` }} key={`${outputKey}-${index}`}><ResourceIcon item={outputKey} size={17} /><strong>{amountLabel(amount)}</strong> {meta[outputKey].short}</span>)}
           </div>
         </div>
+        {smelting && recipe.fuel && <div className="mt-2 flex items-center gap-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] px-3 py-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto mono text-[hsl(var(--primary))]">{amountLabel(materialAmount(recipe.fuel))} coal / item</span></div>}
         <div className="mt-4 flex items-end justify-between"><div><div className="eyebrow">Net rate · primary output</div><div className={`mono mt-1 text-[17px] ${netRate < 0 ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary))]'}`}>{netRate > 0 ? '+' : ''}{netRate.toFixed(1)} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">/ min</span></div></div><div className="text-right"><div className="eyebrow">Stored</div><div className="mono mt-1 text-[14px]">{fmt(primaryOutput ? quantityFor(state, primaryOutput.key) : 0)}</div></div></div>
         {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} />}
-        <div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${prettyLabel(key)} assembler is running at ${rate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button>{handcraftControl}<button onClick={() => buildAssembler(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another assembly machine 1 for ${prettyLabel(key)}`} data-testid={`button-build-more-assembler-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => handcraft(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-handcraft-production-${key}`}><Plus size={13} /> handcraft</button><button onClick={() => buildAssembler(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct assembly machine 1 for ${prettyLabel(key)}`} data-testid={`button-build-assembler-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div>
+        <div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${prettyLabel(key)} ${buildingLabel.toLowerCase()} is running at ${rate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button>{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-more-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => handcraft(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-handcraft-production-${key}`}><Plus size={13} /> handcraft</button><button onClick={() => buildProductionUnit(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-${buildingAction}-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div>
       </section>;
     })}</div>
   </PageFrame>;
