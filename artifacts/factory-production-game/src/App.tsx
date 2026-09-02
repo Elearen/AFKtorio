@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type ReactNode, type SetStateAction } from 'react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
-import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial, type RecipeScienceChain } from './recipeCatalog';
+import { recipeCatalog, recipeScienceChainFor, type RecipeCatalogEntry, type RecipeMaterial, type RecipeScienceChain } from './recipeCatalog';
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
@@ -287,7 +287,12 @@ const coreTrackedKeys = new Set(recipeCatalog.filter((recipe) => recipe.scienceC
   ...recipe.results,
   ...(recipe.fuel ? [recipe.fuel] : []),
 ].map((material) => keyForSource(material.name))));
-const trackedScienceChainFor = (key: TrackedKey): RecipeScienceChain => coreTrackedKeys.has(key) ? 'Core' : 'Non-Core';
+const deferredSpaceScienceTrackedKeys = new Set<TrackedKey>(['radar', 'solar-panel', 'accumulator']);
+const spaceScienceUnlockedFor = (state: GameState) => state.research.includes('space-science-pack');
+const trackedScienceChainFor = (key: TrackedKey, state: GameState): RecipeScienceChain =>
+  deferredSpaceScienceTrackedKeys.has(key) && !spaceScienceUnlockedFor(state)
+    ? 'Non-Core'
+    : coreTrackedKeys.has(key) ? 'Core' : 'Non-Core';
 const recipeUnlockResearch: Record<string, string[]> = {};
 technologyCatalog.forEach((technology) => technology.effects.forEach((effect) => {
   if (effect.type === 'unlock-recipe' && effect.recipe) recipeUnlockResearch[effect.recipe] = [...(recipeUnlockResearch[effect.recipe] ?? []), technology.name];
@@ -1452,10 +1457,11 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const currentFurnaceBuildRecipe = furnaceBuildRecipeFor(state);
   const currentFurnaceCosts = recipeBuildCosts(currentFurnaceBuildRecipe);
   const currentFurnaceCoalPerItem = furnaceCoalPerItemFor(state, recipeMap['iron-plate']);
+  const spaceScienceUnlocked = spaceScienceUnlockedFor(state);
   const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
   const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => !['pumpjack', 'rocket-silo', 'rocket-part'].includes(recipe.name) && recipeIsUnlocked(recipe, state)).filter((recipe) => {
     const matchesQuery = !query.trim() || `${recipe.name} ${recipe.category}`.toLowerCase().includes(query.trim().toLowerCase());
-    return matchesQuery && (category === 'all' || recipe.category === category) && (scienceFilter === 'all' || recipe.scienceChain === scienceFilter);
+    return matchesQuery && (category === 'all' || recipe.category === category) && (scienceFilter === 'all' || recipeScienceChainFor(recipe, spaceScienceUnlocked) === scienceFilter);
   }), [category, query, scienceFilter, state]);
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   const handcraft = (key: ComponentKey) => {
@@ -1502,7 +1508,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
           <option value="Non-Core">Non-Core recipes</option>
         </select>
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source data includes hidden and disabled definitions.</span><span className="mono">{visibleRecipes.length} visible · {recipeCatalog.filter((recipe) => recipe.scienceChain === 'Core').length} core / {recipeCatalog.filter((recipe) => recipe.scienceChain === 'Non-Core').length} non-core</span></div>
+       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source data includes hidden and disabled definitions.</span><span className="mono">{visibleRecipes.length} visible · {recipeCatalog.filter((recipe) => recipeScienceChainFor(recipe, spaceScienceUnlocked) === 'Core').length} core / {recipeCatalog.filter((recipe) => recipeScienceChainFor(recipe, spaceScienceUnlocked) === 'Non-Core').length} non-core</span></div>
        <div className="data-row mt-3 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item={state.furnaceVariant} size={18} /><span className="text-[10px] font-semibold">Additional builds · {currentFurnaceLabel}</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceCosts.map((cost) => `${amountLabel(cost.amount)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · {currentFurnaceBuildRecipe.energyRequired}s recipe build · speed {furnaceCraftingSpeedFor(state)} · {currentFurnaceCoalPerItem.toFixed(2)} coal/item</span></div>
       <div className="data-row mt-2 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item={state.machineVariants.assembly} size={18} /><span className="text-[10px] font-semibold">{productionMachineLabelFor(state)}</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">{productionMachineBuildCostFor(state).map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · {productionMachineRecipeFor(state).energyRequired}s build · {assemblyMachineProductionSpeedFor(state).toFixed(2)} speed · {assemblyMachinePowerFor(state)} kW</span></div>
     </section>
@@ -1534,7 +1540,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
           <div className="min-w-0 flex-1">
              <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <Tag tone={autoCondition.met ? 'teal' : 'amber'}>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
             <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle · {buildingLabel}</div>
-             <div className="mt-1 flex flex-wrap gap-1"><Tag tone={recipe.scienceChain === 'Core' ? 'teal' : 'muted'}>{recipe.scienceChain}</Tag>{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
+             <div className="mt-1 flex flex-wrap gap-1"><Tag tone={recipeScienceChainFor(recipe, spaceScienceUnlocked) === 'Core' ? 'teal' : 'muted'}>{recipeScienceChainFor(recipe, spaceScienceUnlocked)}</Tag>{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
           </div>
         </div>
         <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
@@ -1668,11 +1674,11 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
   };
   const unlockedKeys = orderedTrackedKeys.filter((key) => unlockedProductKeys(state).has(key));
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
-  const visibleKeys = unlockedKeys.filter((key) => scienceFilter === 'all' || trackedScienceChainFor(key) === scienceFilter);
+   const visibleKeys = unlockedKeys.filter((key) => scienceFilter === 'all' || trackedScienceChainFor(key, state) === scienceFilter);
   return <PageFrame>
     <Header eyebrow="Buffer control" title="Storage" copy={`${state.storageBoxType === 'iron' ? 'Item buffers use iron chests.' : 'Item buffers use wooden boxes.'} Fluids start with 100 units of base capacity, then expand with storage tanks after Fluid Handling research.`} action={<Tag><Box size={11} /> {visibleKeys.length} visible items</Tag>} />
     <section className="surface rounded-xl p-2.5 sm:p-3">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Science chain filter</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{unlockedKeys.length} unlocked · {unlockedKeys.filter((key) => trackedScienceChainFor(key) === 'Core').length} core / {unlockedKeys.filter((key) => trackedScienceChainFor(key) === 'Non-Core').length} non-core</div></div><select value={scienceFilter} onChange={(event) => setScienceFilter(event.target.value as RecipeScienceFilter)} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none" aria-label="Filter storage science chain" data-testid="select-storage-science-filter"><option value="all">All items</option><option value="Core">Core items</option><option value="Non-Core">Non-Core items</option></select></div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Science chain filter</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{unlockedKeys.length} unlocked · {unlockedKeys.filter((key) => trackedScienceChainFor(key, state) === 'Core').length} core / {unlockedKeys.filter((key) => trackedScienceChainFor(key, state) === 'Non-Core').length} non-core</div></div><select value={scienceFilter} onChange={(event) => setScienceFilter(event.target.value as RecipeScienceFilter)} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none" aria-label="Filter storage science chain" data-testid="select-storage-science-filter"><option value="all">All items</option><option value="Core">Core items</option><option value="Non-Core">Non-Core items</option></select></div>
       <div className="space-y-2">
         {visibleKeys.map((key) => {
           const amount = quantityFor(state, key);
@@ -1690,7 +1696,7 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
           return <section className="data-row rounded-lg p-2.5" key={key} data-testid={`row-storage-${key}`}>
             <div className="flex min-w-0 items-center gap-2.5">
               <div className="resource-orb !h-8 !w-8 shrink-0"><ResourceIcon item={key} size={22} /></div>
-              <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold">{meta[key].label}</div><div className="text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category} · {trackedScienceChainFor(key)}</div></div>
+               <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold">{meta[key].label}</div><div className="text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category} · {trackedScienceChainFor(key, state)}</div></div>
                <div className="flex shrink-0 items-center gap-1.5 text-[hsl(var(--secondary))]" title={`${containerCount} ${containerLabel}${containerCount === 1 ? '' : 's'}`}>
                  <ResourceIcon item={containerIcon} size={17} /><span className="mono text-[11px]">{containerCount}</span>
               </div>
@@ -2117,7 +2123,7 @@ function GameCompleteModal({ totalOutput, stats, onClose }: { totalOutput: numbe
     <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--secondary)/.75)] bg-[linear-gradient(145deg,hsl(174_28%_16%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="game-complete-title" data-testid="dialog-game-complete">
       <div className="flex items-center justify-between gap-3"><Tag><Check size={11} /> mission complete</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">SECTOR 07 · WON</span></div>
       <div className="mt-4 overflow-hidden rounded-xl border border-[hsl(var(--secondary)/.35)] bg-[radial-gradient(circle_at_50%_115%,hsl(35_48%_30%/.7),transparent_42%),linear-gradient(180deg,hsl(216_34%_12%),hsl(216_30%_8%))] p-4">
-        <div className="flex h-36 items-center justify-center"><img src={`${import.meta.env.BASE_URL}item-icons/rocket.png`} width={128} height={128} alt="Flying Factorio rocket" className="h-28 w-28 object-contain drop-shadow-[0_12px_12px_hsl(35_90%_55%/.35)]" /></div>
+       <div className="flex h-36 items-center justify-center overflow-hidden"><img src={`${import.meta.env.BASE_URL}win-screen-rocket-launch.png`} width={1536} height={1024} alt="Rocket launching over Factory Planet" className="h-full w-full object-cover object-center" /></div>
       </div>
       <div className="mt-5 text-center"><h2 id="game-complete-title" className="text-2xl font-extrabold">Game complete</h2><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Planet has reached orbit. Your production record is preserved below.</p></div>
       <div className="surface-soft mt-5 rounded-xl p-3" data-testid="panel-lifetime-production"><div className="eyebrow">Lifetime item production</div><div className="mono mt-1 text-2xl text-[hsl(var(--secondary))]">{fmt(totalOutput)}</div><div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-[hsl(var(--border))] pt-3 sm:grid-cols-4">{lifetimeStats.map(([key, amount]) => <div key={key} className="min-w-0"><div className="truncate text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key]?.label ?? prettyLabel(key)}</div><div className="mono text-[11px] text-[hsl(var(--foreground))]">{fmt(amount)}</div></div>)}</div></div>

@@ -5706,6 +5706,9 @@ const recipeCatalogSource: Omit<RecipeCatalogEntry, 'scienceChain'>[] = [
 
 // A recipe is Core when it produces a science pack or an ingredient required
 // by one, recursively walking the recipe graph backward from all seven packs.
+// These three supporting recipes are intentionally deferred until the player
+// unlocks Space Science, even though they are ingredients in the satellite
+// recipe.
 const coreScienceRecipeNames = new Set([
   'productivity-module', 'basic-oil-processing', 'advanced-oil-processing', 'coal-liquefaction',
   'heavy-oil-cracking', 'light-oil-cracking', 'sulfuric-acid', 'plastic-bar', 'sulfur',
@@ -5715,10 +5718,11 @@ const coreScienceRecipeNames = new Set([
   'rail', 'copper-plate', 'iron-plate', 'stone-brick', 'steel-plate', 'chemical-science-pack',
   'military-science-pack', 'production-science-pack', 'utility-science-pack', 'advanced-circuit',
   'processing-unit', 'electric-furnace', 'electric-engine-unit', 'flying-robot-frame',
-  'battery', 'low-density-structure', 'satellite', 'solar-panel', 'accumulator', 'radar',
+  'battery', 'low-density-structure', 'satellite',
   'rocket-fuel', 'solid-fuel-from-light-oil', 'solid-fuel-from-petroleum-gas', 'solid-fuel-from-heavy-oil',
   'space-science-pack',
 ]);
+const spaceScienceDeferredRecipeNames = new Set(['radar', 'solar-panel', 'accumulator']);
 
 // The normalized source can contain repeated prototype names from separate
 // data sections. Keep the final definition once so simulation and rate
@@ -5729,3 +5733,6 @@ export const recipeCatalog: RecipeCatalogEntry[] = canonicalRecipeSource.map((re
   ...recipe,
   scienceChain: coreScienceRecipeNames.has(recipe.name) ? 'Core' : 'Non-Core',
 }));
+
+export const recipeScienceChainFor = (recipe: RecipeCatalogEntry, spaceScienceUnlocked: boolean): RecipeScienceChain =>
+  spaceScienceUnlocked && spaceScienceDeferredRecipeNames.has(recipe.name) ? 'Core' : recipe.scienceChain;

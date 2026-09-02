@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recipeCatalog } from '../src/recipeCatalog.js';
+import { recipeCatalog, recipeScienceChainFor } from '../src/recipeCatalog.js';
 import { technologyCatalog } from '../src/technologyCatalog.js';
 
 test('Space Science Pack uses the requested ingredients, produces 1000 packs, and is part of the core chain', () => {
@@ -21,14 +21,19 @@ test('Space Science Pack uses the requested ingredients, produces 1000 packs, an
   [
     'space-science-pack',
     'satellite',
-    'solar-panel',
-    'accumulator',
-    'radar',
     'rocket-fuel',
     'solid-fuel-from-light-oil',
     'solid-fuel-from-petroleum-gas',
     'solid-fuel-from-heavy-oil',
   ].forEach((recipeName) => assert.equal(coreRecipes.has(recipeName), true, `${recipeName} should be Core`));
+
+  ['solar-panel', 'accumulator', 'radar'].forEach((recipeName) => {
+    const recipe = recipeCatalog.find((entry) => entry.name === recipeName);
+    assert.ok(recipe);
+    assert.equal(recipe.scienceChain, 'Non-Core', `${recipeName} should start Non-Core`);
+    assert.equal(recipeScienceChainFor(recipe, false), 'Non-Core', `${recipeName} should stay Non-Core before Space Science`);
+    assert.equal(recipeScienceChainFor(recipe, true), 'Core', `${recipeName} should become Core after Space Science`);
+  });
 });
 
 test('Space Science technology lists both Space Science and Satellite recipe unlocks', () => {
