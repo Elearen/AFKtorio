@@ -420,6 +420,14 @@ const storageConstrainedFor = (state: GameState, key: TrackedKey) => {
   const capacity = capFor(state, key);
   return capacity > 0 && quantityFor(state, key) >= capacity * 0.95;
 };
+const miningActualProductionRateFor = (state: GameState, key: RawKey) => {
+  const peakRate = miningProductionRateFor(state, key);
+  return storageConstrainedFor(state, key) ? Math.min(peakRate, demandRateFor(state, key)) : peakRate;
+};
+const miningStorageThrottleFor = (state: GameState, key: RawKey) => {
+  const peakRate = miningProductionRateFor(state, key);
+  return peakRate > 0 ? miningActualProductionRateFor(state, key) / peakRate : 0;
+};
 const peakProductionRateFor = (state: GameState, key: TrackedKey) => {
   let rate = rawKeys.includes(key as RawKey) ? miningProductionRateFor(state, key as RawKey) : 0;
   componentKeys.forEach((recipeKey) => {
@@ -546,7 +554,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     const base = key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'copper' ? 0.88 : 1;
     const minerSeconds = fueledBurnerMinerKeys.includes(key) ? operatingSeconds : seconds;
     const outputRate = key === 'coal' ? base - burnerMiningDrillCoalPerSecond : base;
-    state.miningProgress[key] += count * outputRate * minerSeconds * speed;
+    state.miningProgress[key] += count * outputRate * minerSeconds * speed * miningStorageThrottleFor(state, key);
     while (state.miningProgress[key] >= 1) {
       if (state.raw[key] >= capFor(state, key)) { state.miningProgress[key] = 0; break; }
       state.raw[key] += 1; state.miningProgress[key] -= 1; state.totalOutput += 1; recordProduction(state, key, 1, liveProduction);
@@ -906,7 +914,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
         const usesFuel = isBurnerOre && !coalSelfFueled;
         const fuelRate = usesFuel ? count * burnerMiningDrillCoalPerSecond : 0;
         const autonomous = count > 0;
-        const productionRate = miningProductionRateFor(state, key);
+        const productionRate = miningActualProductionRateFor(state, key);
         const peakProductionRate = peakProductionRateFor(state, key);
         const demandRate = demandRateFor(state, key);
         const peakDemandRate = peakDemandRateFor(state, key);

@@ -33,7 +33,7 @@ Nearly full output storage throttles automated recipes to recent downstream dema
 
 **Why:** A full buffer has nowhere to accept peak output; showing or producing at theoretical capacity makes balanced lines appear to overproduce.
 
-**How to apply:** Treat buffers at 95% capacity or higher as constrained, scale cycle progress by demand/peak, and cap the displayed live rate to demand while constrained.
+**How to apply:** Treat buffers at 95% capacity or higher as constrained, scale automated cycle/mining progress by demand/peak, and cap the displayed live rate to demand while constrained.
 
 **Why:** The game needs deterministic one-at-a-time progression while still allowing players to plan a research path ahead of available prerequisites.
 
