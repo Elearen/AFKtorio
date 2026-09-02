@@ -17,6 +17,7 @@ import {
   chemicalPlantPowerKw,
   chemicalPlantRecipeNames,
   craftingSpeedFor,
+  cycleBudgetFor,
   cyclesPerMinuteFor,
   oilRefineryCraftingSpeed,
   oilRefineryPowerKw,
@@ -188,6 +189,10 @@ test('full storage reports zero mining output when there is no downstream demand
   assert.equal(bufferedActualRateFor(60, 150, 180, 0), 60);
 });
 
+test('storage throttling resets after the output buffer is drained', () => {
+  assert.equal(bufferedActualRateFor(15000, 0, 180, 4800), 15000);
+});
+
 test('building crafting speeds use absolute machine speeds', () => {
   assert.equal(assemblyMachineOneCraftingSpeed, 0.5);
   assert.equal(oilRefineryCraftingSpeed, 1);
@@ -201,6 +206,8 @@ test('building crafting speeds use absolute machine speeds', () => {
   assert.equal(craftingSpeedFor(true, assemblyMachineOneCraftingSpeed, steelFurnaceCraftingSpeed), 2);
   assert.equal(cyclesPerMinuteFor(1, 1, 10, 0.5), 3);
   assert.equal(cyclesPerMinuteFor(1, 1, 10, 1), 6);
+  assert.equal(cyclesPerMinuteFor(800, 1, 3.2, 1), 15000);
+  assert.equal(cycleBudgetFor(15000, 1), 251);
 });
 
 test('oil production uses the recipe database construction definition', () => {

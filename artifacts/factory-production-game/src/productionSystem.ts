@@ -30,3 +30,6 @@ export const cyclesPerMinuteFor = (
   recipeSeconds: number,
   craftingSpeed: number,
 ) => machineCount * 60 * simulationSpeed * craftingSpeed / recipeSeconds;
+
+export const cycleBudgetFor = (cycleRatePerMinute: number, seconds: number) =>
+  Math.max(1, Math.ceil(cycleRatePerMinute * seconds / 60) + 1);

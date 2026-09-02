@@ -4,7 +4,7 @@ import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial, type Recip
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
-import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cyclesPerMinuteFor, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
+import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, fulfillConstructionReservation, normalizeConstructionQueue, reserveConstructionMaterials } from './constructionSystem';
 import {
   OIL_PROCESSING_UPGRADE_ID, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
@@ -752,11 +752,13 @@ function simulate(previous: GameState, seconds: number): GameState {
     // cycles. Clamp legacy/starved backlog before advancing the line so a
     // machine cannot burst above its steady-state rate when inputs return.
     const machineCraftingSpeed = craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state, recipe), furnaceCraftingSpeedFor(state));
+    const cycleRate = cyclesPerMinuteFor(count, speed, recipe.energyRequired, machineCraftingSpeed);
     state.assemblyProgress[key] = Math.min(state.assemblyProgress[key] ?? 0, 0.999999)
-      + cyclesPerMinuteFor(count, speed, recipe.energyRequired, machineCraftingSpeed) * seconds / 60 * machinePowerRatio * storageThrottle;
+      + cycleRate * seconds / 60 * machinePowerRatio * storageThrottle;
+    const cycleBudget = cycleBudgetFor(cycleRate * machinePowerRatio * storageThrottle, seconds);
     let cycles = 0;
     let blocked = false;
-    while (state.assemblyProgress[key] >= 1 && cycles < 80) {
+    while (state.assemblyProgress[key] >= 1 && cycles < cycleBudget) {
       const outputs = recipeOutputs(recipe);
        if (!hasInputs(state, automatedRecipeInputsFor(state, recipe)) || outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) {
         blocked = true;
