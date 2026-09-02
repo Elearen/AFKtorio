@@ -168,6 +168,12 @@ const orderedRecipeCatalog = [...recipeCatalog].sort((a, b) => {
   const bTier = Math.min(...recipeOutputs(b).map((output) => tierForProduct(output.key)), Number.MAX_SAFE_INTEGER);
   return aTier - bTier;
 });
+const coreTrackedKeys = new Set(recipeCatalog.filter((recipe) => recipe.scienceChain === 'Core').flatMap((recipe) => [
+  ...recipe.ingredients,
+  ...recipe.results,
+  ...(recipe.fuel ? [recipe.fuel] : []),
+].map((material) => keyForSource(material.name))));
+const trackedScienceChainFor = (key: TrackedKey): RecipeScienceChain => coreTrackedKeys.has(key) ? 'Core' : 'Non-Core';
 const recipeUnlockResearch: Record<string, string[]> = {};
 technologyCatalog.forEach((technology) => technology.effects.forEach((effect) => {
   if (effect.type === 'unlock-recipe' && effect.recipe) recipeUnlockResearch[effect.recipe] = [...(recipeUnlockResearch[effect.recipe] ?? []), technology.name];
@@ -704,7 +710,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
 function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
-  const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('all');
+  const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
   const automationUnlocked = state.research.includes('automation');
   const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
   const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => recipeIsUnlocked(recipe, state)).filter((recipe) => {
@@ -817,10 +823,13 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
     enqueue('storage', `Wooden box · ${meta[key].label}`, storageBoxBuildSeconds, key);
     notice(`wooden box for ${meta[key].label} queued`);
   };
-  const visibleKeys = orderedTrackedKeys.filter((key) => unlockedProductKeys(state).has(key));
+  const unlockedKeys = orderedTrackedKeys.filter((key) => unlockedProductKeys(state).has(key));
+  const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
+  const visibleKeys = unlockedKeys.filter((key) => scienceFilter === 'all' || trackedScienceChainFor(key) === scienceFilter);
   return <PageFrame>
-    <Header eyebrow="Buffer control" title="Storage" copy="Compact buffers for every unlocked material. Build wooden boxes to expand a product's capacity." action={<Tag><Box size={11} /> {visibleKeys.length} unlocked items</Tag>} />
+    <Header eyebrow="Buffer control" title="Storage" copy="Compact buffers for every unlocked material. Build wooden boxes to expand a product's capacity." action={<Tag><Box size={11} /> {visibleKeys.length} visible items</Tag>} />
     <section className="surface rounded-xl p-2.5 sm:p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Science chain filter</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{unlockedKeys.length} unlocked · {unlockedKeys.filter((key) => trackedScienceChainFor(key) === 'Core').length} core / {unlockedKeys.filter((key) => trackedScienceChainFor(key) === 'Non-Core').length} non-core</div></div><select value={scienceFilter} onChange={(event) => setScienceFilter(event.target.value as RecipeScienceFilter)} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none" aria-label="Filter storage science chain" data-testid="select-storage-science-filter"><option value="all">All items</option><option value="Core">Core items</option><option value="Non-Core">Non-Core items</option></select></div>
       <div className="space-y-2">
         {visibleKeys.map((key) => {
           const amount = quantityFor(state, key);
@@ -831,7 +840,7 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
           return <section className="data-row rounded-lg p-2.5" key={key} data-testid={`row-storage-${key}`}>
             <div className="flex min-w-0 items-center gap-2.5">
               <div className="resource-orb !h-8 !w-8 shrink-0"><ResourceIcon item={key} size={22} /></div>
-              <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold">{meta[key].label}</div><div className="text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category}</div></div>
+              <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold">{meta[key].label}</div><div className="text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category} · {trackedScienceChainFor(key)}</div></div>
               <div className="flex shrink-0 items-center gap-1.5 text-[hsl(var(--secondary))]" title={`${boxCount} wooden storage box${boxCount === 1 ? '' : 'es'}`}>
                 <ResourceIcon item="wooden-chest" size={17} /><span className="mono text-[11px]">{boxCount}</span>
               </div>
