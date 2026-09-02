@@ -35,6 +35,7 @@ type GameState = {
   labProgress: number;
   queue: QueueItem[];
   research: ResearchKey[];
+  produced: Record<string, number>;
   upgrades: Record<UpgradeKey, number>;
   totalOutput: number;
   lastSeen: number;
@@ -127,7 +128,7 @@ const initialState: GameState = {
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labs: 1, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, queue: [], research: ['automation'], upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
+  labProgress: 0, queue: [], research: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
 };
 
@@ -171,6 +172,31 @@ const addTracked = (state: GameState, key: TrackedKey, amount: number) => {
   if (rawKeys.includes(key as RawKey)) state.raw[key as RawKey] = Math.min(capFor(state, key), state.raw[key as RawKey] + amount);
   else state.products[key] = Math.min(capFor(state, key), (state.products[key] ?? 0) + amount);
 };
+const recordProduction = (state: GameState, key: TrackedKey, amount: number) => {
+  state.produced[key] = (state.produced[key] ?? 0) + amount;
+};
+const researchTriggerProgress = (state: GameState, technology: TechnologyDefinition) => {
+  const trigger = technology.researchTrigger;
+  if (!trigger || trigger.type !== 'craft-item' || !trigger.item) return null;
+  const key = keyForSource(trigger.item);
+  return { key, produced: state.produced[key] ?? 0, required: trigger.count ?? 1 };
+};
+const researchTriggerMet = (state: GameState, technology: TechnologyDefinition) => {
+  const progress = researchTriggerProgress(state, technology);
+  return Boolean(progress && progress.produced >= progress.required);
+};
+const applyResearchTriggers = (state: GameState) => {
+  let added = true;
+  while (added) {
+    added = false;
+    technologyCatalog.forEach((technology) => {
+      if (!technology.researchTrigger || state.research.includes(technology.name) || !researchTriggerMet(state, technology)) return;
+      if (!technology.prerequisites.every((prerequisite) => state.research.includes(prerequisite))) return;
+      state.research.push(technology.name);
+      added = true;
+    });
+  }
+};
 const netRateFor = (state: GameState, key: TrackedKey) => {
   const speed = state.simulationSpeed;
   let rate = 0;
@@ -199,7 +225,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage },
     assemblers: { ...previous.assemblers }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
-    queue: previous.queue.map((item) => ({ ...item })), lastSeen: Date.now(),
+    queue: previous.queue.map((item) => ({ ...item })), research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
   };
   const speed = state.simulationSpeed;
   rawKeys.forEach((key) => {
@@ -209,7 +235,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     state.miningProgress[key] += count * base * seconds * speed;
     while (state.miningProgress[key] >= 1) {
       if (state.raw[key] >= capFor(state, key)) { state.miningProgress[key] = 0; break; }
-      state.raw[key] += 1; state.miningProgress[key] -= 1; state.totalOutput += 1;
+      state.raw[key] += 1; state.miningProgress[key] -= 1; state.totalOutput += 1; recordProduction(state, key, 1);
     }
   });
   componentKeys.forEach((key) => {
@@ -222,7 +248,7 @@ function simulate(previous: GameState, seconds: number): GameState {
       const outputs = recipeOutputs(recipe);
       if (!hasInputs(state, recipeInputs(recipe)) || outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) break;
       spendInputs(state, recipeInputs(recipe));
-      outputs.forEach(({ key: outputKey, amount }) => addTracked(state, outputKey, amount));
+      outputs.forEach(({ key: outputKey, amount }) => { addTracked(state, outputKey, amount); recordProduction(state, outputKey, amount); });
       state.assemblyProgress[key] -= 1; state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0); cycles += 1;
     }
   });
@@ -239,9 +265,10 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (item.action === 'pump') state.pumps += 1;
     if (item.action === 'uraniumMiner') state.uraniumMiners += 1;
     if (item.action === 'assembler') state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
-    if (item.action === 'lab') state.labs += 1;
+    if (item.action === 'lab') { state.labs += 1; recordProduction(state, 'lab', 1); }
     if (item.action === 'upgrade') state.upgrades[(item.targetId ?? item.target) as UpgradeKey] += 1;
   });
+  applyResearchTriggers(state);
   return state;
 }
 
@@ -259,6 +286,7 @@ function loadState() {
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
       miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
+      produced: { ...initialState.produced, ...parsed.produced },
       upgrades: { ...initialState.upgrades, ...parsed.upgrades },
       queue: parsed.queue ?? [],
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
@@ -344,7 +372,17 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
 }
 
 function MiningPage({ state, setState, enqueue, notice }: PageProps) {
-  const tap = (key: RawKey) => { if (state.miners[key] || key === 'water' || key === 'uranium') return; setState((s) => ({ ...s, raw: { ...s.raw, [key]: Math.min(capFor(s, key), s.raw[key] + 1 + s.upgrades.manualMining) }, totalOutput: s.totalOutput + 1 })); notice(`manual ${rawInfo[key].label.toLowerCase()} extracted`); };
+  const tap = (key: RawKey) => {
+    if (state.miners[key] || key === 'water' || key === 'uranium') return;
+    setState((s) => {
+      const amount = Math.min(1 + s.upgrades.manualMining, Math.max(0, capFor(s, key) - s.raw[key]));
+      const next = { ...s, raw: { ...s.raw, [key]: s.raw[key] + amount }, totalOutput: s.totalOutput + amount, produced: { ...s.produced } };
+      recordProduction(next, key, amount);
+      applyResearchTriggers(next);
+      return next;
+    });
+    notice(`manual ${rawInfo[key].label.toLowerCase()} extracted`);
+  };
   const build = (key: RawKey) => {
     if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); if (state.products.ironPlate < 10 || state.products.gear < 2) return notice('need 10 iron plates + 2 gears'); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 10, gear: s.products.gear - 2 } })); enqueue('pump', 'Water pump', 40); return; }
     if (key === 'uranium') { if (!state.research.includes('nuclear-power')) return notice('Nuclear Power required'); if (state.products.steel < 20 || state.products.circuit < 8) return notice('need 20 steel + 8 circuits'); setState((s) => ({ ...s, products: { ...s.products, steel: s.products.steel - 20, circuit: s.products.circuit - 8 } })); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90); return; }
@@ -371,8 +409,9 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
     setState((s) => {
       const next = { ...s, raw: { ...s.raw }, products: { ...s.products } };
       spendInputs(next, recipeInputs(recipe));
-      outputs.forEach(({ key: outputKey, amount }) => addTracked(next, outputKey, amount));
+      outputs.forEach(({ key: outputKey, amount }) => { addTracked(next, outputKey, amount); recordProduction(next, outputKey, amount); });
       next.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0);
+      applyResearchTriggers(next);
       return next;
     });
     notice(`${prettyLabel(outputs[0]?.key ?? recipe.name)} produced manually`);
@@ -475,8 +514,9 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     const technology = technologyMap[key];
     if (!technology || state.research.includes(key)) return;
     if (!technology.prerequisites.every((prerequisite) => state.research.includes(prerequisite))) return notice('complete the listed prerequisites first');
+    if (technology.researchTrigger) return notice('this technology unlocks automatically from its production trigger');
     const costsMet = technology.scienceCosts.every((cost) => quantityFor(state, keyForSource(cost.pack)) >= cost.amount);
-    if (!technology.researchTrigger && !costsMet) return notice('not enough required science packs');
+    if (!costsMet) return notice('not enough required science packs');
     setState((s) => {
       const products = { ...s.products };
       technology.scienceCosts.forEach((cost) => {
@@ -490,8 +530,10 @@ function ResearchPage({ state, setState, notice }: PageProps) {
   if (!item) return null;
   const selectedDone = state.research.includes(item.name);
   const selectedPrerequisitesMet = item.prerequisites.every((prerequisite) => state.research.includes(prerequisite));
+  const selectedTriggerProgress = researchTriggerProgress(state, item);
+  const selectedTriggerReady = researchTriggerMet(state, item);
   const selectedCostsMet = item.scienceCosts.every((cost) => quantityFor(state, keyForSource(cost.pack)) >= cost.amount);
-  const selectedReady = selectedPrerequisitesMet && (Boolean(item.researchTrigger) || selectedCostsMet);
+  const selectedReady = selectedPrerequisitesMet && (item.researchTrigger ? selectedTriggerReady : selectedCostsMet);
   return <PageFrame>
     <Header eyebrow="Technology control" title="Research" copy="The official technology definitions drive this tree: prerequisites, science-pack units, research triggers, effects, upgrades, and infinite levels are all visible." action={<Tag><Lightbulb size={11} /> {technologyCatalog.length} technologies · {state.research.length} complete</Tag>} />
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
@@ -502,11 +544,12 @@ function ResearchPage({ state, setState, notice }: PageProps) {
       <section className="space-y-3">{visibleTechnologies.map((technology) => {
         const done = state.research.includes(technology.name);
         const prerequisitesMet = technology.prerequisites.every((prerequisite) => state.research.includes(prerequisite));
+        const triggerReady = researchTriggerMet(state, technology);
         const costsMet = technology.scienceCosts.every((cost) => quantityFor(state, keyForSource(cost.pack)) >= cost.amount);
-        const ready = prerequisitesMet && (Boolean(technology.researchTrigger) || costsMet);
+        const ready = prerequisitesMet && (technology.researchTrigger ? triggerReady : costsMet);
         return <button onClick={() => setSelected(technology.name)} className={`surface flex w-full items-center gap-3 rounded-xl p-3 text-left sm:p-4 ${selected === technology.name ? 'border-[hsl(var(--secondary)/.65)] bg-[hsl(174_30%_15%/.7)]' : 'hover:border-[hsl(var(--border))]'}`} key={technology.name} data-testid={`button-research-${technology.name}`}>
           <ResearchArt accent={accentFor(technology.name)} />
-          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[12px] font-extrabold">{prettyLabel(technology.name)}</span>{done ? <Tag><Check size={10} /> complete</Tag> : ready ? <Tag tone="amber">ready</Tag> : !prerequisitesMet ? <Tag tone="muted"><LockKeyhole size={10} /> prerequisite</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> pack low</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{technology.effects.length} effects · {technology.prerequisites.length} prerequisites{technology.upgrade ? ' · upgrade' : ''}</p></div>
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[12px] font-extrabold">{prettyLabel(technology.name)}</span>{done ? <Tag><Check size={10} /> complete</Tag> : ready ? <Tag tone="amber">ready</Tag> : !prerequisitesMet ? <Tag tone="muted"><LockKeyhole size={10} /> prerequisite</Tag> : technology.researchTrigger ? <Tag tone="muted"><Clock3 size={10} /> production trigger</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> pack low</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{technology.effects.length} effects · {technology.prerequisites.length} prerequisites{technology.upgrade ? ' · upgrade' : ''}</p></div>
           <ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" />
         </button>;
       })}</section>
@@ -518,9 +561,9 @@ function ResearchPage({ state, setState, notice }: PageProps) {
           <div className="eyebrow mb-3">Prerequisites</div>
           {item.prerequisites.length ? <div className="flex flex-wrap gap-1.5">{item.prerequisites.map((prerequisite) => <span className={`resource-chip ${state.research.includes(prerequisite) ? 'border-[hsl(var(--secondary)/.55)]' : ''}`} key={prerequisite}><span className={`status-dot ${state.research.includes(prerequisite) ? 'status-running' : 'status-starved'}`} />{prettyLabel(prerequisite)}</span>)}</div> : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No prerequisites · available at the start.</div>}
         </div>
-        {item.researchTrigger ? <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-2">Research trigger</div><div className="text-[11px]">{prettyLabel(item.researchTrigger.type)}{item.researchTrigger.item ? ` · ${prettyLabel(item.researchTrigger.item)}` : ''}{item.researchTrigger.count ? ` · ${item.researchTrigger.count}` : ''}</div></div> : <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Science unit</div><div className="space-y-2">{item.scienceCosts.map((cost) => { const costKey = keyForSource(cost.pack); const have = quantityFor(state, costKey); return <div className="flex items-center justify-between text-[11px]" key={cost.pack}><span className="flex items-center gap-2"><ResourceIcon item={costKey} size={20} />{meta[costKey].label}</span><span className={`mono ${have >= cost.amount ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{fmt(have)} / {cost.amount}</span></div>; })}</div><div className="mt-3 text-[10px] text-[hsl(var(--muted-foreground))]">Unit time: <span className="mono">{item.time ?? 'formula-defined'}s</span>{item.count ? ` · ${item.count} total units` : item.countFormula ? ` · ${item.countFormula}` : ''}</div></div>}
+         {item.researchTrigger ? <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-2">Production trigger</div><div className="text-[11px]">{prettyLabel(item.researchTrigger.type)}{item.researchTrigger.item ? ` · ${prettyLabel(item.researchTrigger.item)}` : ''}</div>{selectedTriggerProgress ? <><div className="mt-3 flex items-center justify-between text-[10px]"><span className="text-[hsl(var(--muted-foreground))]">produced by this factory</span><span className={`mono ${selectedTriggerReady ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--primary))]'}`}>{fmt(selectedTriggerProgress.produced)} / {fmt(selectedTriggerProgress.required)}</span></div><div className="mt-2"><Progress value={selectedTriggerProgress.produced / selectedTriggerProgress.required * 100} tone={selectedTriggerReady ? 'teal' : 'amber'} /></div><div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">Starting inventory does not count toward this trigger.</div></> : <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">This trigger type is not represented by a quantity counter in the current simulator.</div>}</div> : <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Science unit</div><div className="space-y-2">{item.scienceCosts.map((cost) => { const costKey = keyForSource(cost.pack); const have = quantityFor(state, costKey); return <div className="flex items-center justify-between text-[11px]" key={cost.pack}><span className="flex items-center gap-2"><ResourceIcon item={costKey} size={20} />{meta[costKey].label}</span><span className={`mono ${have >= cost.amount ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{fmt(have)} / {cost.amount}</span></div>; })}</div><div className="mt-3 text-[10px] text-[hsl(var(--muted-foreground))]">Unit time: <span className="mono">{item.time ?? 'formula-defined'}s</span>{item.count ? ` · ${item.count} total units` : item.countFormula ? ` · ${item.countFormula}` : ''}</div></div>}
         <div className="py-4"><div className="eyebrow mb-3">Effects</div><div className="space-y-2">{item.effects.length ? item.effects.map((effect, index) => <div className="data-row rounded-lg px-3 py-2 text-[10px]" key={`${effect.type}-${index}`}><span className="font-semibold">{effect.recipe ? `Unlock ${prettyLabel(effect.recipe)}` : prettyLabel(effect.type)}</span>{effect.target && <span className="text-[hsl(var(--muted-foreground))]"> · {prettyLabel(effect.target)}</span>}{effect.modifier !== undefined && <span className="mono float-right text-[hsl(var(--secondary))]">{typeof effect.modifier === 'number' && effect.modifier > 0 ? '+' : ''}{String(effect.modifier)}</span>}</div>) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No listed effects.</div>}</div></div>
-        <button onClick={() => unlock(item.name)} disabled={selectedDone || !selectedReady} className="button-base button-primary w-full disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-unlock-research-${item.name}`}>{selectedDone ? <><Check size={14} /> research complete</> : <><FlaskConical size={14} /> complete research</>}</button>
+         <button onClick={() => unlock(item.name)} disabled={selectedDone || !selectedReady} className="button-base button-primary w-full disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-unlock-research-${item.name}`}>{selectedDone ? <><Check size={14} /> research complete</> : item.researchTrigger ? <><Clock3 size={14} /> waiting for production</> : <><FlaskConical size={14} /> complete research</>}</button>
       </aside>
     </div>
   </PageFrame>;
