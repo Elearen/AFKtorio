@@ -767,6 +767,9 @@ const iconFileFor: Record<string, string> = {
 function ResourceIcon({ item, size = 28 }: { item: TrackedKey; size?: number }) {
   return <img src={`${import.meta.env.BASE_URL}item-icons/${iconFileFor[item] ?? item}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
 }
+function BrandLogo({ size = 36 }: { size?: number }) {
+  return <img src={`${import.meta.env.BASE_URL}logo.svg`} width={size} height={size} alt="Factory Production Game logo" className="object-contain" />;
+}
 function Tag({ children, tone = 'teal' }: { children: ReactNode; tone?: 'teal' | 'amber' | 'red' | 'muted' }) {
   return <span className={`status-tag ${tone === 'teal' ? 'tag-running' : tone === 'amber' ? 'tag-starved' : tone === 'red' ? 'tag-blocked' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{children}</span>;
 }
@@ -797,7 +800,7 @@ function Shell({ children }: { children: ReactNode }) {
   return <div className="app-shell flex h-[100dvh] flex-col">
     <header className="shrink-0 border-b border-[hsl(var(--sidebar-border))] bg-[hsl(217_30%_8%/.94)]">
       <div className="mx-auto flex h-[68px] max-w-[1500px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-        <div className="flex min-w-0 items-center gap-3"><button onClick={() => setMenu(!menu)} className="icon-button md:hidden" aria-label="Open navigation" data-testid="button-open-navigation"><Layers3 size={17} /></button><Link href="/" className="flex items-center gap-3 no-underline" data-testid="link-logo"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.5)] bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><FactoryIcon size={19} /></div><div className="min-w-0"><div className="text-[13px] font-extrabold tracking-[.05em]">FACTORY</div><div className="mono truncate text-[9px] tracking-[.18em] text-[hsl(var(--primary))]">PRODUCTION GAME</div></div></Link></div>
+        <div className="flex min-w-0 items-center gap-3"><button onClick={() => setMenu(!menu)} className="icon-button md:hidden" aria-label="Open navigation" data-testid="button-open-navigation"><Layers3 size={17} /></button><Link href="/" className="flex items-center gap-3 no-underline" data-testid="link-logo"><div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-[hsl(var(--primary)/.5)] bg-[hsl(var(--primary)/.12)]"><BrandLogo size={36} /></div><div className="min-w-0"><div className="text-[13px] font-extrabold tracking-[.05em]">FACTORY</div><div className="mono truncate text-[9px] tracking-[.18em] text-[hsl(var(--primary))]">PRODUCTION GAME</div></div></Link></div>
         <div className="hidden items-center gap-3 lg:flex"><Tag><span className="status-dot status-running mini-pulse" /> simulation live</Tag><span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">SECTOR 07 · LOCAL INSTANCE</span></div>
         <div className="flex items-center gap-2"><span className="mono hidden text-[10px] text-[hsl(var(--muted-foreground))] sm:block">T+ NETWORK</span><button onClick={() => setMenu(!menu)} className="icon-button" aria-label="Toggle command navigation" data-testid="button-toggle-command"><Settings2 size={16} /></button></div>
       </div>

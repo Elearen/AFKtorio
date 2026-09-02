@@ -1,10 +1,13 @@
-<svg width="512" height="512" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="512" height="512" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logo-title logo-desc">
+  <title id="logo-title">Factory Production Game logo</title>
+  <desc id="logo-desc">The left half is an orange gear and the right half is a clock face.</desc>
   <defs>
     <clipPath id="left-half"><rect x="0" y="0" width="90" height="180" /></clipPath>
     <clipPath id="right-half"><rect x="90" y="0" width="90" height="180" /></clipPath>
   </defs>
   <rect x="3" y="3" width="174" height="174" rx="38" fill="#151A1D" stroke="#3B474B" stroke-width="6" />
   <rect x="12" y="12" width="156" height="156" rx="30" fill="#20282B" />
+
   <g clip-path="url(#left-half)">
     <g fill="#F28A24" stroke="#FFB24D" stroke-width="1.5">
       <circle cx="90" cy="90" r="48" />
@@ -20,11 +23,13 @@
     <circle cx="90" cy="90" r="25" fill="#20282B" stroke="#FFB24D" stroke-width="5" />
     <circle cx="90" cy="90" r="9" fill="#F28A24" />
   </g>
+
   <g clip-path="url(#right-half)">
     <circle cx="90" cy="90" r="49" fill="#F1E1B9" stroke="#FFB24D" stroke-width="5" />
     <circle cx="90" cy="90" r="39" stroke="#B8843A" stroke-opacity=".45" stroke-width="2" stroke-dasharray="2 8" />
     <path d="M90 90V52M90 90L122 103" stroke="#263338" stroke-width="7" stroke-linecap="round" />
     <circle cx="90" cy="90" r="7" fill="#F28A24" stroke="#263338" stroke-width="3" />
   </g>
+
   <path d="M90 28V152" stroke="#151A1D" stroke-opacity=".75" stroke-width="3" />
 </svg>
