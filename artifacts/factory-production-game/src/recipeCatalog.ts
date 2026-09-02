@@ -10,6 +10,8 @@ export type RecipeMaterial = {
   sharedProbability?: { min: number; max: number };
 };
 
+export type RecipeScienceChain = 'Core' | 'Non-Core';
+
 export type RecipeCatalogEntry = {
   name: string;
   energyRequired: number;
@@ -19,10 +21,11 @@ export type RecipeCatalogEntry = {
   ingredients: RecipeMaterial[];
   results: RecipeMaterial[];
   fuel?: RecipeMaterial;
+  scienceChain: RecipeScienceChain;
 };
 
 // Normalized from the attached Factorio recipe definitions.
-export const recipeCatalog: RecipeCatalogEntry[] = [
+const recipeCatalogSource: Omit<RecipeCatalogEntry, 'scienceChain'>[] = [
   {
     "name": "speed-module",
     "energyRequired": 15,
@@ -5664,3 +5667,22 @@ export const recipeCatalog: RecipeCatalogEntry[] = [
     ]
   }
 ];
+
+// A recipe is Core when it produces a science pack or an ingredient required
+// by one, recursively walking the recipe graph backward from all six packs.
+const coreScienceRecipeNames = new Set([
+  'productivity-module', 'basic-oil-processing', 'advanced-oil-processing', 'coal-liquefaction',
+  'heavy-oil-cracking', 'light-oil-cracking', 'sulfuric-acid', 'plastic-bar', 'sulfur',
+  'lubricant', 'iron-stick', 'iron-gear-wheel', 'electronic-circuit', 'transport-belt',
+  'inserter', 'pipe', 'copper-cable', 'firearm-magazine', 'automation-science-pack',
+  'logistic-science-pack', 'stone-wall', 'engine-unit', 'piercing-rounds-magazine', 'grenade',
+  'rail', 'copper-plate', 'iron-plate', 'stone-brick', 'steel-plate', 'chemical-science-pack',
+  'military-science-pack', 'production-science-pack', 'utility-science-pack', 'advanced-circuit',
+  'processing-unit', 'electric-furnace', 'electric-engine-unit', 'flying-robot-frame',
+  'battery', 'low-density-structure',
+]);
+
+export const recipeCatalog: RecipeCatalogEntry[] = recipeCatalogSource.map((recipe) => ({
+  ...recipe,
+  scienceChain: coreScienceRecipeNames.has(recipe.name) ? 'Core' : 'Non-Core',
+}));

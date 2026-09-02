@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
-import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial } from './recipeCatalog';
+import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial, type RecipeScienceChain } from './recipeCatalog';
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
@@ -19,6 +19,7 @@ type TrackedKey = string;
 type UpgradeKey = 'manualMining' | 'productionSpeed' | 'storageEfficiency' | 'powerEfficiency';
 type ResearchKey = string;
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
+type RecipeScienceFilter = 'all' | RecipeScienceChain;
 type UnitStatus = 'running' | 'starved' | 'blocked';
 
 type Recipe = RecipeCatalogEntry;
@@ -693,12 +694,13 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
 function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
+  const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('all');
   const automationUnlocked = state.research.includes('automation');
   const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
   const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => recipeIsUnlocked(recipe, state)).filter((recipe) => {
     const matchesQuery = !query.trim() || `${recipe.name} ${recipe.category}`.toLowerCase().includes(query.trim().toLowerCase());
-    return matchesQuery && (category === 'all' || recipe.category === category);
-  }), [category, query, state]);
+    return matchesQuery && (category === 'all' || recipe.category === category) && (scienceFilter === 'all' || recipe.scienceChain === scienceFilter);
+  }), [category, query, scienceFilter, state]);
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   const handcraft = (key: ComponentKey) => {
     const recipe = recipeMap[key];
@@ -735,8 +737,13 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
           <option value="all">All categories</option>
           {categories.map((entry) => <option key={entry} value={entry}>{prettyLabel(entry)}</option>)}
         </select>
+        <select value={scienceFilter} onChange={(event) => setScienceFilter(event.target.value as RecipeScienceFilter)} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none" aria-label="Filter science chain" data-testid="select-recipe-science-filter">
+          <option value="all">All recipes</option>
+          <option value="Core">Core science chain</option>
+          <option value="Non-Core">Non-Core recipes</option>
+        </select>
       </div>
-      <div className="mt-2 flex items-center justify-between text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source data includes hidden and disabled definitions.</span><span className="mono">{visibleRecipes.length} visible</span></div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source data includes hidden and disabled definitions.</span><span className="mono">{visibleRecipes.length} visible · {recipeCatalog.filter((recipe) => recipe.scienceChain === 'Core').length} core / {recipeCatalog.filter((recipe) => recipe.scienceChain === 'Non-Core').length} non-core</span></div>
       <div className="data-row mt-3 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="stone-furnace" size={18} /><span className="text-[10px] font-semibold">Stone Furnace</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">5 stone · {stoneFurnaceRecipe.energyRequired}s build · smelting fuel 0.1 coal/item</span></div>
       <div className="data-row mt-2 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="assembling-machine-1" size={18} /><span className="text-[10px] font-semibold">Assembly Machine 1</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">3 circuits + 5 gears + 9 plates · {assemblyMachineOneRecipe.energyRequired}s build</span></div>
     </section>
@@ -765,7 +772,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <Tag><span className="status-dot status-running" /> auto</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
             <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle · {buildingLabel}</div>
-            <div className="mt-1 flex flex-wrap gap-1">{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
+             <div className="mt-1 flex flex-wrap gap-1"><Tag tone={recipe.scienceChain === 'Core' ? 'teal' : 'muted'}>{recipe.scienceChain}</Tag>{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
           </div>
         </div>
         <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
