@@ -422,7 +422,8 @@ const storageConstrainedFor = (state: GameState, key: TrackedKey) => {
 };
 const miningActualProductionRateFor = (state: GameState, key: RawKey) => {
   const peakRate = miningProductionRateFor(state, key);
-  return storageConstrainedFor(state, key) ? Math.min(peakRate, demandRateFor(state, key)) : peakRate;
+  const requiredRate = demandRateFor(state, key);
+  return storageConstrainedFor(state, key) && requiredRate > 0 ? Math.min(peakRate, requiredRate) : peakRate;
 };
 const miningStorageThrottleFor = (state: GameState, key: RawKey) => {
   const peakRate = miningProductionRateFor(state, key);
@@ -466,7 +467,8 @@ const rateFromHistory = (state: GameState, key: TrackedKey, field: 'production' 
 const demandRateFor = (state: GameState, key: TrackedKey) => rateFromHistory(state, key, 'consumption');
 const productionRateFor = (state: GameState, key: TrackedKey) => {
   const observedRate = rateFromHistory(state, key, 'production');
-  return storageConstrainedFor(state, key) ? Math.min(observedRate, demandRateFor(state, key)) : observedRate;
+  const requiredRate = demandRateFor(state, key);
+  return storageConstrainedFor(state, key) && requiredRate > 0 ? Math.min(observedRate, requiredRate) : observedRate;
 };
 const recipeStorageThrottleFor = (state: GameState, recipe: Recipe, machinePowerRatio: number) => {
   const peakCycleRate = recipeCycleRateFor(state, recipe) * machinePowerRatio;
@@ -474,6 +476,7 @@ const recipeStorageThrottleFor = (state: GameState, recipe: Recipe, machinePower
   return recipeOutputs(recipe).reduce((throttle, output) => {
     if (!storageConstrainedFor(state, output.key)) return throttle;
     const requiredRate = demandRateFor(state, output.key);
+    if (requiredRate <= 0) return throttle;
     return Math.min(throttle, requiredRate / Math.max(0.01, peakCycleRate * output.amount));
   }, 1);
 };

@@ -31,9 +31,9 @@ Assembler cycle progress must never accumulate completed-cycle backlog while inp
 
 Nearly full output storage throttles automated recipes to recent downstream demand, while the separate peak metric continues to represent unconstrained machine capacity.
 
-**Why:** A full buffer has nowhere to accept peak output; showing or producing at theoretical capacity makes balanced lines appear to overproduce.
+**Why:** A full buffer has nowhere to accept peak output; showing or producing at theoretical capacity makes balanced lines appear to overproduce, while a non-demanding buffer should still fill normally.
 
-**How to apply:** Treat buffers at 95% capacity or higher as constrained, scale automated cycle/mining progress by demand/peak, and cap the displayed live rate to demand while constrained.
+**How to apply:** Treat buffers at 95% capacity or higher as constrained only when recent demand is positive; otherwise let automated cycle/mining progress continue until the hard capacity limit.
 
 **Why:** The game needs deterministic one-at-a-time progression while still allowing players to plan a research path ahead of available prerequisites.
 
