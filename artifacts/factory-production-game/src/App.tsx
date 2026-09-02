@@ -347,6 +347,16 @@ const recipeProductionRateFor = (state: GameState, recipe: Recipe) => {
   const output = recipeOutputs(recipe)[0];
   return output ? productionRateFor(state, output.key) : 0;
 };
+const furnaceCoalPerItemFor = (recipe: Recipe) => {
+  const output = recipeOutputs(recipe)[0];
+  return recipe.fuel && output ? materialAmount(recipe.fuel) / Math.max(0.01, output.amount) : 0;
+};
+const furnaceCoalUsageFor = (state: GameState, recipe: Recipe, peak = false) => {
+  const output = recipeOutputs(recipe)[0];
+  if (!recipe.fuel || !output) return 0;
+  const outputRate = peak ? recipeCycleRateFor(state, recipe) * output.amount : recipeProductionRateFor(state, recipe);
+  return outputRate * furnaceCoalPerItemFor(recipe);
+};
 const scienceLabRateFor = (state: GameState, technology?: TechnologyDefinition) => state.labs * 60 * state.simulationSpeed / Math.max(1, technology?.time ?? 5);
 const sciencePackProductionRateFor = (state: GameState, key: string) => {
   const recipeKey = scienceRecipeKeys[key as ScienceKey];
@@ -783,7 +793,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
             {outputs.map(({ key: outputKey, amount }, index) => <span className="resource-chip" style={{ borderColor: `${meta[outputKey].color}66` }} key={`${outputKey}-${index}`}><ResourceIcon item={outputKey} size={17} /><strong>{amountLabel(amount)}</strong> {meta[outputKey].short}</span>)}
           </div>
         </div>
-        {smelting && recipe.fuel && <div className="mt-2 flex items-center gap-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] px-3 py-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto mono text-[hsl(var(--primary))]">{amountLabel(materialAmount(recipe.fuel))} coal / item</span></div>}
+        {smelting && recipe.fuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">coal usage</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
          <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} />
         {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} />}
         <div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${prettyLabel(key)} ${buildingLabel.toLowerCase()} is running at ${productionRate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button>{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-more-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => handcraft(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-handcraft-production-${key}`}><Plus size={13} /> handcraft</button><button onClick={() => buildProductionUnit(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-${buildingAction}-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div>
