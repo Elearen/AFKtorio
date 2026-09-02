@@ -9,24 +9,26 @@
   <rect x="12" y="12" width="156" height="156" rx="30" fill="#20282B" />
 
   <g clip-path="url(#left-half)">
-    <g fill="#F28A24" stroke="#FFB24D" stroke-width="1.5">
-      <circle cx="90" cy="90" r="48" />
-      <rect x="82" y="13" width="16" height="29" rx="4" />
-      <rect x="82" y="138" width="16" height="29" rx="4" />
-      <rect x="13" y="82" width="29" height="16" rx="4" />
-      <rect x="138" y="82" width="29" height="16" rx="4" />
-      <rect x="28" y="28" width="17" height="29" rx="4" transform="rotate(-45 28 28)" />
-      <rect x="135" y="135" width="17" height="29" rx="4" transform="rotate(-45 135 135)" />
-      <rect x="123" y="28" width="17" height="29" rx="4" transform="rotate(45 123 28)" />
-      <rect x="16" y="135" width="17" height="29" rx="4" transform="rotate(45 16 135)" />
+    <g transform="translate(90 90) scale(.72) translate(-90 -90)">
+      <g fill="#F28A24" stroke="#FFB24D" stroke-width="1.5">
+        <circle cx="90" cy="90" r="48" />
+        <rect x="82" y="13" width="16" height="29" rx="4" />
+        <rect x="82" y="138" width="16" height="29" rx="4" />
+        <rect x="13" y="82" width="29" height="16" rx="4" />
+        <rect x="138" y="82" width="29" height="16" rx="4" />
+        <rect x="28" y="28" width="17" height="29" rx="4" transform="rotate(-45 28 28)" />
+        <rect x="135" y="135" width="17" height="29" rx="4" transform="rotate(-45 135 135)" />
+        <rect x="123" y="28" width="17" height="29" rx="4" transform="rotate(45 123 28)" />
+        <rect x="16" y="135" width="17" height="29" rx="4" transform="rotate(45 16 135)" />
+      </g>
+      <circle cx="90" cy="90" r="25" fill="#20282B" stroke="#FFB24D" stroke-width="5" />
+      <circle cx="90" cy="90" r="9" fill="#F28A24" />
     </g>
-    <circle cx="90" cy="90" r="25" fill="#20282B" stroke="#FFB24D" stroke-width="5" />
-    <circle cx="90" cy="90" r="9" fill="#F28A24" />
   </g>
 
   <g clip-path="url(#right-half)">
-    <circle cx="90" cy="90" r="49" fill="#F1E1B9" stroke="#FFB24D" stroke-width="5" />
-    <circle cx="90" cy="90" r="39" stroke="#B8843A" stroke-opacity=".45" stroke-width="2" stroke-dasharray="2 8" />
+    <circle cx="90" cy="90" r="54" fill="#F1E1B9" stroke="#FFB24D" stroke-width="5" />
+    <circle cx="90" cy="90" r="44" stroke="#B8843A" stroke-opacity=".45" stroke-width="2" stroke-dasharray="2 8" />
     <path d="M90 90V52M90 90L122 103" stroke="#263338" stroke-width="7" stroke-linecap="round" />
     <circle cx="90" cy="90" r="7" fill="#F28A24" stroke="#263338" stroke-width="3" />
   </g>
