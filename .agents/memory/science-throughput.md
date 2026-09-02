@@ -14,3 +14,9 @@ Auto research is an ordered selection, not a parallel scheduler: the first check
 **Why:** The game needs deterministic one-at-a-time progression while still allowing players to plan a research path ahead of available prerequisites.
 
 **How to apply:** Keep auto selections normalized to catalog order and block later entries when the first pending selection is not yet available.
+
+The Research screen’s live summary uses lab units per minute for the active lab-driven technology and estimates completion from remaining units; production-trigger technologies show a waiting state instead.
+
+**Why:** Trigger-based unlocks do not advance through labs, so presenting a lab rate or numeric ETA for them would be misleading.
+
+**How to apply:** Keep trigger progress visible on the technology card, but use a waiting label rather than inventing a research rate or completion time.
