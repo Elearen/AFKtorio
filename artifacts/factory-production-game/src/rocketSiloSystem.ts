@@ -48,3 +48,6 @@ export const rocketPartCountAfterConstruction = (current: number, constructed: n
 
 export const unlockSpaceScienceAfterLaunch = (research: string[]) =>
   Array.from(new Set([...research, 'space-science-pack']));
+
+export const queueSpaceScienceNotification = (notifications: string[]) =>
+  notifications.includes('space-science-pack') ? notifications : [...notifications, 'space-science-pack'];

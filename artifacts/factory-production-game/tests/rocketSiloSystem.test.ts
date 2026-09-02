@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { recipeCatalog } from '../src/recipeCatalog.js';
 import {
   canBuildRocketSilo,
+  queueSpaceScienceNotification,
   recipeBuildCostsForRocket,
   rocketPartBatchTimeFor,
   rocketPartCountAfterConstruction,
@@ -49,4 +50,9 @@ test('rocket part batch uses the recipe cost and time for exactly 100 parts', ()
 test('launch completion unlocks Space Science exactly once', () => {
   assert.deepEqual(unlockSpaceScienceAfterLaunch(['rocket-silo']), ['rocket-silo', 'space-science-pack']);
   assert.deepEqual(unlockSpaceScienceAfterLaunch(['rocket-silo', 'space-science-pack']), ['rocket-silo', 'space-science-pack']);
+});
+
+test('closing launch statistics queues the Space Science completion notification once', () => {
+  assert.deepEqual(queueSpaceScienceNotification([]), ['space-science-pack']);
+  assert.deepEqual(queueSpaceScienceNotification(['rocket-silo', 'space-science-pack']), ['rocket-silo', 'space-science-pack']);
 });

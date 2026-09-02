@@ -4,7 +4,7 @@ import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial, type Recip
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
-import { canBuildRocketSilo, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
+import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
 import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, fulfillConstructionReservation, normalizeConstructionQueue, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
@@ -2179,7 +2179,7 @@ function Game() {
     setEndgameModal('game-complete');
   };
   const finishGame = () => {
-    setState((s) => ({ ...s, gameComplete: true, research: unlockSpaceScienceAfterLaunch(s.research) }));
+    setState((s) => ({ ...s, gameComplete: true, research: unlockSpaceScienceAfterLaunch(s.research), researchNotifications: queueSpaceScienceNotification(s.researchNotifications) }));
     setEndgameModal(null);
   };
   const props = { state, setState, enqueue, saveNow, reset, notice, away, recovered };

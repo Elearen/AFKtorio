@@ -3236,6 +3236,10 @@ export const technologyCatalog: TechnologyDefinition[] = [
     "effects": [
       {
         "type": "unlock-recipe",
+        "recipe": "space-science-pack"
+      },
+      {
+        "type": "unlock-recipe",
         "recipe": "satellite"
       }
     ],

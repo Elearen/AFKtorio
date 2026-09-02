@@ -31,9 +31,10 @@ test('Space Science Pack uses the requested ingredients, produces 1000 packs, an
   ].forEach((recipeName) => assert.equal(coreRecipes.has(recipeName), true, `${recipeName} should be Core`));
 });
 
-test('Space Science technology unlocks the Satellite recipe', () => {
+test('Space Science technology lists both Space Science and Satellite recipe unlocks', () => {
   const spaceScienceTechnology = technologyCatalog.find((technology) => technology.name === 'space-science-pack');
 
   assert.ok(spaceScienceTechnology);
+  assert.equal(spaceScienceTechnology.effects.some((effect) => effect.type === 'unlock-recipe' && effect.recipe === 'space-science-pack'), true);
   assert.equal(spaceScienceTechnology.effects.some((effect) => effect.type === 'unlock-recipe' && effect.recipe === 'satellite'), true);
 });
