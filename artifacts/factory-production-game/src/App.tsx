@@ -11,6 +11,12 @@ import {
   type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
 import {
+  canPurchaseStorageFor, completeStorageConstruction, createInitialStorageState,
+  FLUID_HANDLING_TECHNOLOGY, FLUID_STORAGE_BASE_CAPACITY, migrateStorageState,
+  storageCapacityFor as calculateStorageCapacityFor, storageContainerCountFor as calculateStorageContainerCountFor,
+  STORAGE_BOX_CAPACITY, STORAGE_TANK_CAPACITY,
+} from './storageSystem';
+import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, Factory as FactoryIcon, FlaskConical, Gauge, Hammer,
   Info, Layers3, Lightbulb, LockKeyhole, Pickaxe, Plus, Power,
@@ -158,7 +164,9 @@ const assemblyMachineTwoBuildCost = upgradeMap['assembly-machine-2'].newMachineM
 const assemblyMachineTwoPowerKw = upgradeMap['assembly-machine-2'].newMachinePowerDraw;
 const assemblyMachineTwoProductionSpeed = upgradeMap['assembly-machine-2'].newMachineProductionSpeed;
 const labPowerKw = 7000;
-const storageBoxCapacity = 180;
+const storageBoxCapacity = STORAGE_BOX_CAPACITY;
+const fluidStorageBaseCapacity = FLUID_STORAGE_BASE_CAPACITY;
+const storageTankCapacity = STORAGE_TANK_CAPACITY;
 const storageBoxWoodCost = 2;
 const storageBoxBuildSeconds = 1;
 const manualMiningSeconds = 0.5;
@@ -174,8 +182,6 @@ const solarPanelEfficiency = 0.5;
 const boilerBuildCost = [{ key: 'stone', amount: 5, source: 'raw' as const }, { key: 'pipe', amount: 4, source: 'products' as const }];
 const steamEngineBuildCost = [{ key: 'gear', amount: 8, source: 'products' as const }, { key: 'pipe', amount: 5, source: 'products' as const }, { key: 'ironPlate', amount: 10, source: 'products' as const }];
 const storageTankRecipe = recipeMap['storage-tank'];
-const fluidStorageBaseCapacity = 100;
-const storageTankCapacity = 25_000;
 const materialAmount = (material: RecipeMaterial) => {
   const base = material.amount ?? ((material.amountMin ?? 0) + (material.amountMax ?? material.amountMin ?? 0)) / 2;
   const probability = material.probability ?? (material.sharedProbability ? material.sharedProbability.max - material.sharedProbability.min : 1);
@@ -212,6 +218,7 @@ const fluidKeys = new Set<TrackedKey>([
   ...recipeCatalog.flatMap((recipe) => [...recipe.ingredients, ...recipe.results].filter((material) => material.type === 'fluid').map((material) => keyForSource(material.name))),
 ]);
 const isFluidKey = (key: TrackedKey) => fluidKeys.has(key);
+const initialStorageState = createInitialStorageState(trackedKeys, fluidKeys);
 const emptyRateRecord = () => Object.fromEntries(trackedKeys.map((key) => [key, 0])) as Record<TrackedKey, number>;
 const tierProductOrder = new Map(tierProductCatalog.map((product, index) => [keyForSource(product.sourceName), index]));
 const tierForProduct = (key: string) => tierProductOrder.get(key) ?? Number.MAX_SAFE_INTEGER;
@@ -282,9 +289,9 @@ const starterProducts: Record<string, number> = {
 const initialState: GameState = {
   raw: { iron: 62, copper: 38, stone: 26, coal: 31, wood: 18, water: 0, uranium: 0, crudeOil: 0 },
   products: starterProducts,
-  storage: Object.fromEntries(trackedKeys.map((key) => [key, isFluidKey(key) ? fluidStorageBaseCapacity : storageBoxCapacity])) as Record<TrackedKey, number>,
-  storageBoxes: Object.fromEntries(trackedKeys.map((key) => [key, isFluidKey(key) ? 0 : 1])) as Record<TrackedKey, number>,
-  storageTanks: Object.fromEntries(trackedKeys.map((key) => [key, 0])) as Record<TrackedKey, number>,
+  storage: initialStorageState.storage as Record<TrackedKey, number>,
+  storageBoxes: initialStorageState.storageBoxes as Record<TrackedKey, number>,
+  storageTanks: initialStorageState.storageTanks as Record<TrackedKey, number>,
   miners: { iron: 0, copper: 0, stone: 0, coal: 0, wood: 0, water: 0, uranium: 0, crudeOil: 0 },
   pumps: 0, pumpjacks: 0, uraniumMiners: 0,
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
@@ -314,10 +321,8 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
 
 const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
 const duration = (n: number) => `${Math.floor(n / 60)}m ${String(Math.max(0, Math.floor(n % 60))).padStart(2, '0')}s`;
-const containerCountFor = (state: GameState, key: TrackedKey) => isFluidKey(key) ? (state.storageTanks[key] ?? 0) : (state.storageBoxes[key] ?? 1);
-const storageCapacityFor = (state: GameState, key: TrackedKey) => isFluidKey(key)
-  ? fluidStorageBaseCapacity + containerCountFor(state, key) * storageTankCapacity
-  : containerCountFor(state, key) * storageBoxCapacity;
+const containerCountFor = (state: GameState, key: TrackedKey) => calculateStorageContainerCountFor(key, fluidKeys, state.storageBoxes, state.storageTanks);
+const storageCapacityFor = (state: GameState, key: TrackedKey) => calculateStorageCapacityFor(key, fluidKeys, state.storageBoxes, state.storageTanks);
 const capFor = (state: GameState, key: TrackedKey) => Math.floor(state.storage[key] ?? storageCapacityFor(state, key));
 const burnerMinerCount = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
 const electricAssemblerCount = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && !isSmeltingRecipe(recipeMap[recipeKey]) ? count : 0), 0);
@@ -714,12 +719,14 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (item.action === 'solarPanel') state.solarPanels += 1;
     if (item.action === 'storage') {
       const key = item.targetId ?? item.target;
-      if (isFluidKey(key)) {
-        state.storageTanks[key] = (state.storageTanks[key] ?? 0) + 1;
-      } else {
-        state.storageBoxes[key] = (state.storageBoxes[key] ?? 1) + 1;
-      }
-      state.storage[key] = storageCapacityFor(state, key);
+      const completedStorage = completeStorageConstruction({
+        storage: state.storage,
+        storageBoxes: state.storageBoxes,
+        storageTanks: state.storageTanks,
+      }, key, fluidKeys);
+      state.storage = completedStorage.storage;
+      state.storageBoxes = completedStorage.storageBoxes;
+      state.storageTanks = completedStorage.storageTanks;
     }
     if (item.action === 'upgrade') {
       state.machineVariants = applyUpgradeCompletion(state.machineVariants, item.targetId ?? item.target);
@@ -739,6 +746,19 @@ function loadState() {
     const savedRateHistory = parsed.rateHistory ?? [];
     const hasRateSourceData = savedRateHistory.every((sample) => sample.manualProduction !== undefined);
     const migratedUpgradeState = migrateMachineUpgradeState({ machineVariants: parsed.machineVariants, queue: parsed.queue });
+    const normalizedStorage = (() => {
+      const storage = { ...initialState.storage, ...parsed.storage };
+      if (parsed.storage?.researchPack !== undefined && parsed.storage?.productionPack === undefined) storage.productionPack = parsed.storage.researchPack;
+      delete storage.researchPack;
+      return storage;
+    })();
+    const migratedStorage = migrateStorageState({
+      trackedKeys,
+      fluidKeys,
+      savedStorage: normalizedStorage,
+      savedBoxes: parsed.storageBoxes,
+      savedTanks: parsed.storageTanks,
+    });
     const state = {
       ...initialState,
       ...parsed,
@@ -749,21 +769,9 @@ function loadState() {
         delete products.researchPack;
         return products;
       })(),
-      storage: (() => {
-        const storage = { ...initialState.storage, ...parsed.storage };
-        if (parsed.storage?.researchPack !== undefined && parsed.storage?.productionPack === undefined) storage.productionPack = parsed.storage.researchPack;
-        delete storage.researchPack;
-        return storage;
-      })(),
-      storageBoxes: Object.fromEntries(trackedKeys.map((key) => {
-        const savedBoxes = parsed.storageBoxes?.[key] ?? (key === 'productionPack' ? parsed.storageBoxes?.researchPack : undefined);
-        const savedCapacity = parsed.storage?.[key] ?? (key === 'productionPack' ? parsed.storage?.researchPack : undefined) ?? storageBoxCapacity;
-        return [key, isFluidKey(key) ? 0 : typeof savedBoxes === 'number' ? Math.max(1, Math.floor(savedBoxes)) : Math.max(1, Math.ceil(savedCapacity / storageBoxCapacity))];
-      })) as Record<TrackedKey, number>,
-      storageTanks: Object.fromEntries(trackedKeys.map((key) => [
-        key,
-        isFluidKey(key) ? Math.max(0, Math.floor(parsed.storageTanks?.[key] ?? 0)) : 0,
-      ])) as Record<TrackedKey, number>,
+      storage: migratedStorage.storage as Record<TrackedKey, number>,
+      storageBoxes: migratedStorage.storageBoxes as Record<TrackedKey, number>,
+      storageTanks: migratedStorage.storageTanks as Record<TrackedKey, number>,
       miners: { ...initialState.miners, ...parsed.miners },
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
       miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
@@ -798,12 +806,6 @@ function loadState() {
       lastSeen: parsed.lastSeen ?? Date.now(),
     } as GameState;
     delete (state as GameState & { upgrades?: unknown }).upgrades;
-    Object.keys(state.storageBoxes).forEach((key) => {
-      if (!isFluidKey(key)) state.storage[key] = state.storageBoxes[key] * storageBoxCapacity;
-    });
-    Object.keys(state.storageTanks).forEach((key) => {
-      if (isFluidKey(key)) state.storage[key] = storageCapacityFor(state, key);
-    });
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
     const before = state.totalOutput;
     const recovered = simulate(state, away);
@@ -1302,10 +1304,9 @@ function PowerDependencyTreePage({ state, notice }: PageProps) {
 function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.8 2.8c.4 3-1.3 4.2-2.4 5.4-1 1-1.2 2.3-.6 3.3.4-1.3 1.5-2.3 2.8-2.7 2.6 2 3.8 4.3 3.2 7.1-.4 1.8-1.7 3.2-3.3 4.1 4.7-.8 7-4 6.2-8.4-.5-2.8-2.5-5.8-5.9-8.8ZM10 12c-3.7 1.4-5.4 4-4.6 6.6.6 2 2.3 3.4 4.5 4-1.2-1.2-1.5-2.6-.6-4.1.7-1.2 1.6-2.1 2.6-2.6-1.1-1-1.8-2.3-1.9-3.9Z"/></svg>; }
 
 function StoragePage({ state, setState, enqueue, notice }: PageProps) {
-  const fluidHandlingUnlocked = state.research.includes('fluid-handling');
   const buildStorage = (key: TrackedKey) => {
     const fluid = isFluidKey(key);
-    if (fluid && !fluidHandlingUnlocked) return notice('Fluid Handling required');
+    if (fluid && !canPurchaseStorageFor(key, fluidKeys, state.research)) return notice('Fluid Handling required');
     const constructionItems = state.queue.filter((item) => item.action === 'storage' && item.targetId === key);
     const costs = fluid ? storageTankBuildCost : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
     const buildSeconds = fluid ? storageTankRecipe.energyRequired : storageBoxBuildSeconds;
@@ -1336,6 +1337,7 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
           const amount = quantityFor(state, key);
           const capacity = capFor(state, key);
           const fluid = isFluidKey(key);
+          const canPurchase = canPurchaseStorageFor(key, fluidKeys, state.research);
           const containerCount = containerCountFor(state, key);
           const containerLabel = fluid ? 'storage tank' : 'wooden box';
           const containerIcon = fluid ? 'storage-tank' : 'wooden-chest';
@@ -1350,8 +1352,8 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
                <div className="flex shrink-0 items-center gap-1.5 text-[hsl(var(--secondary))]" title={`${containerCount} ${containerLabel}${containerCount === 1 ? '' : 's'}`}>
                  <ResourceIcon item={containerIcon} size={17} /><span className="mono text-[11px]">{containerCount}</span>
               </div>
-               <button onClick={() => buildStorage(key)} disabled={fluid && !fluidHandlingUnlocked} className={`button-base button-ghost !gap-1 !px-2 !py-1.5 ${isBuilding ? 'button-build-active' : ''}`} aria-label={fluid && !fluidHandlingUnlocked ? `Fluid Handling required to construct a storage tank for ${meta[key].label}` : `Construct another ${containerLabel} for ${meta[key].label}`} title={fluid && !fluidHandlingUnlocked ? 'Fluid Handling required' : fluid ? `Construct another storage tank · ${costs.map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · ${buildSeconds} sec` : `Construct another wooden box · ${storageBoxWoodCost} wood · ${storageBoxBuildSeconds} sec`} data-testid={`button-build-storage-${key}`}>
-                 {fluid && !fluidHandlingUnlocked ? <><LockKeyhole size={12} /><span className="hidden sm:inline">Fluid Handling</span></> : <>{isBuilding ? <Check size={12} /> : <Plus size={12} />}<span className="hidden sm:inline">{fluid ? 'tank' : 'box'}</span>{fluid ? costs.map((cost) => <span className="contents" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{fmt(cost.amount)}</span></span>) : <><ResourceIcon item="wood" size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{storageBoxWoodCost}</span></>}</>}
+               <button onClick={() => buildStorage(key)} disabled={fluid && !canPurchase} className={`button-base button-ghost !gap-1 !px-2 !py-1.5 ${isBuilding ? 'button-build-active' : ''}`} aria-label={fluid && !canPurchase ? `Fluid Handling required to construct a storage tank for ${meta[key].label}` : `Construct another ${containerLabel} for ${meta[key].label}`} title={fluid && !canPurchase ? 'Fluid Handling required' : fluid ? `Construct another storage tank · ${costs.map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · ${buildSeconds} sec` : `Construct another wooden box · ${storageBoxWoodCost} wood · ${storageBoxBuildSeconds} sec`} data-testid={`button-build-storage-${key}`}>
+                 {fluid && !canPurchase ? <><LockKeyhole size={12} /><span className="hidden sm:inline">Fluid Handling</span></> : <>{isBuilding ? <Check size={12} /> : <Plus size={12} />}<span className="hidden sm:inline">{fluid ? 'tank' : 'box'}</span>{fluid ? costs.map((cost) => <span className="contents" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{fmt(cost.amount)}</span></span>) : <><ResourceIcon item="wood" size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{storageBoxWoodCost}</span></>}</>}
               </button>
             </div>
             <div className="mt-2 flex items-center gap-2" aria-label={`${meta[key].label}: ${fmt(amount)} in stock, capacity ${fmt(capacity)}`}>
