@@ -18,6 +18,7 @@ type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militar
 type TrackedKey = string;
 type UpgradeKey = 'manualMining' | 'productionSpeed' | 'storageEfficiency' | 'powerEfficiency';
 type ResearchKey = string;
+type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type UnitStatus = 'running' | 'starved' | 'blocked';
 
 type Recipe = RecipeCatalogEntry;
@@ -888,6 +889,7 @@ function ResearchArt({ accent }: { accent: string }) { return <div className="gr
 function ResearchPage({ state, setState, notice }: PageProps) {
   const [selected, setSelected] = useState<ResearchKey>(state.currentResearch ?? orderedTechnologyCatalog[0]?.name ?? '');
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<ResearchFilter>('unlocked');
   const accentFor = (name: string) => ['#65afba', '#df7165', '#dfb05c', '#8ea9db', '#92c86b', '#c9d3d0'][name.length % 6];
   const selectResearch = (name: ResearchKey) => {
     setSelected(name);
@@ -902,10 +904,19 @@ function ResearchPage({ state, setState, notice }: PageProps) {
       return { ...s, autoResearch, currentResearch: s.currentResearch ?? name };
     });
   };
+  const technologyCounts = useMemo(() => orderedTechnologyCatalog.reduce<Record<ResearchFilter, number>>((counts, technology) => {
+    const completed = state.research.includes(technology.name);
+    const unlocked = !completed && technologyPrerequisitesMet(state, technology);
+    counts[completed ? 'completed' : unlocked ? 'unlocked' : 'locked'] += 1;
+    return counts;
+  }, { completed: 0, unlocked: 0, locked: 0 }), [state.research]);
   const visibleTechnologies = useMemo(() => orderedTechnologyCatalog.filter((technology) => {
+    const completed = state.research.includes(technology.name);
+    const unlocked = !completed && technologyPrerequisitesMet(state, technology);
+    const status = completed ? 'completed' : unlocked ? 'unlocked' : 'locked';
     const haystack = `${technology.name} ${technology.prerequisites.join(' ')} ${technology.effects.map((effect) => `${effect.type} ${effect.recipe ?? ''}`).join(' ')}`.toLowerCase();
-    return !query.trim() || haystack.includes(query.trim().toLowerCase());
-  }), [query]);
+    return status === filter && (!query.trim() || haystack.includes(query.trim().toLowerCase()));
+  }), [filter, query, state.research]);
   const item = technologyMap[selected] ?? orderedTechnologyCatalog[0];
   if (!item) return null;
   const selectedDone = state.research.includes(item.name);
@@ -920,6 +931,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     <Header eyebrow="Technology control" title="Research" copy="Select a technology to research with your labs, or mark several for auto research. Checked technologies run one at a time from the top of this official catalog." action={<Tag><Lightbulb size={11} /> {technologyCatalog.length} technologies · {state.research.length} complete</Tag>} />
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search technologies, prerequisites, or effects" className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search technologies" data-testid="input-search-technologies" />
+      <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Technology filters">{(['completed', 'unlocked', 'locked'] as ResearchFilter[]).map((option) => <button onClick={() => setFilter(option)} className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${filter === option ? 'button-primary' : 'button-ghost'}`} aria-pressed={filter === option} key={option} data-testid={`button-filter-${option}`}>{option} <span className="mono opacity-75">{technologyCounts[option]}</span></button>)}</div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source names remain intact for save compatibility and dependency matching.</span><span className="mono">{(state.autoResearch ?? []).length} auto selected · {visibleTechnologies.length} visible</span></div>
     </section>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -939,7 +951,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
             <button onClick={() => selectResearch(technology.name)} className="flex min-w-0 flex-1 items-start gap-3 text-left" data-testid={`button-research-${technology.name}`}>
               <ResearchArt accent={accentFor(technology.name)} />
               <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[12px] font-extrabold">{prettyLabel(technology.name)}</span>{done ? <Tag><Check size={10} /> complete</Tag> : ready ? <Tag tone="amber">ready</Tag> : !prerequisitesMet ? <Tag tone="muted"><LockKeyhole size={10} /> prerequisite</Tag> : technology.researchTrigger ? <Tag tone="muted"><Clock3 size={10} /> production trigger</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> pack low</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{technology.effects.length} effects · {technology.prerequisites.length} prerequisites{technology.upgrade ? ' · upgrade' : ''}</p>
-                <div className="mt-2 flex flex-wrap gap-1">{technology.scienceCosts.length ? technology.scienceCosts.map((cost) => <span className="resource-chip !px-1.5 !py-1" key={cost.pack}><ResourceIcon item={keyForSource(cost.pack)} size={15} />{researchRequirementLabel(technology, cost)}</span>) : technology.researchTrigger ? <span className="resource-chip !px-1.5 !py-1"><Clock3 size={12} /> trigger · {prettyLabel(technology.researchTrigger.item ?? technology.researchTrigger.type)}{technology.researchTrigger.count ? ` · ${fmt(technology.researchTrigger.count)}` : ''}</span> : <span className="text-[9px] text-[hsl(var(--muted-foreground))]">No science requirement</span>}</div>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">{technology.scienceCosts.length ? (() => { const amounts = technology.scienceCosts.map((cost) => researchRequirementLabel(technology, cost).split(' · ').pop() ?? ''); const sharedAmount = amounts.every((amount) => amount === amounts[0]) ? amounts[0] : amounts.join(' / '); return <span className="flex items-center gap-1.5 rounded border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] px-1.5 py-1" title={`${technology.scienceCosts.map((cost) => researchRequirementLabel(technology, cost)).join(', ')}`} aria-label={`Science cost: ${technology.scienceCosts.map((cost) => researchRequirementLabel(technology, cost)).join(', ')}`}>{technology.scienceCosts.map((cost) => <ResourceIcon item={keyForSource(cost.pack)} size={18} key={cost.pack} />)}<span className="mono text-[10px] text-[hsl(var(--primary))]">×{sharedAmount}</span></span>; })() : technology.researchTrigger ? <span className="resource-chip !px-1.5 !py-1"><Clock3 size={12} /> trigger · {prettyLabel(technology.researchTrigger.item ?? technology.researchTrigger.type)}{technology.researchTrigger.count ? ` · ${fmt(technology.researchTrigger.count)}` : ''}</span> : <span className="text-[9px] text-[hsl(var(--muted-foreground))]">No science requirement</span>}</div>
                 <div className="mt-3 flex items-center justify-between text-[9px]"><span className="eyebrow">progress</span><span className={`mono ${done ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--primary))]'}`}>{done ? 'complete' : progressLabel}</span></div><div className="mt-1"><Progress value={done ? 100 : trigger ? trigger.produced / trigger.required * 100 : progress / total * 100} tone={done ? 'teal' : 'amber'} /></div>
               </div>
               <ChevronRight size={15} className="mt-1 shrink-0 text-[hsl(var(--muted-foreground))]" />
