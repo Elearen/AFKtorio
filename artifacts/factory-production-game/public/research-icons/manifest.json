@@ -727,6 +727,42 @@
       "wikiFile": "Worker_robot_cargo_size_(research).png",
       "url": "https://wiki.factorio.com/images/Worker_robot_cargo_size_(research).png",
       "localFile": "worker-robots-storage.png"
+    },
+    {
+      "key": "physical-projectile-damage",
+      "wikiFile": "Physical_projectile_damage_(research).png",
+      "url": "https://wiki.factorio.com/images/Physical_projectile_damage_(research).png",
+      "localFile": "physical-projectile-damage.png"
+    },
+    {
+      "key": "weapon-shooting-speed",
+      "wikiFile": "Weapon_shooting_speed_(research).png",
+      "url": "https://wiki.factorio.com/images/Weapon_shooting_speed_(research).png",
+      "localFile": "weapon-shooting-speed.png"
+    },
+    {
+      "key": "stronger-explosives",
+      "wikiFile": "Stronger_explosives_(research).png",
+      "url": "https://wiki.factorio.com/images/Stronger_explosives_(research).png",
+      "localFile": "stronger-explosives.png"
+    },
+    {
+      "key": "refined-flammables",
+      "wikiFile": "Refined_flammables_(research).png",
+      "url": "https://wiki.factorio.com/images/Refined_flammables_(research).png",
+      "localFile": "refined-flammables.png"
+    },
+    {
+      "key": "laser-weapons-damage",
+      "wikiFile": "Laser_weapons_damage_(research).png",
+      "url": "https://wiki.factorio.com/images/Laser_weapons_damage_(research).png",
+      "localFile": "laser-weapons-damage.png"
+    },
+    {
+      "key": "laser-shooting-speed",
+      "wikiFile": "Laser_shooting_speed_(research).png",
+      "url": "https://wiki.factorio.com/images/Laser_shooting_speed_(research).png",
+      "localFile": "laser-shooting-speed.png"
     }
   ]
 }

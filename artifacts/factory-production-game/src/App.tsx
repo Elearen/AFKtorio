@@ -1711,8 +1711,20 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
   </PageFrame>;
 }
 
+const generatedResearchIconFiles: Record<string, string> = {
+  'physical-projectile-damage': 'physical-projectile-damage',
+  'weapon-shooting-speed': 'weapon-shooting-speed',
+  'stronger-explosives': 'stronger-explosives',
+  'refined-flammables': 'refined-flammables',
+  'laser-weapons-damage': 'laser-weapons-damage',
+  'laser-shooting-speed': 'laser-shooting-speed',
+};
 function researchIconFileFor(technology: TechnologyDefinition) {
-  return technology.iconPath?.split('/').pop()?.replace(/\.png$/, '') ?? technology.name;
+  const explicitIcon = technology.iconPath?.split('/').pop()?.replace(/\.png$/, '');
+  if (explicitIcon) return explicitIcon;
+  const generatedIcon = Object.entries(generatedResearchIconFiles)
+    .find(([prefix]) => technology.name.startsWith(`${prefix}-`))?.[1];
+  return generatedIcon ?? technology.name;
 }
 function ResearchArt({ technology, accent }: { technology: TechnologyDefinition; accent: string }) {
   const iconFile = researchIconFileFor(technology);
