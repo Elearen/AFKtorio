@@ -66,6 +66,7 @@ type GameState = {
   assemblers: Record<string, number>;
   labs: number;
   boilers: number;
+  boilersEnabled: boolean;
   steamEngines: number;
   solarPanels: number;
   miningProgress: Record<RawKey, number>;
@@ -311,7 +312,7 @@ const initialState: GameState = {
   miners: { iron: 0, copper: 0, stone: 0, coal: 0, wood: 0, water: 0, uranium: 0, crudeOil: 0 },
   pumps: 0, pumpjacks: 0, uraniumMiners: 0,
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labs: 0, boilers: 0, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
+  labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
@@ -350,9 +351,9 @@ const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining
 const miningUsesStoredCoal = (state: GameState) => state.machineVariants.mining !== 'electric-mining-drill';
 const fueledBurnerMinerCount = (state: GameState) => miningUsesStoredCoal(state) ? fueledBurnerMinerKeys.reduce((total, key) => total + state.miners[key], 0) : 0;
 const burnerMinerCoalRate = (state: GameState) => fueledBurnerMinerCount(state) * burnerMiningDrillCoalPerSecond;
-const boilerPeakSteamRateFor = (state: GameState) => state.research.includes('steam-power') ? state.boilers * boilerSteamPerSecond * 60 * state.simulationSpeed : 0;
-const boilerPeakCoalUsageFor = (state: GameState) => state.research.includes('steam-power') ? state.boilers * boilerCoalPerSecond * 60 * state.simulationSpeed : 0;
-const boilerPeakWaterUsageFor = (state: GameState) => state.research.includes('steam-power') ? state.boilers * boilerWaterPerSecond * 60 * state.simulationSpeed : 0;
+const boilerPeakSteamRateFor = (state: GameState) => state.research.includes('steam-power') && state.boilersEnabled ? state.boilers * boilerSteamPerSecond * 60 * state.simulationSpeed : 0;
+const boilerPeakCoalUsageFor = (state: GameState) => state.research.includes('steam-power') && state.boilersEnabled ? state.boilers * boilerCoalPerSecond * 60 * state.simulationSpeed : 0;
+const boilerPeakWaterUsageFor = (state: GameState) => state.research.includes('steam-power') && state.boilersEnabled ? state.boilers * boilerWaterPerSecond * 60 * state.simulationSpeed : 0;
 const boilerSteamRateFor = (state: GameState) => boilerPeakSteamRateFor(state);
 const boilerCoalUsageFor = (state: GameState) => boilerPeakCoalUsageFor(state);
 const boilerWaterUsageFor = (state: GameState) => boilerPeakWaterUsageFor(state);
@@ -628,7 +629,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   const liveConsumption = emptyRateRecord();
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes }, storageTanks: { ...previous.storageTanks },
-    assemblers: { ...previous.assemblers }, boilers: previous.boilers, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
+    assemblers: { ...previous.assemblers }, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
     researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])],
     rateHistory: previous.rateHistory ?? [],
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null,
@@ -812,6 +813,7 @@ function loadState() {
       miners: { ...initialState.miners, ...parsed.miners },
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
       labs: migratedLabCount,
+      boilersEnabled: parsed.boilersEnabled !== false,
       miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
       handcraft: parsed.handcraft ? { ...parsed.handcraft } : null,
@@ -1337,6 +1339,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
 function PowerPage({ state, setState, enqueue, notice }: PageProps) {
   const steam = state.research.includes('steam-power');
   const solar = state.research.includes('solar-energy');
+  const boilersEnabled = state.boilersEnabled;
   const draw = electricPowerDraw(state);
   const production = powerProductionFor(state);
   const potential = steamEnginePeakPowerFor(state) + solarPowerFor(state);
@@ -1346,6 +1349,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
   const boilerConstructionItems = state.queue.filter((item) => item.action === 'boiler');
   const steamEngineConstructionItems = state.queue.filter((item) => item.action === 'steamEngine');
   const solarPanelConstructionItems = state.queue.filter((item) => item.action === 'solarPanel');
+  const toggleBoilers = () => setState((s) => ({ ...s, boilersEnabled: !s.boilersEnabled }));
   const buildPowerUnit = (unit: 'boiler' | 'steamEngine' | 'solarPanel') => {
     const isSolarPanel = unit === 'solarPanel';
     if (!(isSolarPanel ? solar : steam)) return notice(isSolarPanel ? 'Solar Energy required' : 'Steam Power required');
@@ -1354,8 +1358,9 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
   };
   const constructionChips = (costs: BuildMaterialCost[], output: string) => <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Construction</div><div className="flex flex-wrap items-center gap-1.5">{costs.map(({ key, amount }, index) => <span className="contents" key={`${key}-${index}`}><span className="resource-chip"><ResourceIcon item={key} size={17} /><strong>{amount}</strong> {meta[key]?.short ?? prettyLabel(key)}</span>{index < costs.length - 1 && <span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">+</span>}</span>)}<ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--primary)/.4)' }}><ResourceIcon item={output} size={17} /><strong>1</strong> {prettyLabel(output)}</span></div></div>;
   const statusTag = (unlocked: boolean, count: number, queued: number) => unlocked ? count ? <Tag><span className="status-dot status-running" /> auto</Tag> : queued > 0 ? <Tag tone="amber"><Clock3 size={10} /> queued</Tag> : <Tag tone="amber">offline</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>;
+  const boilerStatusTag = !steam ? statusTag(false, state.boilers, boilerConstructionItems.length) : state.boilers > 0 && !boilersEnabled ? <Tag tone="amber"><Power size={10} /> disabled</Tag> : statusTag(true, state.boilers, boilerConstructionItems.length);
   return <PageFrame>
-    <Header eyebrow="Energy network" title="Power" copy="Power producers run at their rated output. Boilers get first claim on coal, while factories scale their electric production when total demand exceeds the available network." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{powerLabel(production)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} />
+    <Header eyebrow="Energy network" title="Power" copy="Power producers run at their rated output. Boilers get first claim on coal, and you can disable boiler production when fuel supply needs to recover." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{powerLabel(production)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} />
     <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
       <div className="surface rounded-xl p-4"><div className="eyebrow">Production</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(production)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">current generation</div></div>
       <div className="surface rounded-xl p-4"><div className="eyebrow">Peak potential</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(potential)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">available at full input</div></div>
@@ -1366,12 +1371,13 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
       <SectionTitle detail={`${steam ? 'steam power unlocked' : 'steam power locked'} · ${solar ? 'solar online' : 'solar locked'}`}>Production cards</SectionTitle>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <article className={`rounded-xl border p-3.5 sm:p-4 ${steam ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-boiler">
-          <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="boiler" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Boiler</h2><div className="flex items-center gap-2">{statusTag(steam, state.boilers, boilerConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Boiler count"><ResourceIcon item="boiler" size={17} /><span className="mono text-[13px]">{state.boilers}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Crafting · fuel and water to steam · Boiler</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={steam ? 'teal' : 'muted'}>{steam ? 'steam line' : 'research lock'}</Tag>{boilerConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
+          <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="boiler" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Boiler</h2><div className="flex items-center gap-2">{boilerStatusTag}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Boiler count"><ResourceIcon item="boiler" size={17} /><span className="mono text-[13px]">{state.boilers}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Crafting · fuel and water to steam · Boiler</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={steam && boilersEnabled ? 'teal' : 'muted'}>{steam ? boilersEnabled ? 'steam line · enabled' : 'steam line · disabled' : 'research lock'}</Tag>{boilerConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
            <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Maximum-rate process · each boiler</div><div className="grid grid-cols-3 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Water usage</div><div className="mono mt-1 text-[12px] text-[hsl(var(--primary))]">{boilerWaterPerSecond.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">water / sec</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Coal usage</div><div className="mono mt-1 text-[12px] text-[hsl(var(--primary))]">{boilerCoalPerSecond.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / sec</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Steam output</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{boilerSteamPerSecond.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">steam / sec</div></div></div></div>
            <div className="mt-2 grid gap-2 sm:grid-cols-2"><SupplyStatus label="Coal input" status={boilerCoalStatus} testId="status-power-boiler-coal" /><SupplyStatus label="Water input" status={boilerWaterStatus} testId="status-power-boiler-water" /></div>
           {constructionChips(boilerBuildCost, 'boiler')}
           <PowerMetrics production={boilerSteamRateFor(state)} peakProduction={boilerPeakSteamRateFor(state)} productionUnit="steam / min" consumption={boilerCoalUsageFor(state) + boilerWaterUsageFor(state)} peakConsumption={boilerPeakCoalUsageFor(state) + boilerPeakWaterUsageFor(state)} consumptionUnit="inputs / min" />
           <BuildProgress items={boilerConstructionItems} label="Boiler" />
+           {steam && state.boilers > 0 && <button onClick={toggleBoilers} className={`button-base mt-4 w-full !py-2 ${boilersEnabled ? 'button-ghost' : 'button-primary'}`} aria-pressed={boilersEnabled} data-testid="button-toggle-boilers"><Power size={13} /> {boilersEnabled ? 'disable boiler production' : 'enable boiler production'}</button>}
           <div className="mt-4 flex gap-2">{steam && state.boilers ? <><button onClick={() => notice(`boilers are producing ${boilerSteamRateFor(state).toFixed(1)} steam / min`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-boiler"><Gauge size={13} /> inspect live rate</button><button onClick={() => buildPowerUnit('boiler')} className={`button-base flex-1 !py-2 ${boilerConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-boiler">{boilerConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('boiler')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-boiler">{steam ? <><Hammer size={13} /> construct boiler</> : <><LockKeyhole size={13} /> requires Steam Power</>}</button>}</div>
         </article>
         <article className={`rounded-xl border p-3.5 sm:p-4 ${steam ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-steam-engine">
@@ -1393,7 +1399,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
          </article>
       </div>
     </section>
-     <p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Boilers reserve coal before miners and furnaces. Producers run at maximum while storage has room, then throttle full output buffers to downstream demand; electrically powered production also slows when network demand exceeds generation.</p>
+      <p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Boilers reserve coal before miners and furnaces. Disable boiler production to stop its coal and water demand while the rest of the factory recovers; electrically powered production still slows when network demand exceeds generation.</p>
   </PageFrame>;
 }
 
