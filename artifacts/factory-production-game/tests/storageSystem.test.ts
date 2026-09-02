@@ -9,6 +9,7 @@ import {
   FLUID_STORAGE_BASE_CAPACITY,
   migrateStorageState,
   STORAGE_BOX_CAPACITY,
+  SPACE_SCIENCE_STORAGE_CAPACITY,
   STORAGE_IRON_BOX_CAPACITY,
   STORAGE_IRON_BOX_COST,
   STORAGE_IRON_BOX_UPGRADE_TIME,
@@ -30,6 +31,14 @@ test('fluid storage starts at 100 units without a tank', () => {
   assert.equal(initial.storageBoxes.water, 0);
   assert.equal(initial.storage.iron, STORAGE_BOX_CAPACITY);
   assert.equal(initial.storageBoxes.iron, 1);
+});
+
+test('Space Science starts with 1000 units of special item storage', () => {
+  const initial = createInitialStorageState(['spacePack'], new Set());
+
+  assert.equal(initial.storage.spacePack, SPACE_SCIENCE_STORAGE_CAPACITY);
+  assert.equal(initial.storageBoxes.spacePack, 1);
+  assert.equal(storageCapacityFor('spacePack', new Set(), initial.storageBoxes, initial.storageTanks), SPACE_SCIENCE_STORAGE_CAPACITY);
 });
 
 test('completed storage tanks add 25,000 capacity only to their target fluid', () => {

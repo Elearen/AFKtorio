@@ -7,6 +7,7 @@ export type StorageState = {
 export type StorageBoxType = 'wooden' | 'iron';
 export const FLUID_STORAGE_BASE_CAPACITY = 100;
 export const STORAGE_BOX_CAPACITY = 180;
+export const SPACE_SCIENCE_STORAGE_CAPACITY = 1000;
 export const STORAGE_IRON_BOX_CAPACITY = 400;
 export const STORAGE_IRON_BOX_COST = 8;
 export const STORAGE_IRON_BOX_UPGRADE_TIME = 0.5;
@@ -37,13 +38,13 @@ export const storageCapacityFor = (
   boxCapacity = STORAGE_BOX_CAPACITY,
 ) => fluidKeys.has(key)
   ? FLUID_STORAGE_BASE_CAPACITY + storageContainerCountFor(key, fluidKeys, storageBoxes, storageTanks) * STORAGE_TANK_CAPACITY
-  : storageContainerCountFor(key, fluidKeys, storageBoxes, storageTanks) * boxCapacity;
+  : storageContainerCountFor(key, fluidKeys, storageBoxes, storageTanks) * (key === 'spacePack' ? SPACE_SCIENCE_STORAGE_CAPACITY : boxCapacity);
 
 export const canPurchaseStorageFor = (key: string, fluidKeys: ReadonlySet<string>, research: readonly string[]) =>
   !fluidKeys.has(key) || research.includes(FLUID_HANDLING_TECHNOLOGY);
 
 export const createInitialStorageState = (trackedKeys: readonly string[], fluidKeys: ReadonlySet<string>): StorageState => ({
-  storage: Object.fromEntries(trackedKeys.map((key) => [key, fluidKeys.has(key) ? FLUID_STORAGE_BASE_CAPACITY : STORAGE_BOX_CAPACITY])),
+  storage: Object.fromEntries(trackedKeys.map((key) => [key, fluidKeys.has(key) ? FLUID_STORAGE_BASE_CAPACITY : key === 'spacePack' ? SPACE_SCIENCE_STORAGE_CAPACITY : STORAGE_BOX_CAPACITY])),
   storageBoxes: Object.fromEntries(trackedKeys.map((key) => [key, fluidKeys.has(key) ? 0 : 1])),
   storageTanks: Object.fromEntries(trackedKeys.map((key) => [key, 0])),
 });

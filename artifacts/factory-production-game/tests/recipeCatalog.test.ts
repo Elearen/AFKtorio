@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { recipeCatalog } from '../src/recipeCatalog.js';
 
-test('Space Science Pack uses a satellite and is part of the core chain', () => {
+test('Space Science Pack uses the requested ingredients, produces 1000 packs, and is part of the core chain', () => {
   const spaceScience = recipeCatalog.find((recipe) => recipe.name === 'space-science-pack');
 
   assert.ok(spaceScience);
