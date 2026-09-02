@@ -1746,7 +1746,7 @@ function researchIconFileFor(technology: TechnologyDefinition) {
 }
 function ResearchArt({ technology, accent }: { technology: TechnologyDefinition; accent: string }) {
   const iconFile = researchIconFileFor(technology);
-  return <div className="grid h-16 w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_25%_10%)]" style={{ color: accent }}><img src={`${import.meta.env.BASE_URL}research-icons/${iconFile}.png`} width={64} height={64} alt="" aria-hidden="true" className="h-full w-full object-contain p-1" /></div>;
+  return <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_25%_10%)]" style={{ color: accent }}><img src={`${import.meta.env.BASE_URL}research-icons/${iconFile}.png`} width={64} height={64} alt="" aria-hidden="true" className="h-full w-full object-contain p-1" /></div>;
 }
 function ResearchPage({ state, setState, notice }: PageProps) {
   const [selected, setSelected] = useState<ResearchKey>(state.currentResearch ?? orderedTechnologyCatalog[0]?.name ?? '');
