@@ -528,6 +528,13 @@ const furnaceCoalUsageFor = (state: GameState, recipe: Recipe, peak = false) => 
   return outputRate * furnaceCoalPerItemFor(recipe);
 };
 const scienceLabRateFor = (state: GameState, technology?: TechnologyDefinition, applyPowerRatio = true) => state.labs * labBaseResearchSpeed * 60 * state.simulationSpeed / technologyResearchTimeFor(technology) * (applyPowerRatio ? electricPowerRatioFor(state) : 1);
+const activeResearchTimeRemainingFor = (state: GameState, technology?: TechnologyDefinition) => {
+  if (!technology || technology.researchTrigger || !technology.scienceCosts.length) return null;
+  const currentScienceConsumption = technology.scienceCosts.reduce((total, cost) => total + demandRateFor(state, keyForSource(cost.pack)), 0);
+  const researchRate = scienceLabRateFor(state, technology);
+  if (currentScienceConsumption <= 0 || researchRate <= 0) return null;
+  return Math.max(0, researchUnitsFor(technology) - researchProgressFor(state, technology)) / researchRate * 60;
+};
 const scienceRecipeFor = (key: string) => {
   const recipeKey = scienceRecipeKeys[key as ScienceKey];
   return recipeKey ? recipeMap[recipeKey] : undefined;
@@ -793,6 +800,7 @@ function Shell({ children, state }: { children: ReactNode; state: GameState }) {
   const active = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
   const activeResearch = activeResearchFor(state);
   const activeResearchProgress = activeResearch ? researchProgressPercentFor(state, activeResearch) : 0;
+  const activeResearchTimeRemaining = activeResearchTimeRemainingFor(state, activeResearch);
   const contentRef = useRef<HTMLElement>(null);
   const scrollPositions = useRef<Record<string, number>>({});
   const handleNavClick = (key: string, event: MouseEvent<HTMLAnchorElement>) => {
@@ -813,7 +821,7 @@ function Shell({ children, state }: { children: ReactNode; state: GameState }) {
         <div className="hidden items-center gap-3 lg:flex"><Tag><span className="status-dot status-running mini-pulse" /> simulation live</Tag><span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">SECTOR 07 · LOCAL INSTANCE</span></div>
         <div className="flex items-center gap-2"><span className="mono hidden text-[10px] text-[hsl(var(--muted-foreground))] sm:block">T+ NETWORK</span><button onClick={() => setMenu(!menu)} className="icon-button" aria-label="Toggle command navigation" data-testid="button-toggle-command"><Settings2 size={16} /></button></div>
       </div>
-      {activeResearch && <div className="border-t border-[hsl(var(--sidebar-border))] bg-[hsl(216_25%_10%/.9)]" data-testid="header-research-status"><div className="mx-auto flex min-h-8 max-w-[1500px] items-center gap-1.5 px-4 py-2 mono text-[9px] text-[hsl(var(--muted-foreground))] sm:px-6 lg:px-8"><span className="status-dot status-running mini-pulse" /><span>Current research: <strong className="font-semibold text-[hsl(var(--foreground))]">{prettyLabel(activeResearch.name)}</strong></span><span className="text-[hsl(var(--border))]">|</span><span>Current progress: <strong className="font-semibold text-[hsl(var(--primary))]">{activeResearchProgress.toFixed(0)}%</strong></span></div></div>}
+      {activeResearch && <div className="border-t border-[hsl(var(--sidebar-border))] bg-[hsl(216_25%_10%/.9)]" data-testid="header-research-status"><div className="mx-auto flex min-h-8 max-w-[1500px] flex-wrap items-center gap-x-1.5 gap-y-1 px-4 py-2 mono text-[9px] text-[hsl(var(--muted-foreground))] sm:px-6 lg:px-8"><span className="status-dot status-running mini-pulse" /><span>Current research: <strong className="font-semibold text-[hsl(var(--foreground))]">{prettyLabel(activeResearch.name)}</strong></span><span className="text-[hsl(var(--border))]">|</span><span>Current progress: <strong className="font-semibold text-[hsl(var(--primary))]">{activeResearchProgress.toFixed(0)}%</strong></span><span className="text-[hsl(var(--border))]">|</span><span>Time remaining: <strong className="font-semibold text-[hsl(var(--primary))]">{activeResearchTimeRemaining === null ? '--' : duration(activeResearchTimeRemaining)}</strong></span></div></div>}
     </header>
     <div className="mx-auto flex min-h-0 w-full max-w-[1500px] flex-1">
       <aside className={`${menu ? 'fixed inset-x-3 top-[78px] z-40 block shadow-2xl' : 'hidden'} surface rounded-xl p-2 md:sticky md:top-0 md:block md:h-full md:w-[214px] md:shrink-0 md:rounded-none md:border-0 md:border-r md:border-[hsl(var(--sidebar-border))] md:bg-transparent md:p-5 md:shadow-none`}><div className="mb-4 hidden px-3 md:block"><span className="eyebrow">Command tabs · 10</span></div><nav className="grid grid-cols-2 gap-1 md:flex md:flex-col" aria-label="Primary navigation">{nav.map(([key, path, Icon]) => <Link key={key} href={path} onClick={(event) => handleNavClick(key, event)} className={`nav-link flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[11px] font-bold no-underline transition-colors ${active === key ? 'bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'}`} data-testid={`link-tab-${key}`}><Icon size={15} /><span>{tabLabel(key)}</span>{active === key && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--primary))]" />}</Link>)}</nav></aside>
