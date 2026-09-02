@@ -1439,10 +1439,10 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
              <div className="mono mt-2 text-[13px] text-[hsl(var(--secondary))]">50 crude oil / sec <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per pumpjack</span></div>
            </div>}
           <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={productionRate - demandRate} storage={state.raw[key]} capacity={capFor(state, key)} />
-          <BuildProgress items={constructionItems} label={constructionLabel} />
           <div className="mt-4 flex gap-2">
             {locked ? <button onClick={() => notice(`${info.needs} research required`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-locked-mining-${key}`}><LockKeyhole size={13} /> requires {info.needs}</button> : autonomous ? <><button onClick={() => notice(`${info.label} ${machineLabel.toLowerCase()} is running at ${productionRate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-mining-${key}`}><Gauge size={13} /> inspect live rate</button>{manualCollectionControl}{buildControl}</> : <>{manualCollectionControl}{buildControl}</>}
           </div>
+          <BuildProgress items={constructionItems} label={constructionLabel} />
            {manualMiningJob && <ManualMiningProgress job={manualMiningJob} />}
         </section>;
       })}
