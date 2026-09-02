@@ -8,3 +8,4 @@
 - [Navigation scroll behavior](navigation-scroll.md) — mobile tabs stay in a 5×2 rail and each route owns its scroll position.
 - [Coal mining exception](coal-mining-exception.md) — coal miners self-fuel and report net yield without consuming stored coal.
 - [Power generation model](power-generation-model.md) — boilers consume coal/water for virtual steam, engines convert it to power, and unlocked solar is zero-input.
+- [Storage chest tiers](storage-chest-tiers.md) — item-storage chest material is a global tier; fluid tanks remain independent and are never affected by chest upgrades.

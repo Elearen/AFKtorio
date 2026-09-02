@@ -15,7 +15,9 @@ import {
   canPurchaseStorageFor, completeStorageConstruction, createInitialStorageState,
   FLUID_HANDLING_TECHNOLOGY, FLUID_STORAGE_BASE_CAPACITY, migrateStorageState,
   storageCapacityFor as calculateStorageCapacityFor, storageContainerCountFor as calculateStorageContainerCountFor,
-  STORAGE_BOX_CAPACITY, STORAGE_TANK_CAPACITY,
+  ironChestUpgradeCostFor, ironChestUpgradeTimeFor, itemStorageBoxCountFor,
+  STORAGE_BOX_CAPACITY, STORAGE_IRON_BOX_CAPACITY, STORAGE_IRON_BOX_COST, STORAGE_IRON_BOX_UPGRADE_TIME, STORAGE_TANK_CAPACITY,
+  type StorageBoxType,
 } from './storageSystem';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
@@ -59,6 +61,7 @@ type GameState = {
   storage: Record<TrackedKey, number>;
   storageBoxes: Record<TrackedKey, number>;
   storageTanks: Record<TrackedKey, number>;
+  storageBoxType: StorageBoxType;
   miners: Record<RawKey, number>;
   pumps: number;
   pumpjacks: number;
@@ -179,6 +182,7 @@ const assemblyMachineTwoPowerKw = upgradeMap['assembly-machine-2'].newMachinePow
 const assemblyMachineTwoProductionSpeed = upgradeMap['assembly-machine-2'].newMachineProductionSpeed;
 const labPowerKw = 7000;
 const storageBoxCapacity = STORAGE_BOX_CAPACITY;
+const ironStorageBoxCapacity = STORAGE_IRON_BOX_CAPACITY;
 const fluidStorageBaseCapacity = FLUID_STORAGE_BASE_CAPACITY;
 const storageTankCapacity = STORAGE_TANK_CAPACITY;
 const storageBoxWoodCost = 2;
@@ -309,6 +313,7 @@ const initialState: GameState = {
   storage: initialStorageState.storage as Record<TrackedKey, number>,
   storageBoxes: initialStorageState.storageBoxes as Record<TrackedKey, number>,
   storageTanks: initialStorageState.storageTanks as Record<TrackedKey, number>,
+  storageBoxType: 'wooden',
   miners: { iron: 0, copper: 0, stone: 0, coal: 0, wood: 0, water: 0, uranium: 0, crudeOil: 0 },
   pumps: 0, pumpjacks: 0, uraniumMiners: 0,
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
@@ -339,7 +344,9 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
 const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
 const duration = (n: number) => `${Math.floor(n / 60)}m ${String(Math.max(0, Math.floor(n % 60))).padStart(2, '0')}s`;
 const containerCountFor = (state: GameState, key: TrackedKey) => calculateStorageContainerCountFor(key, fluidKeys, state.storageBoxes, state.storageTanks);
-const storageCapacityFor = (state: GameState, key: TrackedKey) => calculateStorageCapacityFor(key, fluidKeys, state.storageBoxes, state.storageTanks);
+const storageBoxCapacityFor = (state: GameState) => state.storageBoxType === 'iron' ? ironStorageBoxCapacity : storageBoxCapacity;
+const storageBoxCountFor = (state: GameState) => itemStorageBoxCountFor(trackedKeys, fluidKeys, state.storageBoxes);
+const storageCapacityFor = (state: GameState, key: TrackedKey) => calculateStorageCapacityFor(key, fluidKeys, state.storageBoxes, state.storageTanks, storageBoxCapacityFor(state));
 const capFor = (state: GameState, key: TrackedKey) => Math.floor(state.storage[key] ?? storageCapacityFor(state, key));
 const burnerMinerCount = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
 const electricAssemblerCount = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && !isSmeltingRecipe(recipeMap[recipeKey]) ? count : 0), 0);
@@ -761,13 +768,19 @@ function simulate(previous: GameState, seconds: number): GameState {
         storage: state.storage,
         storageBoxes: state.storageBoxes,
         storageTanks: state.storageTanks,
-      }, key, fluidKeys);
+      }, key, fluidKeys, storageBoxCapacityFor(state));
       state.storage = completedStorage.storage;
       state.storageBoxes = completedStorage.storageBoxes;
       state.storageTanks = completedStorage.storageTanks;
     }
     if (item.action === 'upgrade') {
-      state.machineVariants = applyUpgradeCompletion(state.machineVariants, item.targetId ?? item.target);
+      const upgradeId = item.targetId ?? item.target;
+      if (upgradeId === 'iron-chests') {
+        state.storageBoxType = 'iron';
+        state.storage = Object.fromEntries(trackedKeys.map((key) => [key, storageCapacityFor(state, key)])) as Record<TrackedKey, number>;
+      } else {
+        state.machineVariants = applyUpgradeCompletion(state.machineVariants, upgradeId);
+      }
     }
   });
   applyResearchTriggers(state);
@@ -792,12 +805,14 @@ function loadState() {
       delete storage.researchPack;
       return storage;
     })();
+    const storageBoxType = parsed.storageBoxType === 'iron' ? 'iron' : 'wooden';
     const migratedStorage = migrateStorageState({
       trackedKeys,
       fluidKeys,
       savedStorage: normalizedStorage,
       savedBoxes: parsed.storageBoxes,
       savedTanks: parsed.storageTanks,
+      boxCapacity: storageBoxType === 'iron' ? ironStorageBoxCapacity : storageBoxCapacity,
     });
     const state = {
       ...initialState,
@@ -812,6 +827,7 @@ function loadState() {
       storage: migratedStorage.storage as Record<TrackedKey, number>,
       storageBoxes: migratedStorage.storageBoxes as Record<TrackedKey, number>,
       storageTanks: migratedStorage.storageTanks as Record<TrackedKey, number>,
+      storageBoxType,
       miners: { ...initialState.miners, ...parsed.miners },
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
       labs: migratedLabCount,
@@ -1413,13 +1429,16 @@ function PowerDependencyTreePage({ state, notice }: PageProps) {
 function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.8 2.8c.4 3-1.3 4.2-2.4 5.4-1 1-1.2 2.3-.6 3.3.4-1.3 1.5-2.3 2.8-2.7 2.6 2 3.8 4.3 3.2 7.1-.4 1.8-1.7 3.2-3.3 4.1 4.7-.8 7-4 6.2-8.4-.5-2.8-2.5-5.8-5.9-8.8ZM10 12c-3.7 1.4-5.4 4-4.6 6.6.6 2 2.3 3.4 4.5 4-1.2-1.2-1.5-2.6-.6-4.1.7-1.2 1.6-2.1 2.6-2.6-1.1-1-1.8-2.3-1.9-3.9Z"/></svg>; }
 
 function StoragePage({ state, setState, enqueue, notice }: PageProps) {
+  const storageUpgradeInProgress = state.queue.some((item) => item.action === 'upgrade' && item.targetId === 'iron-chests');
   const buildStorage = (key: TrackedKey) => {
     const fluid = isFluidKey(key);
     if (fluid && !canPurchaseStorageFor(key, fluidKeys, state.research)) return notice('Fluid Handling required');
+    if (!fluid && storageUpgradeInProgress) return notice('finish the Iron Chests upgrade before constructing another box');
+    const iron = !fluid && state.storageBoxType === 'iron';
     const constructionItems = state.queue.filter((item) => item.action === 'storage' && item.targetId === key);
-    const costs = fluid ? storageTankBuildCost : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
+    const costs = fluid ? storageTankBuildCost : iron ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }] : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
     const buildSeconds = fluid ? storageTankRecipe.energyRequired : storageBoxBuildSeconds;
-    const containerLabel = fluid ? 'storage tank' : 'wooden box';
+    const containerLabel = fluid ? 'storage tank' : iron ? 'iron chest' : 'wooden box';
     enqueue('storage', `${containerLabel[0].toUpperCase()}${containerLabel.slice(1)} · ${meta[key].label}`, buildSeconds, key, costs);
     notice(`${containerLabel} for ${meta[key].label} queued`);
   };
@@ -1427,7 +1446,7 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
   const visibleKeys = unlockedKeys.filter((key) => scienceFilter === 'all' || trackedScienceChainFor(key) === scienceFilter);
   return <PageFrame>
-    <Header eyebrow="Buffer control" title="Storage" copy="Item buffers use wooden boxes. Fluids start with 100 units of base capacity, then expand with storage tanks after Fluid Handling research." action={<Tag><Box size={11} /> {visibleKeys.length} visible items</Tag>} />
+    <Header eyebrow="Buffer control" title="Storage" copy={`${state.storageBoxType === 'iron' ? 'Item buffers use iron chests.' : 'Item buffers use wooden boxes.'} Fluids start with 100 units of base capacity, then expand with storage tanks after Fluid Handling research.`} action={<Tag><Box size={11} /> {visibleKeys.length} visible items</Tag>} />
     <section className="surface rounded-xl p-2.5 sm:p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Science chain filter</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{unlockedKeys.length} unlocked · {unlockedKeys.filter((key) => trackedScienceChainFor(key) === 'Core').length} core / {unlockedKeys.filter((key) => trackedScienceChainFor(key) === 'Non-Core').length} non-core</div></div><select value={scienceFilter} onChange={(event) => setScienceFilter(event.target.value as RecipeScienceFilter)} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none" aria-label="Filter storage science chain" data-testid="select-storage-science-filter"><option value="all">All items</option><option value="Core">Core items</option><option value="Non-Core">Non-Core items</option></select></div>
       <div className="space-y-2">
@@ -1437,9 +1456,10 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
           const fluid = isFluidKey(key);
           const canPurchase = canPurchaseStorageFor(key, fluidKeys, state.research);
           const containerCount = containerCountFor(state, key);
-          const containerLabel = fluid ? 'storage tank' : 'wooden box';
-          const containerIcon = fluid ? 'storage-tank' : 'wooden-chest';
-          const costs = fluid ? storageTankBuildCost : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
+          const iron = !fluid && state.storageBoxType === 'iron';
+          const containerLabel = fluid ? 'storage tank' : iron ? 'iron chest' : 'wooden box';
+          const containerIcon = fluid ? 'storage-tank' : iron ? 'iron-chest' : 'wooden-chest';
+          const costs = fluid ? storageTankBuildCost : iron ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }] : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
           const buildSeconds = fluid ? storageTankRecipe.energyRequired : storageBoxBuildSeconds;
           const constructionItems = state.queue.filter((item) => item.action === 'storage' && item.targetId === key);
           const isBuilding = constructionItems.length > 0;
@@ -1450,8 +1470,8 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
                <div className="flex shrink-0 items-center gap-1.5 text-[hsl(var(--secondary))]" title={`${containerCount} ${containerLabel}${containerCount === 1 ? '' : 's'}`}>
                  <ResourceIcon item={containerIcon} size={17} /><span className="mono text-[11px]">{containerCount}</span>
               </div>
-               <button onClick={() => buildStorage(key)} disabled={fluid && !canPurchase} className={`button-base button-ghost !gap-1 !px-2 !py-1.5 ${isBuilding ? 'button-build-active' : ''}`} aria-label={fluid && !canPurchase ? `Fluid Handling required to construct a storage tank for ${meta[key].label}` : `Construct another ${containerLabel} for ${meta[key].label}`} title={fluid && !canPurchase ? 'Fluid Handling required' : fluid ? `Construct another storage tank · ${costs.map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · ${buildSeconds} sec` : `Construct another wooden box · ${storageBoxWoodCost} wood · ${storageBoxBuildSeconds} sec`} data-testid={`button-build-storage-${key}`}>
-                 {fluid && !canPurchase ? <><LockKeyhole size={12} /><span className="hidden sm:inline">Fluid Handling</span></> : <>{isBuilding ? <Check size={12} /> : <Plus size={12} />}<span className="hidden sm:inline">{fluid ? 'tank' : 'box'}</span>{fluid ? costs.map((cost) => <span className="contents" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{fmt(cost.amount)}</span></span>) : <><ResourceIcon item="wood" size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{storageBoxWoodCost}</span></>}</>}
+               <button onClick={() => buildStorage(key)} disabled={(fluid && !canPurchase) || (!fluid && storageUpgradeInProgress)} className={`button-base button-ghost !gap-1 !px-2 !py-1.5 ${isBuilding ? 'button-build-active' : ''}`} aria-label={fluid && !canPurchase ? `Fluid Handling required to construct a storage tank for ${meta[key].label}` : !fluid && storageUpgradeInProgress ? 'Iron Chests upgrade in progress' : `Construct another ${containerLabel} for ${meta[key].label}`} title={fluid && !canPurchase ? 'Fluid Handling required' : !fluid && storageUpgradeInProgress ? 'Iron Chests upgrade in progress' : `Construct another ${containerLabel} · ${costs.map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · ${buildSeconds} sec`} data-testid={`button-build-storage-${key}`}>
+                 {fluid && !canPurchase ? <><LockKeyhole size={12} /><span className="hidden sm:inline">Fluid Handling</span></> : !fluid && storageUpgradeInProgress ? <><Clock3 size={12} /><span className="hidden sm:inline">upgrading</span></> : <>{isBuilding ? <Check size={12} /> : <Plus size={12} />}<span className="hidden sm:inline">{fluid ? 'tank' : iron ? 'chest' : 'box'}</span>{costs.map((cost) => <span className="contents" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{fmt(cost.amount)}</span></span>)}</>}
               </button>
             </div>
             <div className="mt-2 flex items-center gap-2" aria-label={`${meta[key].label}: ${fmt(amount)} in stock, capacity ${fmt(capacity)}`}>
@@ -1459,7 +1479,7 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
               <div className="min-w-0 flex-1"><Progress value={amount / capacity * 100} /></div>
               <span className="mono w-14 shrink-0 text-right text-[11px]" title="Total capacity">{fmt(capacity)}</span>
             </div>
-             {isBuilding && <BuildProgress items={constructionItems} label={`${fluid ? 'Storage tank' : 'Wooden box'} · ${meta[key].label}`} />}
+              {isBuilding && <BuildProgress items={constructionItems} label={`${fluid ? 'Storage tank' : iron ? 'Iron chest' : 'Wooden box'} · ${meta[key].label}`} />}
           </section>;
         })}
       </div>
@@ -1476,6 +1496,12 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
   const activeUpgrade = state.queue.find((item) => item.action === 'upgrade');
   const costLabel = (cost: BuildMaterialCost) => `${fmt(cost.amount)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`;
   const costChips = (costs: BuildMaterialCost[]) => <div className="flex flex-wrap gap-1.5">{costs.map((cost) => <span className="resource-chip !px-1.5 !py-1" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={16} />{costLabel(cost)}</span>)}</div>;
+  const storageBoxCount = storageBoxCountFor(state);
+  const storageUpgradeComplete = state.storageBoxType === 'iron';
+  const storageUpgradeQueued = activeUpgrade?.targetId === 'iron-chests';
+  const storageUpgradeCosts = [{ key: 'ironPlate', amount: ironChestUpgradeCostFor(storageBoxCount), source: 'products' as const }];
+  const storageUpgradeTotalSeconds = ironChestUpgradeTimeFor(storageBoxCount);
+  const storageUpgradeMissing = storageUpgradeComplete || !storageBoxCount ? '' : missingBuildMaterials(state, storageUpgradeCosts);
   const startUpgrade = (upgrade: UpgradeDefinition) => {
     const jobId = `upgrade-${Date.now()}`;
     const result = beginUpgrade({
@@ -1490,8 +1516,29 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     setState((s) => ({ ...s, raw: result.state.raw, products: result.state.products, queue: result.state.queue as QueueItem[] }));
     notice(`${upgrade.name} started for ${result.job.machineCount} machine${result.job.machineCount === 1 ? '' : 's'}`);
   };
+  const startStorageUpgrade = () => {
+    if (storageUpgradeComplete) return notice('Iron Chests is already installed');
+    if (activeUpgrade) return notice('finish the active upgrade before starting another');
+    if (!storageBoxCount) return notice('construct at least one wooden chest first');
+    if (storageUpgradeMissing) return notice(`missing ${storageUpgradeMissing}`);
+    const job: QueueItem = {
+      id: `upgrade-${Date.now()}`,
+      action: 'upgrade',
+      target: 'Upgrade storage to Iron Chests',
+      targetId: 'iron-chests',
+      seconds: storageUpgradeTotalSeconds,
+      total: storageUpgradeTotalSeconds,
+      machineCount: storageBoxCount,
+    };
+    setState((s) => ({
+      ...s,
+      products: { ...s.products, ironPlate: (s.products.ironPlate ?? 0) - ironChestUpgradeCostFor(storageBoxCount) },
+      queue: [...s.queue, job],
+    }));
+    notice(`Upgrade storage to Iron Chests started for ${storageBoxCount} chest${storageBoxCount === 1 ? '' : 's'}`);
+  };
   return <PageFrame>
-    <Header eyebrow="Machine conversion" title="Upgrades" copy="Convert every relevant machine in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 2 machine upgrades</Tag>} />
+    <Header eyebrow="Machine + storage conversion" title="Upgrades" copy="Convert machines or upgrade every item-storage chest in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 3 upgrades</Tag>} />
     <section className="surface mb-5 rounded-xl border-[hsl(var(--primary)/.25)] bg-[linear-gradient(100deg,hsl(34_28%_16%/.82),hsl(216_25%_14%/.96))] p-4 sm:p-5">
       <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">How conversion works</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Costs are calculated from the current number of relevant machines, deducted immediately, and all matching machines change variant together when the timer completes. Construction elsewhere in the factory can continue.</p></div></div>
     </section>
@@ -1523,6 +1570,20 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
           {!complete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{machineCount ? `${machineCount} machines · ${totalSeconds.toFixed(1)}s · total cost` : 'No relevant machines built'}</div></div><button onClick={() => startUpgrade(item)} disabled={!canStart} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-start-upgrade-${item.id}`}><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : missing ? `need ${missing}` : !prerequisiteMet ? 'locked' : !machineCount ? 'build machines first' : 'start upgrade'}</button></div>{machineCount > 0 && <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Total reserved now: {totalCosts.map(costLabel).join(' + ')}</div>}</div>}
         </section>;
       })}
+       <section className="surface rounded-xl p-4 sm:p-5" data-testid="card-upgrade-iron-chests">
+         <div className="flex items-start gap-3">
+           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><Box size={18} /></div>
+           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">Upgrade storage to Iron Chests</h2>{storageUpgradeComplete ? <Tag><Check size={10} /> installed</Tag> : storageUpgradeQueued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : <Tag tone="amber">available</Tag>}</div><p className="mt-1 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">Replace every constructed wooden chest with an Iron Chest. Fluid storage tanks are not affected.</p></div>
+         </div>
+         {storageUpgradeQueued && activeUpgrade && <div className="construction-panel mt-4 rounded-lg p-3" aria-live="polite" data-testid="panel-upgrade-progress-iron-chests"><div className="flex items-start justify-between gap-3"><div><div className="eyebrow text-[hsl(var(--primary))]">Upgrade in progress</div><div className="mt-1 text-[10px] font-bold">{activeUpgrade.machineCount} wooden chest{activeUpgrade.machineCount === 1 ? '' : 's'} converting</div></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(activeUpgrade.seconds)}</span></div><div className="mt-2"><Progress value={(1 - activeUpgrade.seconds / activeUpgrade.total) * 100} tone="amber" /></div><div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(Math.max(0, (1 - activeUpgrade.seconds / activeUpgrade.total) * 100))}% complete</span><span>{activeUpgrade.total.toFixed(1)}s total</span></div></div>}
+         <div className="mt-4 grid gap-2 text-[10px]">
+           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Current storage</div><div className="mt-1 flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 font-semibold"><ResourceIcon item="wooden-chest" size={18} />Wooden chests</span><span className="mono text-[hsl(var(--secondary))]">{storageUpgradeQueued ? activeUpgrade?.machineCount : storageBoxCount} built</span></div></div>
+           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Upgrade cost · {STORAGE_IRON_BOX_UPGRADE_TIME}s per chest</div><div className="mt-2">{costChips(storageUpgradeCosts)}</div></div>
+           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">New storage</div><div className="mt-1 flex items-center justify-between gap-2 font-semibold"><span className="flex items-center gap-1.5"><ResourceIcon item="iron-chest" size={18} />Iron chests</span><span className="mono text-[hsl(var(--secondary))]">+{STORAGE_IRON_BOX_CAPACITY} per box</span></div></div>
+           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Fluid storage</div><div className="mt-1 font-semibold text-[hsl(var(--muted-foreground))]">Storage tanks unchanged</div></div>
+         </div>
+         {!storageUpgradeComplete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{storageBoxCount ? `${storageBoxCount} chests · ${storageUpgradeTotalSeconds.toFixed(1)}s · total cost` : 'No wooden chests built'}</div></div><button onClick={startStorageUpgrade} disabled={!!activeUpgrade || !storageBoxCount || !!storageUpgradeMissing} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-upgrade-iron-chests"><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : storageUpgradeMissing ? `need ${storageUpgradeMissing}` : !storageBoxCount ? 'build chests first' : 'start upgrade'}</button></div>{storageBoxCount > 0 && <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Total reserved now: {storageUpgradeCosts.map(costLabel).join(' + ')}</div>}</div>}
+       </section>
     </div>
   </PageFrame>;
 }

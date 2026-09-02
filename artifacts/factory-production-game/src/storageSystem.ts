@@ -4,10 +4,23 @@ export type StorageState = {
   storageTanks: Record<string, number>;
 };
 
+export type StorageBoxType = 'wooden' | 'iron';
 export const FLUID_STORAGE_BASE_CAPACITY = 100;
 export const STORAGE_BOX_CAPACITY = 180;
+export const STORAGE_IRON_BOX_CAPACITY = 400;
+export const STORAGE_IRON_BOX_COST = 8;
+export const STORAGE_IRON_BOX_UPGRADE_TIME = 0.5;
 export const STORAGE_TANK_CAPACITY = 25_000;
 export const FLUID_HANDLING_TECHNOLOGY = 'fluid-handling';
+
+export const itemStorageBoxCountFor = (
+  trackedKeys: readonly string[],
+  fluidKeys: ReadonlySet<string>,
+  storageBoxes: Record<string, number>,
+) => trackedKeys.reduce((total, key) => total + (fluidKeys.has(key) ? 0 : (storageBoxes[key] ?? 0)), 0);
+
+export const ironChestUpgradeCostFor = (woodenChestCount: number) => woodenChestCount * STORAGE_IRON_BOX_COST;
+export const ironChestUpgradeTimeFor = (woodenChestCount: number) => woodenChestCount * STORAGE_IRON_BOX_UPGRADE_TIME;
 
 export const storageContainerCountFor = (
   key: string,
@@ -21,9 +34,10 @@ export const storageCapacityFor = (
   fluidKeys: ReadonlySet<string>,
   storageBoxes: Record<string, number>,
   storageTanks: Record<string, number>,
+  boxCapacity = STORAGE_BOX_CAPACITY,
 ) => fluidKeys.has(key)
   ? FLUID_STORAGE_BASE_CAPACITY + storageContainerCountFor(key, fluidKeys, storageBoxes, storageTanks) * STORAGE_TANK_CAPACITY
-  : storageContainerCountFor(key, fluidKeys, storageBoxes, storageTanks) * STORAGE_BOX_CAPACITY;
+  : storageContainerCountFor(key, fluidKeys, storageBoxes, storageTanks) * boxCapacity;
 
 export const canPurchaseStorageFor = (key: string, fluidKeys: ReadonlySet<string>, research: readonly string[]) =>
   !fluidKeys.has(key) || research.includes(FLUID_HANDLING_TECHNOLOGY);
@@ -38,6 +52,7 @@ export const completeStorageConstruction = (
   current: StorageState,
   key: string,
   fluidKeys: ReadonlySet<string>,
+  boxCapacity = STORAGE_BOX_CAPACITY,
 ): StorageState => {
   const next: StorageState = {
     storage: { ...current.storage },
@@ -46,7 +61,7 @@ export const completeStorageConstruction = (
   };
   if (fluidKeys.has(key)) next.storageTanks[key] = (next.storageTanks[key] ?? 0) + 1;
   else next.storageBoxes[key] = (next.storageBoxes[key] ?? 1) + 1;
-  next.storage[key] = storageCapacityFor(key, fluidKeys, next.storageBoxes, next.storageTanks);
+  next.storage[key] = storageCapacityFor(key, fluidKeys, next.storageBoxes, next.storageTanks, boxCapacity);
   return next;
 };
 
@@ -56,12 +71,14 @@ export const migrateStorageState = ({
   savedStorage,
   savedBoxes,
   savedTanks,
+  boxCapacity = STORAGE_BOX_CAPACITY,
 }: {
   trackedKeys: readonly string[];
   fluidKeys: ReadonlySet<string>;
   savedStorage?: Record<string, number>;
   savedBoxes?: Record<string, number>;
   savedTanks?: Record<string, number>;
+  boxCapacity?: number;
 }): StorageState => {
   const storageBoxes: Record<string, number> = {};
   const storageTanks: Record<string, number> = {};
@@ -80,7 +97,7 @@ export const migrateStorageState = ({
   });
   const storage = Object.fromEntries(trackedKeys.map((key) => [
     key,
-    storageCapacityFor(key, fluidKeys, storageBoxes, storageTanks),
+    storageCapacityFor(key, fluidKeys, storageBoxes, storageTanks, boxCapacity),
   ]));
   return { storage, storageBoxes, storageTanks };
 };

@@ -166,11 +166,12 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
   };
   const persistedQueue = Array.isArray(record.queue) ? record.queue : [];
   let upgradeSeen = false;
+  const validUpgradeIds = new Set<string>([...Object.keys(upgradeMap), 'iron-chests']);
   const queue = persistedQueue.filter((item): item is UpgradeQueueRecord => {
     if (!item || typeof item !== 'object') return false;
     const candidate = item as UpgradeQueueRecord;
     if (candidate.action !== 'upgrade') return true;
-    if (upgradeSeen || !candidate.targetId || !upgradeMap[candidate.targetId as UpgradeKey]) return false;
+    if (upgradeSeen || !candidate.targetId || !validUpgradeIds.has(candidate.targetId)) return false;
     upgradeSeen = true;
     return true;
   });

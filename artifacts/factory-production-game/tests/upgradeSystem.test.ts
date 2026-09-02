@@ -132,6 +132,15 @@ test('save migration keeps valid state, removes legacy upgrade jobs, and allows 
   assert.deepEqual(migrated.queue.map((item) => item.id), ['build', 'valid']);
 });
 
+test('save migration preserves an in-progress Iron Chests job', () => {
+  const migrated = migrateMachineUpgradeState({
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
+    queue: [{ id: 'iron', action: 'upgrade', target: 'Upgrade storage to Iron Chests', targetId: 'iron-chests', machineCount: 5, seconds: 1, total: 2 }],
+  });
+
+  assert.equal(migrated.queue[0].targetId, 'iron-chests');
+});
+
 test('full storage reports zero mining output when there is no downstream demand', () => {
   assert.equal(bufferedActualRateFor(60, 180, 180, 0), 0);
   assert.equal(bufferedActualRateFor(60, 170, 180, 0), 60);

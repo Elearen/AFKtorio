@@ -9,8 +9,13 @@ import {
   FLUID_STORAGE_BASE_CAPACITY,
   migrateStorageState,
   STORAGE_BOX_CAPACITY,
+  STORAGE_IRON_BOX_CAPACITY,
+  STORAGE_IRON_BOX_COST,
+  STORAGE_IRON_BOX_UPGRADE_TIME,
   STORAGE_TANK_CAPACITY,
   storageCapacityFor,
+  ironChestUpgradeCostFor,
+  ironChestUpgradeTimeFor,
 } from '../src/storageSystem.js';
 
 const fluidKeys = new Set(['water', 'crudeOil']);
@@ -72,4 +77,15 @@ test('storage tank purchase timing and materials match the recipe catalog', () =
     { type: 'item', name: 'iron-plate', amount: 20 },
     { type: 'item', name: 'steel-plate', amount: 5 },
   ]);
+});
+
+test('Iron Chests upgrade scales cost and time by item boxes only', () => {
+  const boxes = { iron: 3, copper: 2, water: 9 };
+  const tanks = { water: 4 };
+  const woodenChestCount = 5;
+
+  assert.equal(ironChestUpgradeCostFor(woodenChestCount), woodenChestCount * STORAGE_IRON_BOX_COST);
+  assert.equal(ironChestUpgradeTimeFor(woodenChestCount), woodenChestCount * STORAGE_IRON_BOX_UPGRADE_TIME);
+  assert.equal(storageCapacityFor('iron', fluidKeys, boxes, tanks, STORAGE_IRON_BOX_CAPACITY), 3 * STORAGE_IRON_BOX_CAPACITY);
+  assert.equal(storageCapacityFor('water', fluidKeys, boxes, tanks, STORAGE_IRON_BOX_CAPACITY), FLUID_STORAGE_BASE_CAPACITY + 4 * STORAGE_TANK_CAPACITY);
 });
