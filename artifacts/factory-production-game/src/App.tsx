@@ -16,7 +16,8 @@ type RawKey = 'iron' | 'copper' | 'stone' | 'coal' | 'wood' | 'water' | 'uranium
 type ComponentKey = string;
 type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militaryPack' | 'productionPack' | 'utilityPack';
 type TrackedKey = string;
-type UpgradeKey = 'manualMining' | 'productionSpeed' | 'storageEfficiency' | 'powerEfficiency';
+type MachineGroup = 'assembly' | 'mining';
+type UpgradeKey = 'assembly-machine-2' | 'electric-mining-drill';
 type ResearchKey = string;
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
@@ -26,10 +27,27 @@ type SupplyStatusTone = 'teal' | 'amber' | 'red' | 'muted';
 type SupplyStatus = { tone: SupplyStatusTone; label: string; detail: string };
 
 type Recipe = RecipeCatalogEntry;
-type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'storage' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number };
+type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'storage' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number; machineCount?: number };
 type HandcraftJob = { recipeKey: string; seconds: number; total: number };
 type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number };
 type RateSample = { seconds: number; production: Record<TrackedKey, number>; manualProduction?: Record<TrackedKey, number>; consumption: Record<TrackedKey, number> };
+type BuildMaterialCost = { key: string; amount: number; source: 'raw' | 'products' };
+type UpgradeDefinition = {
+  id: UpgradeKey;
+  name: string;
+  copy: string;
+  prerequisiteTechnology: ResearchKey;
+  relevantMachine: string;
+  machineGroup: MachineGroup;
+  upgradeCostPerMachine: BuildMaterialCost[];
+  upgradeTimePerMachine: number;
+  newMachine: string;
+  newMachineLabel: string;
+  newMachineMaterialCost: BuildMaterialCost[];
+  newMachinePowerDraw: number;
+  newMachineProductionSpeed: number;
+};
+type MachineVariants = Record<MachineGroup, string>;
 type GameState = {
   raw: Record<RawKey, number>;
   products: Record<string, number>;
@@ -56,7 +74,7 @@ type GameState = {
   researchNotifications: ResearchKey[];
   produced: Record<string, number>;
   rateHistory: RateSample[];
-  upgrades: Record<UpgradeKey, number>;
+  machineVariants: MachineVariants;
   totalOutput: number;
   lastSeen: number;
   simulationSpeed: number;
@@ -125,6 +143,15 @@ const burnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood'];
 const burnerMiningDrillRecipe = recipeMap['burner-mining-drill'];
 const burnerMiningDrillCost = { gear: 3, ironPlate: 3, stone: 5 };
 const burnerMiningDrillCoalPerSecond = 0.25;
+const burnerMiningDrillProductionSpeed = 0.35;
+const electricMiningDrillRecipe = recipeMap['electric-mining-drill'];
+const electricMiningDrillBuildCost: BuildMaterialCost[] = [
+  { key: 'circuit', amount: 3, source: 'products' },
+  { key: 'gear', amount: 5, source: 'products' },
+  { key: 'ironPlate', amount: 10, source: 'products' },
+];
+const electricMiningDrillPowerKw = 90;
+const electricMiningDrillProductionSpeed = 0.5;
 const waterPumpPerSecond = 1200;
 const fueledBurnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'wood'];
 const smeltingRecipeKeys = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
@@ -133,6 +160,16 @@ const stoneFurnaceBuildCost = { stone: 5 };
 const assemblyMachineOneRecipe = recipeMap['assembling-machine-1'];
 const assemblyMachineOneBuildCost = { circuit: 3, gear: 5, ironPlate: 9 };
 const assemblyMachineOnePowerKw = 75;
+const assemblyMachineOneProductionSpeed = 0.5;
+const assemblyMachineTwoRecipe = recipeMap['assembling-machine-2'];
+const assemblyMachineTwoBuildCost: BuildMaterialCost[] = [
+  { key: 'circuit', amount: 6, source: 'products' },
+  { key: 'gear', amount: 10, source: 'products' },
+  { key: 'ironPlate', amount: 9, source: 'products' },
+  { key: 'steel', amount: 2, source: 'products' },
+];
+const assemblyMachineTwoPowerKw = 150;
+const assemblyMachineTwoProductionSpeed = 0.75;
 const labPowerKw = 7000;
 const storageBoxCapacity = 180;
 const storageBoxWoodCost = 2;
@@ -172,7 +209,7 @@ const automatedRecipeInputs = (recipe: Recipe) => {
   return inputs;
 };
 const isSmeltingRecipe = (recipe: Recipe) => smeltingRecipeKeys.has(recipe.name) && recipe.category === 'smelting';
-const productionBuildingFor = (recipe: Recipe) => isSmeltingRecipe(recipe) ? 'stone-furnace' : 'assembling-machine-1';
+const productionBuildingFor = (state: GameState, recipe: Recipe) => isSmeltingRecipe(recipe) ? 'stone-furnace' : state.machineVariants.assembly;
 const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
 const trackedKeys: TrackedKey[] = Array.from(new Set([
   ...rawKeys,
@@ -226,7 +263,6 @@ const meta: Record<TrackedKey, { label: string; short: string; color: string; ca
   const fallback = { label: prettyLabel(key), short: key, color: ['#c9d3d0', '#e6a067', '#8da8a7', '#dfb05c', '#54b8a8', '#8ea9db'][index % 6], category: 'Component' };
   return [key, baseMeta[key] ?? fallback];
 }));
-type BuildMaterialCost = { key: string; amount: number; source: 'raw' | 'products' };
 const solarPanelRecipe = recipeMap['solar-panel'];
 const recipeBuildCosts = (recipe: Recipe): BuildMaterialCost[] => Object.entries(recipeInputs(recipe)).map(([key, amount]) => ({
   key,
@@ -254,7 +290,7 @@ const initialState: GameState = {
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labs: 1, boilers: 0, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: orderedTechnologyCatalog[0]?.name ?? null, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: orderedTechnologyCatalog[0]?.name ?? null, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
 };
 
@@ -275,20 +311,60 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
   uranium: { label: 'Uranium', description: 'Dense fuel for the late-stage reactor chain.', research: 'nuclear-power', needs: 'Nuclear Power' },
 };
 
-const upgradeData: { id: UpgradeKey; title: string; copy: string; base: number; unit: string }[] = [
-  { id: 'manualMining', title: 'Reinforced hand tools', copy: 'Increase every manual mining tap by 1 raw item.', base: 18, unit: 'raw / tap' },
-  { id: 'productionSpeed', title: 'Tighter cycle control', copy: 'All autonomous production units complete cycles 10% faster.', base: 24, unit: '% speed' },
-  { id: 'storageEfficiency', title: 'Dense rack packing', copy: 'Raise the effective capacity of every storage row by 8%.', base: 28, unit: '% capacity' },
-  { id: 'powerEfficiency', title: 'Load balancing', copy: 'Reduce factory power draw by 6% per level.', base: 30, unit: '% efficiency' },
+const upgradeData: UpgradeDefinition[] = [
+  {
+    id: 'assembly-machine-2',
+    name: 'Upgrade Production to Assembly Machine 2',
+    copy: 'Replace every Assembly Machine 1 with a faster, higher-power Assembly Machine 2.',
+    prerequisiteTechnology: 'automation-2',
+    relevantMachine: 'Assembly Machine',
+    machineGroup: 'assembly',
+    upgradeCostPerMachine: [
+      { key: 'circuit', amount: 3, source: 'products' },
+      { key: 'gear', amount: 5, source: 'products' },
+      { key: 'steel', amount: 2, source: 'products' },
+    ],
+    upgradeTimePerMachine: 0.5,
+    newMachine: 'assembling-machine-2',
+    newMachineLabel: 'Assembly Machine 2',
+    newMachineMaterialCost: assemblyMachineTwoBuildCost,
+    newMachinePowerDraw: assemblyMachineTwoPowerKw,
+    newMachineProductionSpeed: assemblyMachineTwoProductionSpeed,
+  },
+  {
+    id: 'electric-mining-drill',
+    name: 'Upgrade Mining to Electric Mining',
+    copy: 'Replace every burner mining drill with an Electric Miner and remove the coal requirement.',
+    prerequisiteTechnology: 'electric-mining-drill',
+    relevantMachine: 'Burner Mining Drill',
+    machineGroup: 'mining',
+    upgradeCostPerMachine: [
+      { key: 'circuit', amount: 3, source: 'products' },
+      { key: 'gear', amount: 2, source: 'products' },
+      { key: 'ironPlate', amount: 7, source: 'products' },
+    ],
+    upgradeTimePerMachine: 2,
+    newMachine: 'electric-mining-drill',
+    newMachineLabel: 'Electric Miner',
+    newMachineMaterialCost: electricMiningDrillBuildCost,
+    newMachinePowerDraw: electricMiningDrillPowerKw,
+    newMachineProductionSpeed: electricMiningDrillProductionSpeed,
+  },
 ];
+const upgradeMap: Record<UpgradeKey, UpgradeDefinition> = Object.fromEntries(upgradeData.map((upgrade) => [upgrade.id, upgrade])) as Record<UpgradeKey, UpgradeDefinition>;
 
 const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
 const duration = (n: number) => `${Math.floor(n / 60)}m ${String(Math.max(0, Math.floor(n % 60))).padStart(2, '0')}s`;
-const capFor = (state: GameState, key: TrackedKey) => Math.floor((state.storage[key] ?? 180) * (1 + state.upgrades.storageEfficiency * 0.08));
+const capFor = (state: GameState, key: TrackedKey) => Math.floor(state.storage[key] ?? 180);
 const burnerMinerCount = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
 const electricAssemblerCount = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && !isSmeltingRecipe(recipeMap[recipeKey]) ? count : 0), 0);
 const productionUnitCount = (state: GameState) => Object.values(state.assemblers).reduce((total, count) => total + count, 0);
-const fueledBurnerMinerCount = (state: GameState) => fueledBurnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
+const assemblyMachineProductionSpeedFor = (state: GameState) => state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoProductionSpeed : assemblyMachineOneProductionSpeed;
+const assemblyMachinePowerFor = (state: GameState) => state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoPowerKw : assemblyMachineOnePowerKw;
+const miningMachineProductionSpeedFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillProductionSpeed : burnerMiningDrillProductionSpeed;
+const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillPowerKw : 0;
+const miningUsesStoredCoal = (state: GameState) => state.machineVariants.mining !== 'electric-mining-drill';
+const fueledBurnerMinerCount = (state: GameState) => miningUsesStoredCoal(state) ? fueledBurnerMinerKeys.reduce((total, key) => total + state.miners[key], 0) : 0;
 const burnerMinerCoalRate = (state: GameState) => fueledBurnerMinerCount(state) * burnerMiningDrillCoalPerSecond;
 const boilerPeakSteamRateFor = (state: GameState) => state.research.includes('steam-power') ? state.boilers * boilerSteamPerSecond * 60 * state.simulationSpeed : 0;
 const boilerPeakCoalUsageFor = (state: GameState) => state.research.includes('steam-power') ? state.boilers * boilerCoalPerSecond * 60 * state.simulationSpeed : 0;
@@ -306,8 +382,9 @@ const solarPowerFor = (state: GameState) => solarPanelNetPowerKwFor(state) / 100
 const nuclearPowerFor = (state: GameState) => state.research.includes('nuclear-power') ? 180 * state.simulationSpeed : 0;
 const powerProductionFor = (state: GameState) => steamEnginePowerFor(state) + solarPowerFor(state) + nuclearPowerFor(state);
 const electricPowerDraw = (state: GameState) => {
-  const assemblerPower = electricAssemblerCount(state) * assemblyMachineOnePowerKw;
-  return (state.labs * labPowerKw + assemblerPower) * (1 - state.upgrades.powerEfficiency * 0.06) / 1000;
+  const assemblerPower = electricAssemblerCount(state) * assemblyMachinePowerFor(state);
+  const miningPower = state.machineVariants.mining === 'electric-mining-drill' ? burnerMinerCount(state) * miningMachinePowerFor(state) : 0;
+  return (state.labs * labPowerKw + assemblerPower + miningPower) / 1000;
 };
 const electricPowerRatioFor = (state: GameState) => {
   const required = electricPowerDraw(state);
@@ -315,6 +392,18 @@ const electricPowerRatioFor = (state: GameState) => {
 };
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
 const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels;
+const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgrade.machineGroup === 'assembly' ? electricAssemblerCount(state) : burnerMinerCount(state);
+const scaledBuildCosts = (costs: BuildMaterialCost[], multiplier: number) => costs.map((cost) => ({ ...cost, amount: cost.amount * multiplier }));
+const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? 'Electric Miner' : 'Burner Mining Drill';
+const miningMachineRecipeFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
+const miningMachineBuildCostFor = (state: GameState): BuildMaterialCost[] => state.machineVariants.mining === 'electric-mining-drill'
+  ? electricMiningDrillBuildCost
+  : [{ key: 'gear', amount: burnerMiningDrillCost.gear, source: 'products' }, { key: 'ironPlate', amount: burnerMiningDrillCost.ironPlate, source: 'products' }, { key: 'stone', amount: burnerMiningDrillCost.stone, source: 'raw' }];
+const productionMachineLabelFor = (state: GameState) => state.machineVariants.assembly === 'assembling-machine-2' ? 'Assembly Machine 2' : 'Assembly Machine 1';
+const productionMachineRecipeFor = (state: GameState) => state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoRecipe : assemblyMachineOneRecipe;
+const productionMachineBuildCostFor = (state: GameState): BuildMaterialCost[] => state.machineVariants.assembly === 'assembling-machine-2'
+  ? assemblyMachineTwoBuildCost
+  : [{ key: 'circuit', amount: assemblyMachineOneBuildCost.circuit, source: 'products' }, { key: 'gear', amount: assemblyMachineOneBuildCost.gear, source: 'products' }, { key: 'ironPlate', amount: assemblyMachineOneBuildCost.ironPlate, source: 'products' }];
 const quantityFor = (state: GameState, key: TrackedKey) => rawKeys.includes(key as RawKey) ? state.raw[key as RawKey] : state.products[key] ?? 0;
 const hasInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>) => Object.entries(inputs).every(([key, value]) => quantityFor(state, key) >= (value ?? 0));
 const spendInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>, consumption?: Record<TrackedKey, number>) => {
@@ -362,16 +451,18 @@ const applyResearchTriggers = (state: GameState) => {
 };
 const recipeCycleRateFor = (state: GameState, recipe: Recipe) => {
   const count = state.assemblers[recipe.name] ?? 0;
-  return count * 60 * state.simulationSpeed * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
+  const machineSpeedRatio = isSmeltingRecipe(recipe) ? 1 : assemblyMachineProductionSpeedFor(state) / assemblyMachineOneProductionSpeed;
+  return count * 60 * state.simulationSpeed * machineSpeedRatio / recipe.energyRequired;
 };
 const miningBaseProductionRateFor = (state: GameState, key: RawKey) => {
   const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key];
   const base = key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'copper' ? 0.88 : 1;
-  return count * base * 60 * state.simulationSpeed;
+  const machineSpeedRatio = burnerMinerKeys.includes(key) ? miningMachineProductionSpeedFor(state) / burnerMiningDrillProductionSpeed : 1;
+  return count * base * 60 * state.simulationSpeed * machineSpeedRatio;
 };
 const coalAvailableAfterBoilersFor = (state: GameState) => Math.max(0, state.raw.coal - boilerPeakCoalUsageFor(state));
 const miningProductionRateFor = (state: GameState, key: RawKey) => {
-  if (key === 'coal') return Math.max(0, miningBaseProductionRateFor(state, key) - state.miners.coal * burnerMiningDrillCoalPerSecond * 60 * state.simulationSpeed);
+  if (key === 'coal') return Math.max(0, miningBaseProductionRateFor(state, key) - (miningUsesStoredCoal(state) ? state.miners.coal * burnerMiningDrillCoalPerSecond * 60 * state.simulationSpeed : 0));
   const fuelRatio = fueledBurnerMinerCount(state) ? Math.min(1, coalAvailableAfterBoilersFor(state) / Math.max(0.01, burnerMinerCoalRate(state) * 60 * state.simulationSpeed)) : 1;
   return miningBaseProductionRateFor(state, key) * (fueledBurnerMinerKeys.includes(key) ? fuelRatio : 1);
 };
@@ -528,7 +619,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   const liveConsumption = emptyRateRecord();
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes },
-    assemblers: { ...previous.assemblers }, boilers: previous.boilers, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
+    assemblers: { ...previous.assemblers }, boilers: previous.boilers, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
     researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])],
     rateHistory: previous.rateHistory ?? [],
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null, queue: previous.queue.map((item) => ({ ...item })), research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
@@ -556,7 +647,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (!count) return;
     const base = key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'copper' ? 0.88 : 1;
     const minerSeconds = fueledBurnerMinerKeys.includes(key) ? operatingSeconds : seconds;
-    const outputRate = key === 'coal' ? base - burnerMiningDrillCoalPerSecond : base;
+      const outputRate = key === 'coal' && miningUsesStoredCoal(state) ? base - burnerMiningDrillCoalPerSecond : base;
     state.miningProgress[key] += count * outputRate * minerSeconds * speed * miningStorageThrottleFor(state, key);
     while (state.miningProgress[key] >= 1) {
       if (state.raw[key] >= capFor(state, key)) { state.miningProgress[key] = 0; break; }
@@ -572,8 +663,9 @@ function simulate(previous: GameState, seconds: number): GameState {
     // Progress represents an in-flight cycle, not a queue of completed
     // cycles. Clamp legacy/starved backlog before advancing the line so a
     // machine cannot burst above its steady-state rate when inputs return.
+    const machineSpeedRatio = isSmeltingRecipe(recipe) ? 1 : assemblyMachineProductionSpeedFor(state) / assemblyMachineOneProductionSpeed;
     state.assemblyProgress[key] = Math.min(state.assemblyProgress[key] ?? 0, 0.999999)
-      + count * seconds * speed * machinePowerRatio * storageThrottle * (1 + state.upgrades.productionSpeed * 0.1) / recipe.energyRequired;
+      + count * seconds * speed * machinePowerRatio * storageThrottle * machineSpeedRatio / recipe.energyRequired;
     let cycles = 0;
     let blocked = false;
     while (state.assemblyProgress[key] >= 1 && cycles < 80) {
@@ -602,7 +694,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     state.manualMining.seconds = Math.max(0, state.manualMining.seconds - seconds * speed);
     if (state.manualMining.seconds <= 0) {
       const resourceKey = state.manualMining.resourceKey;
-      const amount = 1 + state.upgrades.manualMining;
+      const amount = 1;
       addTracked(state, resourceKey, amount, true);
       recordProduction(state, resourceKey, amount, liveProduction, liveManualProduction);
       state.totalOutput += amount;
@@ -652,7 +744,10 @@ function simulate(previous: GameState, seconds: number): GameState {
       state.storageBoxes[key] = (state.storageBoxes[key] ?? 1) + 1;
       state.storage[key] = (state.storage[key] ?? storageBoxCapacity) + storageBoxCapacity;
     }
-    if (item.action === 'upgrade') state.upgrades[(item.targetId ?? item.target) as UpgradeKey] += 1;
+    if (item.action === 'upgrade') {
+      const upgrade = upgradeMap[(item.targetId ?? item.target) as UpgradeKey];
+      if (upgrade) state.machineVariants[upgrade.machineGroup] = upgrade.newMachine;
+    }
   });
   applyResearchTriggers(state);
   state.rateHistory = seconds > 0 && seconds <= 5
@@ -711,8 +806,12 @@ function loadState() {
         delete consumption.researchPack;
         return { ...sample, production, consumption };
       }) : [],
-      upgrades: { ...initialState.upgrades, ...parsed.upgrades },
-      queue: parsed.queue ?? [],
+      machineVariants: {
+        assembly: parsed.machineVariants?.assembly === 'assembling-machine-2' ? 'assembling-machine-2' : 'assembling-machine-1',
+        mining: parsed.machineVariants?.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
+      },
+      // Legacy level-based upgrade data and its in-flight jobs are intentionally not migrated.
+      queue: (parsed.queue ?? []).filter((item) => item.action !== 'upgrade' || Boolean(upgradeMap[item.targetId as UpgradeKey])),
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
       currentResearch: parsed.currentResearch ? normalizeResearchKey(String(parsed.currentResearch)) : initialState.currentResearch,
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
@@ -720,6 +819,7 @@ function loadState() {
       researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
       lastSeen: parsed.lastSeen ?? Date.now(),
     } as GameState;
+    delete (state as GameState & { upgrades?: unknown }).upgrades;
     Object.keys(state.storageBoxes).forEach((key) => { state.storage[key] = state.storageBoxes[key] * storageBoxCapacity; });
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
     const before = state.totalOutput;
@@ -873,7 +973,7 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
   const active = totalUnits(state);
   const throughput = Math.max(0, Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => {
     const recipe = recipeMap[recipeKey];
-    return total + (recipe ? count * 60 / recipe.energyRequired : 0);
+    return total + (recipe ? recipeCycleRateFor(state, recipe) : 0);
   }, 0));
   const powerProduction = powerProductionFor(state);
   const draw = electricPowerDraw(state);
@@ -899,13 +999,23 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
   const build = (key: RawKey) => {
     if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); const missing = missingBuildMaterials(state, [{ key: 'ironPlate', amount: 10, source: 'products' }, { key: 'gear', amount: 2, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 10, gear: s.products.gear - 2 } })); enqueue('pump', 'Water pump', 40); return; }
     if (key === 'uranium') { if (!state.research.includes('nuclear-power')) return notice('Nuclear Power required'); const missing = missingBuildMaterials(state, [{ key: 'steel', amount: 20, source: 'products' }, { key: 'circuit', amount: 8, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, steel: s.products.steel - 20, circuit: s.products.circuit - 8 } })); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90); return; }
-    const missing = missingBuildMaterials(state, [{ key: 'gear', amount: burnerMiningDrillCost.gear, source: 'products' }, { key: 'ironPlate', amount: burnerMiningDrillCost.ironPlate, source: 'products' }, { key: 'stone', amount: burnerMiningDrillCost.stone, source: 'raw' }]);
+    const machineCosts = miningMachineBuildCostFor(state);
+    const missing = missingBuildMaterials(state, machineCosts);
     if (missing) return notice(`need ${missing}`);
-    setState((s) => ({ ...s, raw: { ...s.raw, stone: s.raw.stone - burnerMiningDrillCost.stone }, products: { ...s.products, ironPlate: s.products.ironPlate - burnerMiningDrillCost.ironPlate, gear: s.products.gear - burnerMiningDrillCost.gear } }));
-    enqueue('miner', `${rawInfo[key].label} burner mining drill`, burnerMiningDrillRecipe.energyRequired, key);
+    setState((s) => {
+      const raw = { ...s.raw };
+      const products = { ...s.products };
+      machineCosts.forEach(({ key: materialKey, amount, source }) => {
+        if (source === 'raw') raw[materialKey as RawKey] -= amount;
+        else products[materialKey] = (products[materialKey] ?? 0) - amount;
+      });
+      return { ...s, raw, products };
+    });
+    const machine = miningMachineRecipeFor(state);
+    enqueue('miner', `${rawInfo[key].label} ${miningMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key);
   };
   return <PageFrame>
-    <Header eyebrow="Raw material control" title="Mining" copy="Tap the ground to start. Build burner mining drills to make the ore line autonomous. Coal drills offset their own fuel use against the coal they produce." action={<Tag><Pickaxe size={11} /> 7 resource sections</Tag>} />
+    <Header eyebrow="Raw material control" title="Mining" copy={miningUsesStoredCoal(state) ? "Tap the ground to start. Build burner mining drills to make the ore line autonomous. Coal drills offset their own fuel use against the coal they produce." : "Electric mining is online. Your upgraded drills run without coal and keep every resource line autonomous."} action={<Tag><Pickaxe size={11} /> 7 resource sections</Tag>} />
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {rawKeys.map((key) => {
         const info = rawInfo[key];
@@ -913,8 +1023,9 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
         const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key];
         const isBurnerOre = burnerMinerKeys.includes(key);
         const manualCollectionAvailable = isBurnerOre;
-        const coalSelfFueled = key === 'coal';
-        const usesFuel = isBurnerOre && !coalSelfFueled;
+        const coalSelfFueled = key === 'coal' && miningUsesStoredCoal(state);
+        const coalElectric = key === 'coal' && !miningUsesStoredCoal(state);
+        const usesFuel = isBurnerOre && !coalSelfFueled && miningUsesStoredCoal(state);
         const fuelRate = usesFuel ? count * burnerMiningDrillCoalPerSecond : 0;
         const autonomous = count > 0;
         const productionRate = miningActualProductionRateFor(state, key);
@@ -926,8 +1037,8 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
         const constructionAction = key === 'water' ? 'pump' : key === 'uranium' ? 'uraniumMiner' : 'miner';
         const constructionItems = state.queue.filter((item) => item.action === constructionAction && (constructionAction !== 'miner' || item.targetId === key));
         const isBuilding = constructionItems.length > 0;
-        const machineLabel = key === 'water' ? 'Water Pump' : key === 'uranium' ? 'Acid-powered Uranium Miner' : 'Burner Mining Drill';
-        const constructionLabel = key === 'water' ? 'Water pump' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} burner mining drill`;
+        const machineLabel = key === 'water' ? 'Water Pump' : key === 'uranium' ? 'Acid-powered Uranium Miner' : miningMachineLabelFor(state);
+        const constructionLabel = key === 'water' ? 'Water pump' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} ${miningMachineLabelFor(state).toLowerCase()}`;
         const collectionLabel = manualCollectionAvailable ? 'manual collection' : 'machine extraction';
         const manualCollectionControl = <button onClick={() => tap(key)} disabled={!manualCollectionAvailable} className={`button-base !py-2 ${count ? '!px-2' : manualCollectionAvailable ? 'button-primary flex-1' : 'button-ghost flex-1 opacity-60'}`} aria-label={manualCollectionAvailable ? `Collect ${info.label} manually` : `${info.label} requires a machine`} title={manualCollectionAvailable ? 'Collect manually' : 'This material requires a machine'} data-testid={`button-tap-${key}`}>
           {!manualCollectionAvailable ? <><LockKeyhole size={13} />{!count && ' machine only'}</> : manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} />{!count && ' collect manually'}</>}
@@ -944,13 +1055,13 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
                 <div className="flex shrink-0 items-center gap-2">
                   {locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <Tag><span className="status-dot status-running" /> auto</Tag> : <Tag tone="amber">manual</Tag>}
                   <div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${machineLabel} count`}>
-                    {isBurnerOre ? <ResourceIcon item="burner-mining-drill" size={17} /> : key === 'water' ? <Waves size={16} /> : <Pickaxe size={16} />}
+                    {isBurnerOre ? <ResourceIcon item={state.machineVariants.mining} size={17} /> : key === 'water' ? <Waves size={16} /> : <Pickaxe size={16} />}
                     <span className="mono text-[13px]">{count}</span>
                   </div>
                 </div>
               </div>
               <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{key === 'water' ? 'Fluid collection' : 'Raw material'} · {machineLabel}</div>
-              <div className="mt-1 flex flex-wrap gap-1"><Tag tone={manualCollectionAvailable ? 'amber' : 'muted'}>{collectionLabel}</Tag>{usesFuel && <Tag tone="muted">coal fueled</Tag>}{coalSelfFueled && <Tag>self-fueled</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
+              <div className="mt-1 flex flex-wrap gap-1"><Tag tone={manualCollectionAvailable ? 'amber' : 'muted'}>{collectionLabel}</Tag>{usesFuel && <Tag tone="muted">coal fueled</Tag>}{coalSelfFueled && <Tag>self-fueled</Tag>}{coalElectric && <Tag>no coal input</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
             </div>
           </div>
           <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
@@ -965,10 +1076,14 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
             <div className="flex items-center gap-2 text-[10px]"><ResourceIcon item="burner-mining-drill" size={17} /><span className="font-semibold">Burner drill fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">coal usage</span></div>
             <div className="mt-3 grid grid-cols-2 gap-2"><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{fuelRate.toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / sec</div></div><div><div className="eyebrow">Power draw</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">0.0</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">electricity</div></div></div>
           </div>}
-          {coalSelfFueled && <div className="mt-2 rounded-lg border border-[hsl(var(--secondary)/.25)] bg-[hsl(var(--secondary)/.06)] p-3" data-testid={`panel-coal-self-fueled-${key}`}>
+           {coalSelfFueled && <div className="mt-2 rounded-lg border border-[hsl(var(--secondary)/.25)] bg-[hsl(var(--secondary)/.06)] p-3" data-testid={`panel-coal-self-fueled-${key}`}>
             <div className="flex items-center gap-2 text-[10px]"><ResourceIcon item="coal" size={17} /><span className="font-semibold">Coal mining exception</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">no stored fuel</span></div>
             <div className="mt-2 text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">Drill usage is deducted from mined coal output. This line continues working even when stored coal reaches zero.</div>
           </div>}
+           {coalElectric && <div className="mt-2 rounded-lg border border-[hsl(var(--secondary)/.25)] bg-[hsl(var(--secondary)/.06)] p-3" data-testid={`panel-coal-electric-${key}`}>
+             <div className="flex items-center gap-2 text-[10px]"><Zap size={17} className="text-[hsl(var(--secondary))]" /><span className="font-semibold">Electric coal mining</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">zero coal input</span></div>
+             <div className="mt-2 text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">Electric miners draw power instead of fuel. Coal output is no longer reduced by drill consumption.</div>
+           </div>}
            {key === 'water' && <div className="mt-2 rounded-lg border border-[hsl(var(--secondary)/.25)] bg-[hsl(var(--secondary)/.06)] p-3" data-testid="panel-water-pump-output">
              <div className="flex items-center gap-2 text-[10px]"><Waves size={17} className="text-[hsl(var(--secondary))]" /><span className="font-semibold">Pump output</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">rated flow</span></div>
              <div className="mono mt-2 text-[13px] text-[hsl(var(--secondary))]">{waterPumpPerSecond.toLocaleString('en-US')} water / sec <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per pump</span></div>
@@ -1020,10 +1135,16 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       return;
     }
     if (!automationUnlocked) return notice('Automation technology required');
-    const missing = missingBuildMaterials(state, [{ key: 'circuit', amount: assemblyMachineOneBuildCost.circuit, source: 'products' }, { key: 'gear', amount: assemblyMachineOneBuildCost.gear, source: 'products' }, { key: 'ironPlate', amount: assemblyMachineOneBuildCost.ironPlate, source: 'products' }]);
+    const machineCosts = productionMachineBuildCostFor(state);
+    const missing = missingBuildMaterials(state, machineCosts);
     if (missing) return notice(`need ${missing}`);
-    setState((s) => ({ ...s, products: { ...s.products, circuit: s.products.circuit - assemblyMachineOneBuildCost.circuit, gear: s.products.gear - assemblyMachineOneBuildCost.gear, ironPlate: s.products.ironPlate - assemblyMachineOneBuildCost.ironPlate } }));
-    enqueue('assembler', `${prettyLabel(key)} assembly machine 1`, assemblyMachineOneRecipe.energyRequired, key);
+    setState((s) => {
+      const products = { ...s.products };
+      machineCosts.forEach(({ key: materialKey, amount }) => { products[materialKey] = (products[materialKey] ?? 0) - amount; });
+      return { ...s, products };
+    });
+    const machine = productionMachineRecipeFor(state);
+    enqueue('assembler', `${prettyLabel(key)} ${productionMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key);
   };
   return <PageFrame>
     <Header eyebrow="Recipe catalog" title="Production" copy="The attached recipe definitions drive every card below. Search the full line, inspect item and fluid flows, then run recipes manually or with the appropriate production building." action={<Tag><Cog size={11} /> {recipeCatalog.length} recipes loaded</Tag>} />
@@ -1042,7 +1163,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source data includes hidden and disabled definitions.</span><span className="mono">{visibleRecipes.length} visible · {recipeCatalog.filter((recipe) => recipe.scienceChain === 'Core').length} core / {recipeCatalog.filter((recipe) => recipe.scienceChain === 'Non-Core').length} non-core</span></div>
       <div className="data-row mt-3 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="stone-furnace" size={18} /><span className="text-[10px] font-semibold">Stone Furnace</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">5 stone · {stoneFurnaceRecipe.energyRequired}s build · smelting fuel 0.1 coal/item</span></div>
-      <div className="data-row mt-2 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="assembling-machine-1" size={18} /><span className="text-[10px] font-semibold">Assembly Machine 1</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">3 circuits + 5 gears + 9 plates · {assemblyMachineOneRecipe.energyRequired}s build</span></div>
+      <div className="data-row mt-2 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item={state.machineVariants.assembly} size={18} /><span className="text-[10px] font-semibold">{productionMachineLabelFor(state)}</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">{productionMachineBuildCostFor(state).map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · {productionMachineRecipeFor(state).energyRequired}s build · {assemblyMachineProductionSpeedFor(state).toFixed(2)} speed · {assemblyMachinePowerFor(state)} kW</span></div>
     </section>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{visibleRecipes.map((recipe) => {
       const key = recipe.name;
@@ -1055,8 +1176,8 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       const peakDemandRate = primaryOutput ? peakDemandRateFor(state, primaryOutput.key) : 0;
       const netRate = productionRate - demandRate;
       const smelting = isSmeltingRecipe(recipe);
-      const building = productionBuildingFor(recipe);
-      const buildingLabel = smelting ? 'Stone Furnace' : 'Assembly Machine 1';
+       const building = productionBuildingFor(state, recipe);
+       const buildingLabel = smelting ? 'Stone Furnace' : productionMachineLabelFor(state);
       const buildingAction: QueueItem['action'] = smelting ? 'furnace' : 'assembler';
       const constructionItems = state.queue.filter((item) => item.action === buildingAction && item.targetId === key);
       const isBuilding = constructionItems.length > 0;
@@ -1166,7 +1287,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
 function PowerDependencyTreePage({ state, notice }: PageProps) {
   const steam = state.research.includes('steam-power'); const solar = state.research.includes('solar-energy'); const nuclear = state.research.includes('nuclear-power'); const draw = electricPowerDraw(state); const production = powerProductionFor(state);
   const Node = ({ title, sub, icon, active, locked }: { title: string; sub: string; icon: ReactNode; active?: boolean; locked?: boolean }) => <div className={`tree-line flex items-center gap-3 rounded-xl border p-3 ${active ? 'border-[hsl(var(--secondary)/.5)] bg-[hsl(174_30%_15%/.7)]' : locked ? 'locked-wash border-[hsl(var(--border))] opacity-65' : 'border-[hsl(var(--border))] bg-[hsl(216_24%_11%/.7)]'}`}><div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${active ? 'bg-[hsl(var(--secondary)/.14)] text-[hsl(var(--secondary))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{locked ? <LockKeyhole size={15} /> : icon}</div><div className="min-w-0"><div className="text-[11px] font-bold">{title}</div><div className="mt-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">{sub}</div></div><div className="ml-auto">{active ? <Tag>online</Tag> : locked ? <Tag tone="muted">research</Tag> : <Tag tone="amber">standby</Tag>}</div></div>;
-  return <PageFrame><Header eyebrow="Energy network" title="Power" copy="Power is a dependency tree, not a single number. Research a generation family, then watch its conversion chain come online." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{production} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} /><div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="surface rounded-xl p-4"><div className="eyebrow">Production</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{production} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Factory draw</div><div className="mono mt-2 text-xl">{draw} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Net balance</div><div className={`mono mt-2 text-xl ${production >= draw ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{production - draw} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Efficiency</div><div className="mono mt-2 text-xl">{state.upgrades.powerEfficiency * 6}%</div></div></div><div className="grid gap-5 lg:grid-cols-3"><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={steam ? 'online' : 'locked'}>Steam generation</SectionTitle><div className="space-y-4"><Node title="Boiler" sub="coal + water → heat" icon={<FlameIcon />} active={steam} locked={!steam} /><Node title="Steam" sub="pressurized thermal fluid" icon={<Waves size={16} />} active={steam} locked={!steam} /><Node title="Steam engine" sub="80 MW potential" icon={<Gauge size={16} />} active={steam} locked={!steam} /></div><button onClick={() => notice(steam ? 'steam chain is online' : 'unlock Steam Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-steam">{steam ? 'inspect steam chain' : 'view steam dependency'}</button></section><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={solar ? 'online' : 'locked'}>Solar generation</SectionTitle><div className="space-y-4"><Node title="Solar array" sub="sunlight → current" icon={<Sun size={16} />} active={solar} locked={!solar} /><Node title="Inverter bank" sub="stable daytime output" icon={<Zap size={16} />} active={solar} locked={!solar} /><Node title="Power bus" sub="0.03 MW per panel after 50% efficiency" icon={<Power size={16} />} active={solar} locked={!solar} /></div><button onClick={() => notice(solar ? 'solar array is online' : 'unlock Solar Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-solar">{solar ? 'inspect solar chain' : 'view solar dependency'}</button></section><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={nuclear ? 'online' : 'locked'}>Nuclear generation</SectionTitle><div className="space-y-4"><Node title="Nuclear reactor" sub="uranium + acid → heat" icon={<Sparkles size={16} />} active={nuclear} locked={!nuclear} /><Node title="Heat exchanger" sub="heat → steam" icon={<Waves size={16} />} active={nuclear} locked={!nuclear} /><Node title="Power turbine" sub="180 MW potential" icon={<Gauge size={16} />} active={nuclear} locked={!nuclear} /></div><button onClick={() => notice(nuclear ? 'nuclear chain is online' : 'unlock Nuclear Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-nuclear">{nuclear ? 'inspect nuclear chain' : 'view nuclear dependency'}</button></section></div><p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Power families are gated by research and represented as a clear production tree before you build them.</p></PageFrame>;
+  return <PageFrame><Header eyebrow="Energy network" title="Power" copy="Power is a dependency tree, not a single number. Research a generation family, then watch its conversion chain come online." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{production} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} /><div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="surface rounded-xl p-4"><div className="eyebrow">Production</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{production} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Factory draw</div><div className="mono mt-2 text-xl">{draw} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Net balance</div><div className={`mono mt-2 text-xl ${production >= draw ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{production - draw} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Machine load</div><div className="mono mt-2 text-xl">{productionMachineLabelFor(state)}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{assemblyMachinePowerFor(state)} kW per assembly machine · {state.machineVariants.mining === 'electric-mining-drill' ? `${miningMachinePowerFor(state)} kW per miner` : 'burner drills use coal'}</div></div></div><div className="grid gap-5 lg:grid-cols-3"><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={steam ? 'online' : 'locked'}>Steam generation</SectionTitle><div className="space-y-4"><Node title="Boiler" sub="coal + water → heat" icon={<FlameIcon />} active={steam} locked={!steam} /><Node title="Steam" sub="pressurized thermal fluid" icon={<Waves size={16} />} active={steam} locked={!steam} /><Node title="Steam engine" sub="80 MW potential" icon={<Gauge size={16} />} active={steam} locked={!steam} /></div><button onClick={() => notice(steam ? 'steam chain is online' : 'unlock Steam Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-steam">{steam ? 'inspect steam chain' : 'view steam dependency'}</button></section><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={solar ? 'online' : 'locked'}>Solar generation</SectionTitle><div className="space-y-4"><Node title="Solar array" sub="sunlight → current" icon={<Sun size={16} />} active={solar} locked={!solar} /><Node title="Inverter bank" sub="stable daytime output" icon={<Zap size={16} />} active={solar} locked={!solar} /><Node title="Power bus" sub="0.03 MW per panel after 50% efficiency" icon={<Power size={16} />} active={solar} locked={!solar} /></div><button onClick={() => notice(solar ? 'solar array is online' : 'unlock Solar Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-solar">{solar ? 'inspect solar chain' : 'view solar dependency'}</button></section><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={nuclear ? 'online' : 'locked'}>Nuclear generation</SectionTitle><div className="space-y-4"><Node title="Nuclear reactor" sub="uranium + acid → heat" icon={<Sparkles size={16} />} active={nuclear} locked={!nuclear} /><Node title="Heat exchanger" sub="heat → steam" icon={<Waves size={16} />} active={nuclear} locked={!nuclear} /><Node title="Power turbine" sub="180 MW potential" icon={<Gauge size={16} />} active={nuclear} locked={!nuclear} /></div><button onClick={() => notice(nuclear ? 'nuclear chain is online' : 'unlock Nuclear Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-nuclear">{nuclear ? 'inspect nuclear chain' : 'view nuclear dependency'}</button></section></div><p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Power families are gated by research and represented as a clear production tree before you build them.</p></PageFrame>;
 }
 function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.8 2.8c.4 3-1.3 4.2-2.4 5.4-1 1-1.2 2.3-.6 3.3.4-1.3 1.5-2.3 2.8-2.7 2.6 2 3.8 4.3 3.2 7.1-.4 1.8-1.7 3.2-3.3 4.1 4.7-.8 7-4 6.2-8.4-.5-2.8-2.5-5.8-5.9-8.8ZM10 12c-3.7 1.4-5.4 4-4.6 6.6.6 2 2.3 3.4 4.5 4-1.2-1.2-1.5-2.6-.6-4.1.7-1.2 1.6-2.1 2.6-2.6-1.1-1-1.8-2.3-1.9-3.9Z"/></svg>; }
 
@@ -1222,9 +1343,66 @@ function LogisticsPage({ notice }: PageProps) {
   return <PageFrame><Header eyebrow="Later-stage systems" title="Logistics" copy="The line is not ready for a freight network yet. These systems are mapped here so future expansion has a clear shape." action={<Tag tone="amber"><Clock3 size={11} /> coming later</Tag>} /><section className="surface rounded-xl p-4 sm:p-5"><div className="mb-5 flex items-start gap-3 rounded-xl border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-4"><div className="text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">Later-stage tab</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">These are intentionally visible but non-functional. No fake throughput, no pretend routing — just the systems waiting beyond the first efficient loop.</p></div></div><div className="grid gap-3 sm:grid-cols-2">{entries.map(({ title, copy, icon: Icon }) => <button onClick={() => notice(`${title} is planned for a later stage`)} className="locked-wash flex items-center gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left transition-colors hover:border-[hsl(var(--secondary)/.4)]" key={title} data-testid={`button-logistics-${title.toLowerCase().replace(' ', '-')}`}><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"><Icon size={17} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-[12px] font-bold">{title}<Tag tone="muted"><LockKeyhole size={9} /> later</Tag></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{copy}</p></div><ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" /></button>)}</div></section></PageFrame>;
 }
 
-function UpgradesPage({ state, setState, enqueue, notice }: PageProps) {
-  const buy = (item: typeof upgradeData[number]) => { const level = state.upgrades[item.id]; const cost = item.base + totalUnits(state) * 2 + level * item.base; if (state.products.circuit < cost) return notice(`need ${cost} circuits`); setState((s) => ({ ...s, products: { ...s.products, circuit: s.products.circuit - cost } })); enqueue('upgrade', `${item.title} · level ${level + 1}`, 35, item.id); notice(`${item.title} queued for upgrade`); };
-  return <PageFrame><Header eyebrow="Gameplay modifications" title="Upgrades" copy="These are not unlocks. Each upgrade changes the way an existing part of the factory behaves, with costs that scale as the network grows." action={<Tag><TrendingUp size={11} /> levels persist</Tag>} /><div className="grid gap-3 md:grid-cols-2">{upgradeData.map((item) => { const level = state.upgrades[item.id]; const cost = item.base + totalUnits(state) * 2 + level * item.base; return <section className="surface rounded-xl p-4 sm:p-5" key={item.id} data-testid={`card-upgrade-${item.id}`}><div className="flex items-start gap-3"><div className="grid h-10 w-10 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]">{item.id === 'manualMining' ? <Pickaxe size={18} /> : item.id === 'productionSpeed' ? <Gauge size={18} /> : item.id === 'storageEfficiency' ? <Box size={18} /> : <Zap size={18} />}</div><div className="min-w-0 flex-1"><div className="flex justify-between gap-2"><h2 className="text-[13px] font-extrabold">{item.title}</h2><span className="mono text-[11px] text-[hsl(var(--primary))]">LVL {level}</span></div><p className="mt-1 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">{item.copy}</p></div></div><div className="mt-5 flex items-center justify-between border-t border-[hsl(var(--border))] pt-3"><div><div className="eyebrow">Next effect</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">+{item.id === 'manualMining' ? level + 2 : item.id === 'productionSpeed' ? '10%' : item.id === 'storageEfficiency' ? '8%' : '6%'} {item.unit}</div></div><button onClick={() => buy(item)} className="button-base button-primary !py-2" data-testid={`button-buy-upgrade-${item.id}`}><TrendingUp size={13} /> upgrade · {cost} circuit</button></div></section>; })}</div></PageFrame>;
+function UpgradesPage({ state, setState, notice }: PageProps) {
+  const activeUpgrade = state.queue.find((item) => item.action === 'upgrade');
+  const costLabel = (cost: BuildMaterialCost) => `${fmt(cost.amount)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`;
+  const costChips = (costs: BuildMaterialCost[]) => <div className="flex flex-wrap gap-1.5">{costs.map((cost) => <span className="resource-chip !px-1.5 !py-1" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={16} />{costLabel(cost)}</span>)}</div>;
+  const startUpgrade = (upgrade: UpgradeDefinition) => {
+    if (state.machineVariants[upgrade.machineGroup] === upgrade.newMachine) return notice(`${upgrade.newMachineLabel} is already installed`);
+    if (activeUpgrade) return notice('finish the active upgrade before starting another');
+    if (!state.research.includes(upgrade.prerequisiteTechnology)) return notice(`${prettyLabel(upgrade.prerequisiteTechnology)} required`);
+    const machineCount = machineCountForUpgrade(state, upgrade);
+    if (!machineCount) return notice(`construct at least one ${upgrade.relevantMachine.toLowerCase()} first`);
+    const totalCosts = scaledBuildCosts(upgrade.upgradeCostPerMachine, machineCount);
+    const missing = missingBuildMaterials(state, totalCosts);
+    if (missing) return notice(`need ${missing}`);
+    const totalSeconds = upgrade.upgradeTimePerMachine * machineCount;
+    setState((s) => {
+      const products = { ...s.products };
+      const raw = { ...s.raw };
+      totalCosts.forEach(({ key, amount, source }) => {
+        if (source === 'raw') raw[key as RawKey] -= amount;
+        else products[key] = (products[key] ?? 0) - amount;
+      });
+      return { ...s, raw, products, queue: [...s.queue, { id: `upgrade-${Date.now()}`, action: 'upgrade', target: upgrade.name, targetId: upgrade.id, machineCount, seconds: totalSeconds, total: totalSeconds }] };
+    });
+    notice(`${upgrade.name} started for ${machineCount} machine${machineCount === 1 ? '' : 's'}`);
+  };
+  return <PageFrame>
+    <Header eyebrow="Machine conversion" title="Upgrades" copy="Convert every relevant machine in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 2 machine upgrades</Tag>} />
+    <section className="surface mb-5 rounded-xl border-[hsl(var(--primary)/.25)] bg-[linear-gradient(100deg,hsl(34_28%_16%/.82),hsl(216_25%_14%/.96))] p-4 sm:p-5">
+      <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">How conversion works</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Costs are calculated from the current number of relevant machines, deducted immediately, and all matching machines change variant together when the timer completes. Construction elsewhere in the factory can continue.</p></div></div>
+    </section>
+    <div className="grid gap-3 md:grid-cols-2">
+      {upgradeData.map((item) => {
+        const Icon = item.machineGroup === 'assembly' ? Cog : Pickaxe;
+        const machineCount = machineCountForUpgrade(state, item);
+        const complete = state.machineVariants[item.machineGroup] === item.newMachine;
+        const prerequisiteMet = state.research.includes(item.prerequisiteTechnology);
+        const queued = activeUpgrade?.targetId === item.id;
+        const totalCosts = scaledBuildCosts(item.upgradeCostPerMachine, machineCount);
+        const missing = complete || !machineCount ? '' : missingBuildMaterials(state, totalCosts);
+        const conversionCount = activeUpgrade?.machineCount ?? machineCount;
+        const totalSeconds = activeUpgrade?.total ?? item.upgradeTimePerMachine * conversionCount;
+        const canStart = !complete && !activeUpgrade && prerequisiteMet && machineCount > 0 && !missing;
+        const progress = queued && activeUpgrade ? (1 - activeUpgrade.seconds / activeUpgrade.total) * 100 : 0;
+        return <section className="surface rounded-xl p-4 sm:p-5" key={item.id} data-testid={`card-upgrade-${item.id}`}>
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><Icon size={18} /></div>
+            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">{item.name}</h2>{complete ? <Tag><Check size={10} /> installed</Tag> : queued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : !prerequisiteMet ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : <Tag tone="amber">available</Tag>}</div><p className="mt-1 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">{item.copy}</p></div>
+          </div>
+          {queued && activeUpgrade && <div className="construction-panel mt-4 rounded-lg p-3" aria-live="polite" data-testid={`panel-upgrade-progress-${item.id}`}><div className="flex items-start justify-between gap-3"><div><div className="eyebrow text-[hsl(var(--primary))]">Upgrade in progress</div><div className="mt-1 text-[10px] font-bold">{conversionCount} {item.relevantMachine.toLowerCase()}{conversionCount === 1 ? '' : 's'} converting</div></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(activeUpgrade.seconds)}</span></div><div className="mt-2"><Progress value={progress} tone="amber" /></div><div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(Math.max(0, progress))}% complete</span><span>{totalSeconds.toFixed(1)}s total</span></div></div>}
+          <div className="mt-4 grid gap-2 text-[10px]">
+            <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Prerequisite</div><div className={`mt-1 flex items-center gap-1.5 font-semibold ${prerequisiteMet ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--muted-foreground))]'}`}>{prerequisiteMet ? <Check size={12} /> : <LockKeyhole size={12} />}{prettyLabel(item.prerequisiteTechnology)}</div></div>
+            <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Relevant machine</div><div className="mt-1 flex items-center justify-between gap-2"><span className="font-semibold">{item.relevantMachine}</span><span className="mono text-[hsl(var(--secondary))]">{machineCount} built</span></div></div>
+            <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Cost per machine · {item.upgradeTimePerMachine}s</div><div className="mt-2">{costChips(item.upgradeCostPerMachine)}</div></div>
+            <div className="data-row rounded-lg p-2.5"><div className="eyebrow">New machine</div><div className="mt-1 flex items-center gap-2 font-semibold"><ResourceIcon item={item.newMachine} size={18} />{item.newMachineLabel}<span className="ml-auto mono text-[hsl(var(--secondary))]">{item.newMachinePowerDraw} kW · speed {item.newMachineProductionSpeed}</span></div><div className="mt-2">{costChips(item.newMachineMaterialCost)}</div></div>
+          </div>
+          {!complete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{machineCount ? `${machineCount} machines · ${totalSeconds.toFixed(1)}s · total cost` : 'No relevant machines built'}</div></div><button onClick={() => startUpgrade(item)} disabled={!canStart} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-start-upgrade-${item.id}`}><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : missing ? `need ${missing}` : !prerequisiteMet ? 'locked' : !machineCount ? 'build machines first' : 'start upgrade'}</button></div>{machineCount > 0 && <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Total reserved now: {totalCosts.map(costLabel).join(' + ')}</div>}</div>}
+        </section>;
+      })}
+    </div>
+  </PageFrame>;
 }
 
 function SciencePage({ state, setState, enqueue, notice }: PageProps) {
