@@ -1,4 +1,20 @@
 export const assemblyMachineOneCraftingSpeed = 0.5;
+export const oilRefineryCraftingSpeed = 1;
+export const oilRefineryPowerKw = 420;
+export const chemicalPlantCraftingSpeed = 1;
+export const chemicalPlantPowerKw = 210;
+export const chemicalPlantRecipeNames = [
+  'light-oil-cracking',
+  'plastic-bar',
+  'heavy-oil-cracking',
+  'sulfur',
+  'sulfuric-acid',
+  'lubricant',
+  'solid-fuel',
+  'rocket-fuel',
+  'battery',
+  'explosives',
+] as const;
 export const stoneFurnaceCraftingSpeed = 1;
 export const steelFurnaceCraftingSpeed = 2;
 

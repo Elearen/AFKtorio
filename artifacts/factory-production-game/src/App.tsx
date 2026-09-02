@@ -4,7 +4,7 @@ import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial, type Recip
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
-import { assemblyMachineOneCraftingSpeed, craftingSpeedFor, cyclesPerMinuteFor, steelFurnaceCraftingSpeed } from './productionSystem';
+import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cyclesPerMinuteFor, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, fulfillConstructionReservation, normalizeConstructionQueue, reserveConstructionMaterials } from './constructionSystem';
 import {
   OIL_PROCESSING_UPGRADE_ID, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
@@ -178,6 +178,8 @@ const assemblyMachineOneRecipe = recipeMap['assembling-machine-1'];
 const assemblyMachineOneBuildCost = { circuit: 3, gear: 5, ironPlate: 9 };
 const assemblyMachineOnePowerKw = 75;
 const assemblyMachineOneProductionSpeed = assemblyMachineOneCraftingSpeed;
+const oilRefineryRecipe = recipeMap['oil-refinery'];
+const chemicalPlantRecipe = recipeMap['chemical-plant'];
 const assemblyMachineTwoRecipe = recipeMap['assembling-machine-2'];
 const assemblyMachineTwoBuildCost = upgradeMap['assembly-machine-2'].newMachineMaterialCost;
 const assemblyMachineTwoPowerKw = upgradeMap['assembly-machine-2'].newMachinePowerDraw;
@@ -236,6 +238,9 @@ const automatedRecipeInputs = (recipe: Recipe) => {
   return inputs;
 };
 const isSmeltingRecipe = (recipe: Recipe) => smeltingRecipeKeys.has(recipe.name) && recipe.category === 'smelting';
+const isOilRefineryRecipe = (recipe?: Recipe) => Boolean(recipe && (recipe.name === 'basic-oil-processing' || recipe.name === 'advanced-oil-processing'));
+const chemicalPlantRecipeKeys = new Set<string>(chemicalPlantRecipeNames);
+const isChemicalPlantRecipe = (recipe?: Recipe) => Boolean(recipe && chemicalPlantRecipeKeys.has(recipe.name));
 const furnaceCraftingSpeedFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? steelFurnaceCraftingSpeed : 1;
 const furnaceFuelMultiplierFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? 0.5 : 1;
 const automatedRecipeInputsFor = (state: GameState, recipe: Recipe) => {
@@ -245,7 +250,7 @@ const automatedRecipeInputsFor = (state: GameState, recipe: Recipe) => {
 };
 const furnaceLabelFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? 'Steel Furnace' : 'Stone Furnace';
 const furnaceBuildRecipeFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? steelFurnaceRecipe : stoneFurnaceRecipe;
-const productionBuildingFor = (state: GameState, recipe: Recipe) => isSmeltingRecipe(recipe) ? state.furnaceVariant : state.machineVariants.assembly;
+const productionBuildingFor = (state: GameState, recipe: Recipe) => isSmeltingRecipe(recipe) ? state.furnaceVariant : isOilRefineryRecipe(recipe) ? 'oil-refinery' : isChemicalPlantRecipe(recipe) ? 'chemical-plant' : state.machineVariants.assembly;
 const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
 const trackedKeys: TrackedKey[] = Array.from(new Set([
   ...rawKeys,
@@ -376,11 +381,13 @@ const storageBoxCountFor = (state: GameState) => itemStorageBoxCountFor(
 const storageCapacityFor = (state: GameState, key: TrackedKey) => calculateStorageCapacityFor(key, fluidKeys, state.storageBoxes, state.storageTanks, storageBoxCapacityFor(state));
 const capFor = (state: GameState, key: TrackedKey) => Math.floor(state.storage[key] ?? storageCapacityFor(state, key));
 const burnerMinerCount = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
-const electricAssemblerCount = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && !isSmeltingRecipe(recipeMap[recipeKey]) ? count : 0), 0);
+const electricAssemblerCount = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && !isSmeltingRecipe(recipeMap[recipeKey]) && !isOilRefineryRecipe(recipeMap[recipeKey]) && !isChemicalPlantRecipe(recipeMap[recipeKey]) ? count : 0), 0);
+const oilRefineryCountFor = (state: GameState) => (state.assemblers['basic-oil-processing'] ?? 0) + (state.assemblers['advanced-oil-processing'] ?? 0);
+const chemicalPlantCountFor = (state: GameState) => chemicalPlantRecipeNames.reduce((total, recipeKey) => total + (state.assemblers[recipeKey] ?? 0), 0);
 const smeltingFurnaceCountFor = (state: GameState) => Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => total + (state.assemblers[recipeKey] ?? 0), 0);
 const productionUnitCount = (state: GameState) => Object.values(state.assemblers).reduce((total, count) => total + count, 0);
-const assemblyMachineProductionSpeedFor = (state: GameState) => state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoProductionSpeed : assemblyMachineOneProductionSpeed;
-const assemblyMachinePowerFor = (state: GameState) => state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoPowerKw : assemblyMachineOnePowerKw;
+const assemblyMachineProductionSpeedFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe) ? oilRefineryCraftingSpeed : isChemicalPlantRecipe(recipe) ? chemicalPlantCraftingSpeed : state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoProductionSpeed : assemblyMachineOneProductionSpeed;
+const assemblyMachinePowerFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe) ? oilRefineryPowerKw : isChemicalPlantRecipe(recipe) ? chemicalPlantPowerKw : state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoPowerKw : assemblyMachineOnePowerKw;
 const miningMachineProductionSpeedFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillProductionSpeed : burnerMiningDrillProductionSpeed;
 const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillPowerKw : 0;
 const miningUsesStoredCoal = (state: GameState) => state.machineVariants.mining !== 'electric-mining-drill';
@@ -402,7 +409,10 @@ const solarPowerFor = (state: GameState) => solarPanelNetPowerKwFor(state) / 100
 const nuclearPowerFor = (state: GameState) => state.research.includes('nuclear-power') ? 180 * state.simulationSpeed : 0;
 const powerProductionFor = (state: GameState) => steamEnginePowerFor(state) + solarPowerFor(state) + nuclearPowerFor(state);
 const electricPowerDraw = (state: GameState) => {
-  const assemblerPower = electricAssemblerCount(state) * assemblyMachinePowerFor(state);
+  const assemblerPower = Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => {
+    const recipe = recipeMap[recipeKey];
+    return total + (recipe && !isSmeltingRecipe(recipe) ? count * assemblyMachinePowerFor(state, recipe) : 0);
+  }, 0);
   const miningPower = state.machineVariants.mining === 'electric-mining-drill' ? burnerMinerCount(state) * miningMachinePowerFor(state) : 0;
   return (state.labs * labPowerKw + assemblerPower + miningPower) / 1000;
 };
@@ -420,11 +430,25 @@ const miningOutputPerSecondFor = (key: RawKey) => key === 'uranium' ? 0.32 : key
 const miningMachineBuildCostFor = (state: GameState): BuildMaterialCost[] => state.machineVariants.mining === 'electric-mining-drill'
   ? electricMiningDrillBuildCost
   : [{ key: 'gear', amount: burnerMiningDrillCost.gear, source: 'products' }, { key: 'ironPlate', amount: burnerMiningDrillCost.ironPlate, source: 'products' }, { key: 'stone', amount: burnerMiningDrillCost.stone, source: 'raw' }];
-const productionMachineLabelFor = (state: GameState) => state.machineVariants.assembly === 'assembling-machine-2' ? 'Assembly Machine 2' : 'Assembly Machine 1';
-const productionMachineRecipeFor = (state: GameState) => state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoRecipe : assemblyMachineOneRecipe;
-const productionMachineBuildCostFor = (state: GameState): BuildMaterialCost[] => state.machineVariants.assembly === 'assembling-machine-2'
-  ? assemblyMachineTwoBuildCost
-  : [{ key: 'circuit', amount: assemblyMachineOneBuildCost.circuit, source: 'products' }, { key: 'gear', amount: assemblyMachineOneBuildCost.gear, source: 'products' }, { key: 'ironPlate', amount: assemblyMachineOneBuildCost.ironPlate, source: 'products' }];
+const productionMachineLabelFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe) ? 'Oil Refinery' : isChemicalPlantRecipe(recipe) ? 'Chemical Plant' : state.machineVariants.assembly === 'assembling-machine-2' ? 'Assembly Machine 2' : 'Assembly Machine 1';
+const productionMachineRecipeFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe) ? oilRefineryRecipe : isChemicalPlantRecipe(recipe) ? chemicalPlantRecipe : state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoRecipe : assemblyMachineOneRecipe;
+const productionMachineBuildCostFor = (state: GameState, recipe?: Recipe): BuildMaterialCost[] => isOilRefineryRecipe(recipe) || isChemicalPlantRecipe(recipe)
+  ? recipeBuildCosts(isOilRefineryRecipe(recipe) ? oilRefineryRecipe : chemicalPlantRecipe)
+  : state.machineVariants.assembly === 'assembling-machine-2'
+    ? assemblyMachineTwoBuildCost
+    : [{ key: 'circuit', amount: assemblyMachineOneBuildCost.circuit, source: 'products' }, { key: 'gear', amount: assemblyMachineOneBuildCost.gear, source: 'products' }, { key: 'ironPlate', amount: assemblyMachineOneBuildCost.ironPlate, source: 'products' }];
+const productionMachineLoadLabelFor = (state: GameState) => [oilRefineryCountFor(state), chemicalPlantCountFor(state), electricAssemblerCount(state)].filter((count) => count > 0).length > 1
+  ? 'Mixed production'
+  : chemicalPlantCountFor(state) > 0
+    ? 'Chemical Plant'
+    : oilRefineryCountFor(state) > 0
+    ? 'Oil Refinery'
+    : productionMachineLabelFor(state);
+const productionMachineLoadDetailFor = (state: GameState) => [
+  electricAssemblerCount(state) > 0 ? `${assemblyMachinePowerFor(state)} kW assembly` : '',
+  oilRefineryCountFor(state) > 0 ? `${oilRefineryPowerKw} kW per Oil Refinery` : '',
+  chemicalPlantCountFor(state) > 0 ? `${chemicalPlantPowerKw} kW per Chemical Plant` : '',
+].filter(Boolean).join(' · ') || `${assemblyMachinePowerFor(state)} kW per assembly machine`;
 const quantityFor = (state: GameState, key: TrackedKey) => rawKeys.includes(key as RawKey) ? state.raw[key as RawKey] : state.products[key] ?? 0;
 const hasInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>) => Object.entries(inputs).every(([key, value]) => quantityFor(state, key) >= (value ?? 0));
 const spendInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>, consumption?: Record<TrackedKey, number>) => {
@@ -492,7 +516,7 @@ const recipeCycleRateFor = (state: GameState, recipe: Recipe) => cyclesPerMinute
   state.assemblers[recipe.name] ?? 0,
   state.simulationSpeed,
   recipe.energyRequired,
-  craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state), furnaceCraftingSpeedFor(state)),
+  craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state, recipe), furnaceCraftingSpeedFor(state)),
 ) * (recipeAutoStartStopConditionFor(state, recipe).met ? 1 : 0);
 const miningBaseProductionRateFor = (state: GameState, key: RawKey) => {
   const count = miningMachineCountFor(state, key);
@@ -727,7 +751,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     // Progress represents an in-flight cycle, not a queue of completed
     // cycles. Clamp legacy/starved backlog before advancing the line so a
     // machine cannot burst above its steady-state rate when inputs return.
-    const machineCraftingSpeed = craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state), furnaceCraftingSpeedFor(state));
+    const machineCraftingSpeed = craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state, recipe), furnaceCraftingSpeedFor(state));
     state.assemblyProgress[key] = Math.min(state.assemblyProgress[key] ?? 0, 0.999999)
       + cyclesPerMinuteFor(count, speed, recipe.energyRequired, machineCraftingSpeed) * seconds / 60 * machinePowerRatio * storageThrottle;
     let cycles = 0;
@@ -1348,9 +1372,9 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
     if (key === 'basic-oil-processing' && state.oilProcessingAdvanced) return notice('Advanced Oil Processing is already installed');
     if (key === 'basic-oil-processing' && state.queue.some((item) => item.action === 'upgrade' && item.targetId === OIL_PROCESSING_UPGRADE_ID)) return notice('finish the oil processing conversion before building more refineries');
     if (!automationUnlocked) return notice('Automation technology required');
-    const machineCosts = productionMachineBuildCostFor(state);
-    const machine = productionMachineRecipeFor(state);
-    enqueue('assembler', `${prettyLabel(key)} ${productionMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key, machineCosts);
+    const machineCosts = productionMachineBuildCostFor(state, recipe);
+    const machine = productionMachineRecipeFor(state, recipe);
+    enqueue('assembler', `${prettyLabel(key)} ${productionMachineLabelFor(state, recipe).toLowerCase()}`, machine.energyRequired, key, machineCosts);
   };
   return <PageFrame>
     <Header eyebrow="Recipe catalog" title="Production" copy="The attached recipe definitions drive every card below. Search the full line, inspect item and fluid flows, then run recipes manually or with the appropriate production building." action={<Tag><Cog size={11} /> {recipeCatalog.length} recipes loaded</Tag>} />
@@ -1384,7 +1408,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       const smelting = isSmeltingRecipe(recipe);
        const autoCondition = recipeAutoStartStopConditionFor(state, recipe);
        const building = productionBuildingFor(state, recipe);
-       const buildingLabel = smelting ? currentFurnaceLabel : productionMachineLabelFor(state);
+       const buildingLabel = smelting ? currentFurnaceLabel : productionMachineLabelFor(state, recipe);
       const buildingAction: QueueItem['action'] = smelting ? 'furnace' : 'assembler';
       const constructionItems = state.queue.filter((item) => item.action === buildingAction && item.targetId === key);
       const isBuilding = constructionItems.length > 0;
@@ -1498,7 +1522,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
 function PowerDependencyTreePage({ state, notice }: PageProps) {
   const steam = state.research.includes('steam-power'); const solar = state.research.includes('solar-energy'); const nuclear = state.research.includes('nuclear-power'); const draw = electricPowerDraw(state); const production = powerProductionFor(state);
   const Node = ({ title, sub, icon, active, locked }: { title: string; sub: string; icon: ReactNode; active?: boolean; locked?: boolean }) => <div className={`tree-line flex items-center gap-3 rounded-xl border p-3 ${active ? 'border-[hsl(var(--secondary)/.5)] bg-[hsl(174_30%_15%/.7)]' : locked ? 'locked-wash border-[hsl(var(--border))] opacity-65' : 'border-[hsl(var(--border))] bg-[hsl(216_24%_11%/.7)]'}`}><div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${active ? 'bg-[hsl(var(--secondary)/.14)] text-[hsl(var(--secondary))]' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{locked ? <LockKeyhole size={15} /> : icon}</div><div className="min-w-0"><div className="text-[11px] font-bold">{title}</div><div className="mt-0.5 text-[9px] text-[hsl(var(--muted-foreground))]">{sub}</div></div><div className="ml-auto">{active ? <Tag>online</Tag> : locked ? <Tag tone="muted">research</Tag> : <Tag tone="amber">standby</Tag>}</div></div>;
-   return <PageFrame><Header eyebrow="Energy network" title="Power" copy="Power is a dependency tree, not a single number. Research a generation family, then watch its conversion chain come online." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{production} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} /><div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="surface rounded-xl p-4"><div className="eyebrow">Production</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{production} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Factory draw</div><div className="mono mt-2 text-xl">{draw} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Net balance</div><div className={`mono mt-2 text-xl ${production >= draw ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{production - draw} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Machine load</div><div className="mono mt-2 text-xl">{productionMachineLabelFor(state)}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{assemblyMachinePowerFor(state)} kW per assembly machine · {state.machineVariants.mining === 'electric-mining-drill' ? `${miningMachinePowerFor(state)} kW per miner` : 'burner drills use coal'}</div></div></div><div className="grid gap-5 lg:grid-cols-3"><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={steam ? 'online' : 'locked'}>Steam generation</SectionTitle><div className="space-y-4"><Node title="Boiler" sub="coal + water → heat" icon={<FlameIcon />} active={steam} locked={!steam} /><Node title="Steam" sub="pressurized thermal fluid" icon={<Waves size={16} />} active={steam} locked={!steam} /><Node title="Steam engine" sub="80 MW potential" icon={<Gauge size={16} />} active={steam} locked={!steam} /></div><button onClick={() => notice(steam ? 'steam chain is online' : 'unlock Steam Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-steam">{steam ? 'inspect steam chain' : 'view steam dependency'}</button></section><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={solar ? 'online' : 'locked'}>Solar generation</SectionTitle><div className="space-y-4"><Node title="Solar array" sub="sunlight → current" icon={<Sun size={16} />} active={solar} locked={!solar} /><Node title="Inverter bank" sub="stable daytime output" icon={<Zap size={16} />} active={solar} locked={!solar} /><Node title="Power bus" sub="0.03 MW per panel at baseline; accumulators raise output to 100%" icon={<Power size={16} />} active={solar} locked={!solar} /></div><button onClick={() => notice(solar ? 'solar array is online' : 'unlock Solar Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-solar">{solar ? 'inspect solar chain' : 'view solar dependency'}</button></section><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={nuclear ? 'online' : 'locked'}>Nuclear generation</SectionTitle><div className="space-y-4"><Node title="Nuclear reactor" sub="uranium + acid → heat" icon={<Sparkles size={16} />} active={nuclear} locked={!nuclear} /><Node title="Heat exchanger" sub="heat → steam" icon={<Waves size={16} />} active={nuclear} locked={!nuclear} /><Node title="Power turbine" sub="180 MW potential" icon={<Gauge size={16} />} active={nuclear} locked={!nuclear} /></div><button onClick={() => notice(nuclear ? 'nuclear chain is online' : 'unlock Nuclear Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-nuclear">{nuclear ? 'inspect nuclear chain' : 'view nuclear dependency'}</button></section></div><p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Power families are gated by research and represented as a clear production tree before you build them.</p></PageFrame>;
+   return <PageFrame><Header eyebrow="Energy network" title="Power" copy="Power is a dependency tree, not a single number. Research a generation family, then watch its conversion chain come online." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{production} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} /><div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="surface rounded-xl p-4"><div className="eyebrow">Production</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{production} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Factory draw</div><div className="mono mt-2 text-xl">{draw} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Net balance</div><div className={`mono mt-2 text-xl ${production >= draw ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{production - draw} MW</div></div><div className="surface rounded-xl p-4"><div className="eyebrow">Machine load</div><div className="mono mt-2 text-xl">{productionMachineLoadLabelFor(state)}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{productionMachineLoadDetailFor(state)} · {state.machineVariants.mining === 'electric-mining-drill' ? `${miningMachinePowerFor(state)} kW per miner` : 'burner drills use coal'}</div></div></div><div className="grid gap-5 lg:grid-cols-3"><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={steam ? 'online' : 'locked'}>Steam generation</SectionTitle><div className="space-y-4"><Node title="Boiler" sub="coal + water → heat" icon={<FlameIcon />} active={steam} locked={!steam} /><Node title="Steam" sub="pressurized thermal fluid" icon={<Waves size={16} />} active={steam} locked={!steam} /><Node title="Steam engine" sub="80 MW potential" icon={<Gauge size={16} />} active={steam} locked={!steam} /></div><button onClick={() => notice(steam ? 'steam chain is online' : 'unlock Steam Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-steam">{steam ? 'inspect steam chain' : 'view steam dependency'}</button></section><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={solar ? 'online' : 'locked'}>Solar generation</SectionTitle><div className="space-y-4"><Node title="Solar array" sub="sunlight → current" icon={<Sun size={16} />} active={solar} locked={!solar} /><Node title="Inverter bank" sub="stable daytime output" icon={<Zap size={16} />} active={solar} locked={!solar} /><Node title="Power bus" sub="0.03 MW per panel at baseline; accumulators raise output to 100%" icon={<Power size={16} />} active={solar} locked={!solar} /></div><button onClick={() => notice(solar ? 'solar array is online' : 'unlock Solar Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-solar">{solar ? 'inspect solar chain' : 'view solar dependency'}</button></section><section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={nuclear ? 'online' : 'locked'}>Nuclear generation</SectionTitle><div className="space-y-4"><Node title="Nuclear reactor" sub="uranium + acid → heat" icon={<Sparkles size={16} />} active={nuclear} locked={!nuclear} /><Node title="Heat exchanger" sub="heat → steam" icon={<Waves size={16} />} active={nuclear} locked={!nuclear} /><Node title="Power turbine" sub="180 MW potential" icon={<Gauge size={16} />} active={nuclear} locked={!nuclear} /></div><button onClick={() => notice(nuclear ? 'nuclear chain is online' : 'unlock Nuclear Power in Research')} className="button-base button-ghost mt-5 w-full !py-2" data-testid="button-power-nuclear">{nuclear ? 'inspect nuclear chain' : 'view nuclear dependency'}</button></section></div><p className="mt-5 text-[10px] text-[hsl(var(--muted-foreground))]"><Info size={13} className="mr-1 inline text-[hsl(var(--secondary))]" /> Power families are gated by research and represented as a clear production tree before you build them.</p></PageFrame>;
 }
 function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.8 2.8c.4 3-1.3 4.2-2.4 5.4-1 1-1.2 2.3-.6 3.3.4-1.3 1.5-2.3 2.8-2.7 2.6 2 3.8 4.3 3.2 7.1-.4 1.8-1.7 3.2-3.3 4.1 4.7-.8 7-4 6.2-8.4-.5-2.8-2.5-5.8-5.9-8.8ZM10 12c-3.7 1.4-5.4 4-4.6 6.6.6 2 2.3 3.4 4.5 4-1.2-1.2-1.5-2.6-.6-4.1.7-1.2 1.6-2.1 2.6-2.6-1.1-1-1.8-2.3-1.9-3.9Z"/></svg>; }
 

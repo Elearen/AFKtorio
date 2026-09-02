@@ -13,11 +13,17 @@ import {
 } from '../src/upgradeSystem.js';
 import {
   assemblyMachineOneCraftingSpeed,
+  chemicalPlantCraftingSpeed,
+  chemicalPlantPowerKw,
+  chemicalPlantRecipeNames,
   craftingSpeedFor,
   cyclesPerMinuteFor,
+  oilRefineryCraftingSpeed,
+  oilRefineryPowerKw,
   stoneFurnaceCraftingSpeed,
   steelFurnaceCraftingSpeed,
 } from '../src/productionSystem.js';
+import { recipeCatalog } from '../src/recipeCatalog.js';
 
 const baseState = (overrides: Partial<UpgradeStartState> = {}): UpgradeStartState => ({
   raw: { coal: 40, stone: 20 },
@@ -184,6 +190,10 @@ test('full storage reports zero mining output when there is no downstream demand
 
 test('building crafting speeds use absolute machine speeds', () => {
   assert.equal(assemblyMachineOneCraftingSpeed, 0.5);
+  assert.equal(oilRefineryCraftingSpeed, 1);
+  assert.equal(oilRefineryPowerKw, 420);
+  assert.equal(chemicalPlantCraftingSpeed, 1);
+  assert.equal(chemicalPlantPowerKw, 210);
   assert.equal(stoneFurnaceCraftingSpeed, 1);
   assert.equal(steelFurnaceCraftingSpeed, 2);
   assert.equal(craftingSpeedFor(false, assemblyMachineOneCraftingSpeed), 0.5);
@@ -191,4 +201,43 @@ test('building crafting speeds use absolute machine speeds', () => {
   assert.equal(craftingSpeedFor(true, assemblyMachineOneCraftingSpeed, steelFurnaceCraftingSpeed), 2);
   assert.equal(cyclesPerMinuteFor(1, 1, 10, 0.5), 3);
   assert.equal(cyclesPerMinuteFor(1, 1, 10, 1), 6);
+});
+
+test('oil production uses the recipe database construction definition', () => {
+  const oilRefinery = recipeCatalog.find((recipe) => recipe.name === 'oil-refinery');
+
+  assert.ok(oilRefinery);
+  assert.equal(oilRefinery.energyRequired, 8);
+  assert.deepEqual(oilRefinery.ingredients, [
+    { type: 'item', name: 'steel-plate', amount: 15 },
+    { type: 'item', name: 'iron-gear-wheel', amount: 10 },
+    { type: 'item', name: 'stone-brick', amount: 10 },
+    { type: 'item', name: 'electronic-circuit', amount: 10 },
+    { type: 'item', name: 'pipe', amount: 10 },
+  ]);
+});
+
+test('requested chemical recipes use Chemical Plants', () => {
+  assert.deepEqual([...chemicalPlantRecipeNames], [
+    'light-oil-cracking',
+    'plastic-bar',
+    'heavy-oil-cracking',
+    'sulfur',
+    'sulfuric-acid',
+    'lubricant',
+    'solid-fuel',
+    'rocket-fuel',
+    'battery',
+    'explosives',
+  ]);
+
+  const chemicalPlant = recipeCatalog.find((recipe) => recipe.name === 'chemical-plant');
+  assert.ok(chemicalPlant);
+  assert.equal(chemicalPlant.energyRequired, 5);
+  assert.deepEqual(chemicalPlant.ingredients, [
+    { type: 'item', name: 'steel-plate', amount: 5 },
+    { type: 'item', name: 'iron-gear-wheel', amount: 5 },
+    { type: 'item', name: 'electronic-circuit', amount: 5 },
+    { type: 'item', name: 'pipe', amount: 5 },
+  ]);
 });
