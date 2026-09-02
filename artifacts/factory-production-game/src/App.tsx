@@ -13,7 +13,7 @@ import {
 
 type RawKey = 'iron' | 'copper' | 'stone' | 'coal' | 'wood' | 'water' | 'uranium';
 type ComponentKey = string;
-type ScienceKey = 'automationPack' | 'logisticsPack' | 'researchPack';
+type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militaryPack' | 'productionPack' | 'utilityPack';
 type TrackedKey = string;
 type UpgradeKey = 'manualMining' | 'productionSpeed' | 'storageEfficiency' | 'powerEfficiency';
 type ResearchKey = string;
@@ -41,6 +41,7 @@ type GameState = {
   manualMining: ManualMiningJob | null;
   queue: QueueItem[];
   research: ResearchKey[];
+  currentResearch: ResearchKey | null;
   produced: Record<string, number>;
   rateHistory: RateSample[];
   upgrades: Record<UpgradeKey, number>;
@@ -51,7 +52,7 @@ type GameState = {
 
 const SAVE_KEY = 'factory-production-game-save-v2';
 const rawKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood', 'water', 'uranium'];
-const scienceKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'researchPack'];
+const scienceKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'chemicalPack', 'militaryPack', 'productionPack', 'utilityPack'];
 const technologyMap: Record<string, TechnologyDefinition> = Object.fromEntries(technologyCatalog.map((technology) => [technology.name, technology]));
 const legacyResearchAliases: Record<string, string> = { steamPower: 'steam-power', solarPower: 'solar-energy', nuclearPower: 'nuclear-power', steelProcessing: 'steel-processing' };
 const normalizeResearchKey = (key: string) => legacyResearchAliases[key] ?? key;
@@ -60,12 +61,24 @@ const sourceKeyAliases: Record<string, TrackedKey> = {
   'iron-plate': 'ironPlate', 'copper-plate': 'copperPlate', 'steel-plate': 'steel',
   'iron-gear-wheel': 'gear', 'electronic-circuit': 'circuit',
   'automation-science-pack': 'automationPack', 'logistic-science-pack': 'logisticsPack',
-  'production-science-pack': 'researchPack',
+  'chemical-science-pack': 'chemicalPack', 'military-science-pack': 'militaryPack',
+  'production-science-pack': 'productionPack', 'utility-science-pack': 'utilityPack',
 };
 const keyForSource = (name: string) => sourceKeyAliases[name] ?? name;
 const recipeMap: Record<string, Recipe> = Object.fromEntries(recipeCatalog.map((recipe) => [recipe.name, recipe]));
 const componentKeys: ComponentKey[] = recipeCatalog.map((recipe) => recipe.name);
-const scienceRecipeKeys: Record<ScienceKey, string> = { automationPack: 'automation-science-pack', logisticsPack: 'logistic-science-pack', researchPack: 'production-science-pack' };
+const scienceRecipeKeys: Record<ScienceKey, string> = {
+  automationPack: 'automation-science-pack', logisticsPack: 'logistic-science-pack',
+  chemicalPack: 'chemical-science-pack', militaryPack: 'military-science-pack',
+  productionPack: 'production-science-pack', utilityPack: 'utility-science-pack',
+};
+const activeResearchFor = (state: GameState) => {
+  if (!state.currentResearch || state.research.includes(state.currentResearch)) return undefined;
+  return technologyMap[state.currentResearch];
+};
+const scienceRequirementKeysFor = (technology?: TechnologyDefinition) => Array.from(new Set(
+  technology?.scienceCosts.map((cost) => keyForSource(cost.pack)) ?? [],
+));
 const burnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood'];
 const burnerMiningDrillRecipe = recipeMap['burner-mining-drill'];
 const burnerMiningDrillCost = { gear: 3, ironPlate: 3, stone: 5 };
@@ -142,7 +155,11 @@ const baseMeta: Record<string, { label: string; short: string; color: string; ca
   copperPlate: { label: 'Copper plates', short: 'Cu plate', color: '#e6a067', category: 'Component' }, steel: { label: 'Steel', short: 'steel', color: '#aabac3', category: 'Component' },
   gear: { label: 'Gears', short: 'gear', color: '#dfb05c', category: 'Component' }, pipe: { label: 'Pipes', short: 'pipe', color: '#8da8a7', category: 'Component' },
   circuit: { label: 'Circuits', short: 'circuit', color: '#54b8a8', category: 'Component' }, automationPack: { label: 'Automation science', short: 'automation', color: '#df7165', category: 'Science' },
-  logisticsPack: { label: 'Logistics science', short: 'logistics', color: '#d6a04f', category: 'Science' }, researchPack: { label: 'Research science', short: 'research', color: '#8ea9db', category: 'Science' },
+  logisticsPack: { label: 'Logistics science', short: 'logistics', color: '#d6a04f', category: 'Science' },
+  chemicalPack: { label: 'Chemical science', short: 'chemical', color: '#7bc4a8', category: 'Science' },
+  militaryPack: { label: 'Military science', short: 'military', color: '#d96f68', category: 'Science' },
+  productionPack: { label: 'Production science', short: 'production', color: '#8ea9db', category: 'Science' },
+  utilityPack: { label: 'Utility science', short: 'utility', color: '#d6c06a', category: 'Science' },
 };
 const meta: Record<TrackedKey, { label: string; short: string; color: string; category: string }> = Object.fromEntries(trackedKeys.map((key, index) => {
   const fallback = { label: prettyLabel(key), short: key, color: ['#c9d3d0', '#e6a067', '#8da8a7', '#dfb05c', '#54b8a8', '#8ea9db'][index % 6], category: 'Component' };
@@ -150,7 +167,7 @@ const meta: Record<TrackedKey, { label: string; short: string; color: string; ca
 }));
 const starterProducts: Record<string, number> = {
   ...Object.fromEntries(trackedKeys.map((key) => [key, 0])),
-  ironPlate: 28, copperPlate: 14, steel: 4, gear: 9, pipe: 4, circuit: 3, automationPack: 9, logisticsPack: 5, researchPack: 2,
+  ironPlate: 28, copperPlate: 14, steel: 4, gear: 9, pipe: 4, circuit: 3, automationPack: 9, logisticsPack: 5, chemicalPack: 0, militaryPack: 0, productionPack: 0, utilityPack: 0,
 };
 
 const initialState: GameState = {
@@ -163,7 +180,7 @@ const initialState: GameState = {
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labs: 1, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: technologyCatalog[0]?.name ?? null, produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
 };
 
@@ -290,6 +307,23 @@ const recipeProductionRateFor = (state: GameState, recipe: Recipe) => {
   const output = recipeOutputs(recipe)[0];
   return output ? productionRateFor(state, output.key) : 0;
 };
+const scienceLabRateFor = (state: GameState) => state.labs * 12 * state.simulationSpeed;
+const sciencePackProductionRateFor = (state: GameState, key: string) => {
+  const recipeKey = scienceRecipeKeys[key as ScienceKey];
+  const recipe = recipeKey ? recipeMap[recipeKey] : undefined;
+  if (!recipe || !recipeIsUnlocked(recipe, state)) return 0;
+  const output = recipeOutputs(recipe).find((entry) => entry.key === key);
+  return output ? recipeCycleRateFor(state, recipe) * output.amount : 0;
+};
+const scienceCurrentSpmFor = (state: GameState, requiredKeys: string[]) => {
+  if (!requiredKeys.length) return 0;
+  return Math.min(...requiredKeys.map((key) => rateFromHistory(state, key, 'consumption')));
+};
+const sciencePeakSpmFor = (state: GameState, requiredKeys: string[]) => {
+  if (!requiredKeys.length) return 0;
+  const labRate = scienceLabRateFor(state);
+  return Math.min(labRate, ...requiredKeys.map((key) => sciencePackProductionRateFor(state, key)));
+};
 const burnerOperatingSeconds = (state: GameState, seconds: number) => {
   const fuelRate = burnerMinerCoalRate(state) * state.simulationSpeed;
   return fuelRate > 0 ? Math.min(seconds, Math.max(0, state.raw.coal) / fuelRate) : seconds;
@@ -357,11 +391,20 @@ function simulate(previous: GameState, seconds: number): GameState {
       state.manualMining = null;
     }
   }
-  state.labProgress += state.labs * seconds * speed / 5;
-  while (state.labProgress >= 1) {
-    const pack = scienceKeys.find((key) => state.products[key] > 0);
-    if (!pack) break;
-    state.products[pack] -= 1; state.labProgress -= 1; liveConsumption[pack] += 1;
+  const activeResearch = activeResearchFor(state);
+  const requiredScienceKeys = scienceRequirementKeysFor(activeResearch);
+  if (!requiredScienceKeys.length) {
+    state.labProgress = 0;
+  } else {
+    state.labProgress += state.labs * seconds * speed / 5;
+    while (state.labProgress >= 1) {
+      if (requiredScienceKeys.some((key) => quantityFor(state, key) < 1)) break;
+      requiredScienceKeys.forEach((key) => {
+        state.products[key] = (state.products[key] ?? 0) - 1;
+        liveConsumption[key] = (liveConsumption[key] ?? 0) + 1;
+      });
+      state.labProgress -= 1;
+    }
   }
   const completed = state.queue.filter((item) => item.seconds <= seconds);
   state.queue = state.queue.map((item) => ({ ...item, seconds: Math.max(0, item.seconds - seconds) })).filter((item) => item.seconds > 0);
@@ -393,11 +436,22 @@ function loadState() {
       ...initialState,
       ...parsed,
       raw: { ...initialState.raw, ...parsed.raw },
-      products: { ...initialState.products, ...parsed.products },
-      storage: { ...initialState.storage, ...parsed.storage },
+      products: (() => {
+        const products = { ...initialState.products, ...parsed.products };
+        if (parsed.products?.researchPack !== undefined && parsed.products?.productionPack === undefined) products.productionPack = parsed.products.researchPack;
+        delete products.researchPack;
+        return products;
+      })(),
+      storage: (() => {
+        const storage = { ...initialState.storage, ...parsed.storage };
+        if (parsed.storage?.researchPack !== undefined && parsed.storage?.productionPack === undefined) storage.productionPack = parsed.storage.researchPack;
+        delete storage.researchPack;
+        return storage;
+      })(),
       storageBoxes: Object.fromEntries(trackedKeys.map((key) => {
-        const savedBoxes = parsed.storageBoxes?.[key];
-        return [key, typeof savedBoxes === 'number' ? Math.max(1, Math.floor(savedBoxes)) : Math.max(1, Math.ceil((parsed.storage?.[key] ?? storageBoxCapacity) / storageBoxCapacity))];
+        const savedBoxes = parsed.storageBoxes?.[key] ?? (key === 'productionPack' ? parsed.storageBoxes?.researchPack : undefined);
+        const savedCapacity = parsed.storage?.[key] ?? (key === 'productionPack' ? parsed.storage?.researchPack : undefined) ?? storageBoxCapacity;
+        return [key, typeof savedBoxes === 'number' ? Math.max(1, Math.floor(savedBoxes)) : Math.max(1, Math.ceil(savedCapacity / storageBoxCapacity))];
       })) as Record<TrackedKey, number>,
       miners: { ...initialState.miners, ...parsed.miners },
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
@@ -405,11 +459,25 @@ function loadState() {
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
       handcraft: parsed.handcraft ? { ...parsed.handcraft } : null,
       manualMining: parsed.manualMining ? { ...parsed.manualMining } : null,
-      produced: { ...initialState.produced, ...parsed.produced },
-      rateHistory: parsed.rateHistory ?? [],
+      produced: (() => {
+        const produced = { ...initialState.produced, ...parsed.produced };
+        if (parsed.produced?.researchPack !== undefined && parsed.produced?.productionPack === undefined) produced.productionPack = parsed.produced.researchPack;
+        delete produced.researchPack;
+        return produced;
+      })(),
+      rateHistory: (parsed.rateHistory ?? []).map((sample) => {
+        const production = { ...sample.production };
+        const consumption = { ...sample.consumption };
+        if (production.researchPack !== undefined && production.productionPack === undefined) production.productionPack = production.researchPack;
+        if (consumption.researchPack !== undefined && consumption.productionPack === undefined) consumption.productionPack = consumption.researchPack;
+        delete production.researchPack;
+        delete consumption.researchPack;
+        return { ...sample, production, consumption };
+      }),
       upgrades: { ...initialState.upgrades, ...parsed.upgrades },
       queue: parsed.queue ?? [],
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
+      currentResearch: parsed.currentResearch ?? initialState.currentResearch,
       lastSeen: parsed.lastSeen ?? Date.now(),
     } as GameState;
     Object.keys(state.storageBoxes).forEach((key) => { state.storage[key] = state.storageBoxes[key] * storageBoxCapacity; });
@@ -420,8 +488,12 @@ function loadState() {
   } catch { return { state: initialState, away: 0, recovered: 0 }; }
 }
 
+const iconFileFor: Record<string, string> = {
+  chemicalPack: 'chemical-science-pack', militaryPack: 'military-science-pack',
+  productionPack: 'researchPack', utilityPack: 'utility-science-pack',
+};
 function ResourceIcon({ item, size = 28 }: { item: TrackedKey; size?: number }) {
-  return <img src={`${import.meta.env.BASE_URL}item-icons/${item}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
+  return <img src={`${import.meta.env.BASE_URL}item-icons/${iconFileFor[item] ?? item}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
 }
 function Tag({ children, tone = 'teal' }: { children: ReactNode; tone?: 'teal' | 'amber' | 'red' | 'muted' }) {
   return <span className={`status-tag ${tone === 'teal' ? 'tag-running' : tone === 'amber' ? 'tag-starved' : tone === 'red' ? 'tag-blocked' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{children}</span>;
@@ -720,20 +792,61 @@ function UpgradesPage({ state, setState, enqueue, notice }: PageProps) {
 }
 
 function SciencePage({ state, setState, enqueue, notice }: PageProps) {
-  const totalConsumption = state.labs * 12 * state.simulationSpeed * (scienceKeys.some((key) => state.products[key] > 0) ? 1 : 0);
-  const sharedScale = Math.max(1, ...scienceKeys.map((key) => Math.max(
-    (state.assemblers[scienceRecipeKeys[key]] ?? 0) * 60 / recipeMap[scienceRecipeKeys[key]].energyRequired * (1 + state.upgrades.productionSpeed * .1),
-    state.products[key] > 0 ? state.labs * 12 : 0,
-  )));
+  const activeResearch = activeResearchFor(state);
+  const requiredScienceKeys = scienceRequirementKeysFor(activeResearch);
+  const currentSpm = scienceCurrentSpmFor(state, requiredScienceKeys);
+  const peakSpm = sciencePeakSpmFor(state, requiredScienceKeys);
+  const labRate = scienceLabRateFor(state);
   const buildLab = () => { if (state.products.ironPlate < 12 || state.products.circuit < 4) return notice('need 12 iron plates + 4 circuits'); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 12, circuit: s.products.circuit - 4 } })); enqueue('lab', 'Science lab', 65); };
-  return <PageFrame><Header eyebrow="Research fuel" title="Science" copy="Labs consume science packs at a measured rate. Identically scaled bars make the smallest capacity or demand visible at a glance." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><FlaskConical size={17} className="text-[hsl(var(--primary))]" /><span className="mono text-[15px]">{totalConsumption.toFixed(1)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">SPM</span></span></div>} /><section className="surface rounded-xl p-4 sm:p-5"><div className="mb-5 flex items-center justify-between"><SectionTitle detail={`${state.labs} labs online`}>Science pack flow</SectionTitle><button onClick={buildLab} className="button-base button-primary !py-2" data-testid="button-build-lab"><Plus size={13} /> build lab</button></div><div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4"><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Current SPM</div><div className="mono mt-2 text-xl text-[hsl(var(--primary))]">{totalConsumption.toFixed(1)}</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Labs</div><div className="mono mt-2 text-xl">{state.labs}</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Lab cycle</div><div className="mono mt-2 text-xl">5s</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Research bank</div><div className="mono mt-2 text-xl">{fmt(scienceKeys.reduce((sum, key) => sum + state.products[key], 0))}</div></div></div><div className="space-y-3">{scienceKeys.map((key) => { const scienceRecipe = recipeMap[scienceRecipeKeys[key]]; const productionCapacity = (state.assemblers[scienceRecipe.name] ?? 0) * 60 / scienceRecipe.energyRequired * (1 + state.upgrades.productionSpeed * .1) * (recipeOutputs(scienceRecipe).find((output) => output.key === key)?.amount ?? 1); const consumption = state.products[key] > 0 ? state.labs * 12 : 0; return <div className="data-row rounded-xl p-3 sm:p-4" key={key} data-testid={`row-science-${key}`}><div className="flex items-center gap-3"><div className="resource-orb !h-9 !w-9"><ResourceIcon item={key} size={25} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><span className="text-[12px] font-bold">{meta[key].label}</span><span className="mono text-[11px]">{fmt(state.products[key])} stored</span></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">capacity <span className="mono text-[hsl(var(--secondary))]">{productionCapacity.toFixed(1)}/min</span> · consumption <span className="mono text-[hsl(var(--primary))]">{consumption.toFixed(1)}/min</span></div></div></div><div className="mt-3 grid grid-cols-[1fr_1fr] gap-3"><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span>production capacity</span><span className="mono">{productionCapacity.toFixed(1)}</span></div><Progress value={productionCapacity / sharedScale * 100} /></div><div><div className="mb-1 flex justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span>lab consumption</span><span className="mono">{consumption.toFixed(1)}</span></div><Progress value={consumption / sharedScale * 100} tone="amber" /></div></div></div>; })}</div></section></PageFrame>;
+  const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
+  return <PageFrame>
+    <Header eyebrow="Research fuel" title="Science" copy="Labs consume every science pack required by the active research. SPM is limited by lab capacity and the tightest available pack line." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><FlaskConical size={17} className="text-[hsl(var(--primary))]" /><span className="mono text-[15px]">{currentSpm.toFixed(1)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">SPM</span></span></div>} />
+    <section className="surface mb-5 rounded-xl p-4 sm:p-5">
+      <div className="mb-5 flex items-center justify-between gap-3"><SectionTitle detail={activeResearch ? `${requiredScienceKeys.length} pack types required` : 'select research to run labs'}>Science throughput</SectionTitle><button onClick={buildLab} className="button-base button-primary !py-2" data-testid="button-build-lab"><Plus size={13} /> build lab</button></div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="surface-soft rounded-lg p-3"><div className="eyebrow">Current SPM</div><div className="mono mt-2 text-xl text-[hsl(var(--primary))]">{currentSpm.toFixed(1)}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">actual recent consumption</div></div>
+        <div className="surface-soft rounded-lg p-3"><div className="eyebrow">Peak SPM</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{peakSpm.toFixed(1)}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">pack supply bottleneck</div></div>
+        <div className="surface-soft rounded-lg p-3"><div className="eyebrow">Labs online</div><div className="mono mt-2 text-xl">{state.labs}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{labRate.toFixed(1)} cycles / min capacity</div></div>
+        <div className="surface-soft rounded-lg p-3"><div className="eyebrow">Active research</div><div className="mt-2 truncate text-[13px] font-extrabold">{activeResearch ? prettyLabel(activeResearch.name) : 'None selected'}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{activeResearch ? 'packs consumed per lab cycle' : 'choose a technology in Research'}</div></div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span className="eyebrow">Required line</span>{requiredScienceKeys.length ? requiredScienceKeys.map((key) => <span className="resource-chip" key={key}><span className="status-dot status-running" />{meta[key]?.label ?? prettyLabel(key)}</span>) : <span>No science packs required.</span>}</div>
+    </section>
+    <section className="surface rounded-xl p-4 sm:p-5">
+      <SectionTitle detail={`${scienceKeys.filter((key) => recipeIsUnlocked(recipeMap[scienceRecipeKeys[key]], state)).length}/${scienceKeys.length} recipes unlocked`}>Production cards</SectionTitle>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <article className="surface-soft rounded-xl p-3.5 sm:p-4" data-testid="card-science-labs">
+          <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="lab" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">Science labs</h2><Tag><span className="status-dot status-running" /> online</Tag></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">One lab cycle takes 5 seconds and consumes every pack required by the active research.</p></div></div>
+          <div className="mt-4 grid grid-cols-2 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">current</div><div className="mono mt-1 text-[15px] text-[hsl(var(--primary))]">{currentSpm.toFixed(1)} / min</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">peak</div><div className="mono mt-1 text-[15px] text-[hsl(var(--secondary))]">{peakSpm.toFixed(1)} / min</div></div></div>
+        </article>
+        {scienceKeys.map((key) => {
+          const recipe = recipeMap[scienceRecipeKeys[key]];
+          const unlocked = recipeIsUnlocked(recipe, state);
+          const required = requiredScienceKeys.includes(key);
+          const productionCapacity = unlocked ? sciencePackProductionRateFor(state, key) : 0;
+          const currentProduction = unlocked ? productionRateFor(state, key) : 0;
+          const currentConsumption = required ? demandRateFor(state, key) : 0;
+          const peakConsumption = required ? labRate : 0;
+          const ingredients = recipe.ingredients.map((ingredient) => `${amountLabel(materialAmount(ingredient))} ${prettyLabel(keyForSource(ingredient.name))}`).join(' + ');
+          return <article className={`rounded-xl border p-3.5 sm:p-4 ${unlocked ? 'surface-soft' : 'locked-wash opacity-55 grayscale'}`} key={key} data-testid={`card-science-${key}`}>
+            <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item={key} size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{meta[key].label}</h2>{unlocked ? <Tag><span className="status-dot status-running" /> unlocked</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>}</div><p className="mt-1 truncate text-[9px] text-[hsl(var(--muted-foreground))]" title={ingredients}>recipe · {ingredients}</p></div></div>
+            <CompactMetricsRow production={currentProduction} peakProduction={productionCapacity} demand={currentConsumption} peakConsumption={peakConsumption} net={currentProduction - currentConsumption} storage={state.products[key] ?? 0} capacity={capFor(state, key)} />
+            <div className="mt-3 flex items-center justify-between text-[9px] text-[hsl(var(--muted-foreground))]"><span>{required ? 'required by active research' : 'not required by active research'}</span><span className="mono">{Math.min(productionCapacity, required ? labRate : productionCapacity).toFixed(1)} supported / min</span></div>
+          </article>;
+        })}
+      </div>
+    </section>
+  </PageFrame>;
 }
 
 function ResearchArt({ accent }: { accent: string }) { return <div className="grid h-16 w-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_25%_10%)]" style={{ color: accent }}><svg width="72" height="56" viewBox="0 0 72 56" aria-hidden="true"><path stroke="currentColor" strokeOpacity=".35" d="M6 43 22 27l10 8 15-21 19 14" /><circle cx="22" cy="27" r="5" fill="currentColor" opacity=".85" /><circle cx="47" cy="14" r="5" fill="currentColor" opacity=".65" /><path fill="currentColor" opacity=".18" d="M7 47h58v3H7zM12 10h3v34h-3zm45 13h3v21h-3z" /></svg></div>; }
 function ResearchPage({ state, setState, notice }: PageProps) {
-  const [selected, setSelected] = useState<ResearchKey>(technologyCatalog[0]?.name ?? '');
+  const [selected, setSelected] = useState<ResearchKey>(state.currentResearch ?? technologyCatalog[0]?.name ?? '');
   const [query, setQuery] = useState('');
   const accentFor = (name: string) => ['#65afba', '#df7165', '#dfb05c', '#8ea9db', '#92c86b', '#c9d3d0'][name.length % 6];
+  const selectResearch = (name: ResearchKey) => {
+    setSelected(name);
+    setState((s) => s.currentResearch === name ? s : { ...s, currentResearch: name });
+  };
   const visibleTechnologies = useMemo(() => technologyCatalog.filter((technology) => {
     const haystack = `${technology.name} ${technology.prerequisites.join(' ')} ${technology.effects.map((effect) => `${effect.type} ${effect.recipe ?? ''}`).join(' ')}`.toLowerCase();
     return !query.trim() || haystack.includes(query.trim().toLowerCase());
@@ -776,7 +889,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
         const triggerReady = researchTriggerMet(state, technology);
         const costsMet = technology.scienceCosts.every((cost) => quantityFor(state, keyForSource(cost.pack)) >= cost.amount);
         const ready = prerequisitesMet && (technology.researchTrigger ? triggerReady : costsMet);
-        return <button onClick={() => setSelected(technology.name)} className={`surface flex w-full items-center gap-3 rounded-xl p-3 text-left sm:p-4 ${selected === technology.name ? 'border-[hsl(var(--secondary)/.65)] bg-[hsl(174_30%_15%/.7)]' : 'hover:border-[hsl(var(--border))]'}`} key={technology.name} data-testid={`button-research-${technology.name}`}>
+        return <button onClick={() => selectResearch(technology.name)} className={`surface flex w-full items-center gap-3 rounded-xl p-3 text-left sm:p-4 ${selected === technology.name ? 'border-[hsl(var(--secondary)/.65)] bg-[hsl(174_30%_15%/.7)]' : 'hover:border-[hsl(var(--border))]'}`} key={technology.name} data-testid={`button-research-${technology.name}`}>
           <ResearchArt accent={accentFor(technology.name)} />
           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[12px] font-extrabold">{prettyLabel(technology.name)}</span>{done ? <Tag><Check size={10} /> complete</Tag> : ready ? <Tag tone="amber">ready</Tag> : !prerequisitesMet ? <Tag tone="muted"><LockKeyhole size={10} /> prerequisite</Tag> : technology.researchTrigger ? <Tag tone="muted"><Clock3 size={10} /> production trigger</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> pack low</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{technology.effects.length} effects · {technology.prerequisites.length} prerequisites{technology.upgrade ? ' · upgrade' : ''}</p></div>
           <ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" />
