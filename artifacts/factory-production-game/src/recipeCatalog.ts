@@ -5365,11 +5365,26 @@ const recipeCatalogSource: Omit<RecipeCatalogEntry, 'scienceChain'>[] = [
   },
   {
     "name": "space-science-pack",
-    "energyRequired": 40,
+    "energyRequired": 300,
     "enabled": false,
     "hidden": false,
     "category": "rocket-building",
     "ingredients": [
+      {
+        "type": "item",
+        "name": "processing-unit",
+        "amount": 100
+      },
+      {
+        "type": "item",
+        "name": "low-density-structure",
+        "amount": 100
+      },
+      {
+        "type": "item",
+        "name": "rocket-fuel",
+        "amount": 100
+      },
       {
         "type": "item",
         "name": "satellite",

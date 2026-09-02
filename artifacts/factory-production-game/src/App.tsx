@@ -258,7 +258,7 @@ const automatedRecipeInputsFor = (state: GameState, recipe: Recipe) => {
 };
 const furnaceLabelFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? 'Steel Furnace' : 'Stone Furnace';
 const furnaceBuildRecipeFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? steelFurnaceRecipe : stoneFurnaceRecipe;
-const productionBuildingFor = (state: GameState, recipe: Recipe) => isSmeltingRecipe(recipe) ? state.furnaceVariant : isOilRefineryRecipe(recipe) ? 'oil-refinery' : isChemicalPlantRecipe(recipe) ? 'chemical-plant' : state.machineVariants.assembly;
+const productionBuildingFor = (state: GameState, recipe: Recipe) => recipe.name === 'space-science-pack' ? 'rocket-silo' : isSmeltingRecipe(recipe) ? state.furnaceVariant : isOilRefineryRecipe(recipe) ? 'oil-refinery' : isChemicalPlantRecipe(recipe) ? 'chemical-plant' : state.machineVariants.assembly;
 const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
 const trackedKeys: TrackedKey[] = Array.from(new Set([
   ...rawKeys,
@@ -446,9 +446,11 @@ const miningOutputPerSecondFor = (key: RawKey) => key === 'uranium' ? 0.32 : key
 const miningMachineBuildCostFor = (state: GameState): BuildMaterialCost[] => state.machineVariants.mining === 'electric-mining-drill'
   ? electricMiningDrillBuildCost
   : [{ key: 'gear', amount: burnerMiningDrillCost.gear, source: 'products' }, { key: 'ironPlate', amount: burnerMiningDrillCost.ironPlate, source: 'products' }, { key: 'stone', amount: burnerMiningDrillCost.stone, source: 'raw' }];
-const productionMachineLabelFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe) ? 'Oil Refinery' : isChemicalPlantRecipe(recipe) ? 'Chemical Plant' : state.machineVariants.assembly === 'assembling-machine-2' ? 'Assembly Machine 2' : 'Assembly Machine 1';
-const productionMachineRecipeFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe) ? oilRefineryRecipe : isChemicalPlantRecipe(recipe) ? chemicalPlantRecipe : state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoRecipe : assemblyMachineOneRecipe;
-const productionMachineBuildCostFor = (state: GameState, recipe?: Recipe): BuildMaterialCost[] => isOilRefineryRecipe(recipe) || isChemicalPlantRecipe(recipe)
+const productionMachineLabelFor = (state: GameState, recipe?: Recipe) => recipe?.name === 'space-science-pack' ? 'Rocket Silo' : isOilRefineryRecipe(recipe) ? 'Oil Refinery' : isChemicalPlantRecipe(recipe) ? 'Chemical Plant' : state.machineVariants.assembly === 'assembling-machine-2' ? 'Assembly Machine 2' : 'Assembly Machine 1';
+const productionMachineRecipeFor = (state: GameState, recipe?: Recipe) => recipe?.name === 'space-science-pack' ? rocketSiloRecipe : isOilRefineryRecipe(recipe) ? oilRefineryRecipe : isChemicalPlantRecipe(recipe) ? chemicalPlantRecipe : state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoRecipe : assemblyMachineOneRecipe;
+const productionMachineBuildCostFor = (state: GameState, recipe?: Recipe): BuildMaterialCost[] => recipe?.name === 'space-science-pack'
+  ? rocketSiloBuildCost
+  : isOilRefineryRecipe(recipe) || isChemicalPlantRecipe(recipe)
   ? recipeBuildCosts(isOilRefineryRecipe(recipe) ? oilRefineryRecipe : chemicalPlantRecipe)
   : state.machineVariants.assembly === 'assembling-machine-2'
     ? assemblyMachineTwoBuildCost
@@ -1457,7 +1459,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
     if (key === 'basic-oil-processing' && state.oilProcessingAdvanced) return notice('Advanced Oil Processing is already installed');
     if (key === 'basic-oil-processing' && state.queue.some((item) => item.action === 'upgrade' && item.targetId === OIL_PROCESSING_UPGRADE_ID)) return notice('finish the oil processing conversion before building more refineries');
     if (!automationUnlocked) return notice('Automation technology required');
-    const machineCosts = productionMachineBuildCostFor(state, recipe);
+     const machineCosts = productionMachineBuildCostFor(state, recipe);
     const machine = productionMachineRecipeFor(state, recipe);
     enqueue('assembler', `${prettyLabel(key)} ${productionMachineLabelFor(state, recipe).toLowerCase()}`, machine.energyRequired, key, machineCosts);
   };

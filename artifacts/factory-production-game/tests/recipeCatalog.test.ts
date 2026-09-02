@@ -6,9 +6,14 @@ test('Space Science Pack uses a satellite and is part of the core chain', () => 
   const spaceScience = recipeCatalog.find((recipe) => recipe.name === 'space-science-pack');
 
   assert.ok(spaceScience);
-  assert.equal(spaceScience.energyRequired, 40);
+  assert.equal(spaceScience.energyRequired, 300);
   assert.equal(spaceScience.category, 'rocket-building');
-  assert.deepEqual(spaceScience.ingredients, [{ type: 'item', name: 'satellite', amount: 1 }]);
+  assert.deepEqual(spaceScience.ingredients, [
+    { type: 'item', name: 'processing-unit', amount: 100 },
+    { type: 'item', name: 'low-density-structure', amount: 100 },
+    { type: 'item', name: 'rocket-fuel', amount: 100 },
+    { type: 'item', name: 'satellite', amount: 1 },
+  ]);
   assert.deepEqual(spaceScience.results, [{ type: 'item', name: 'space-science-pack', amount: 1000 }]);
 
   const coreRecipes = new Set(recipeCatalog.filter((recipe) => recipe.scienceChain === 'Core').map((recipe) => recipe.name));
