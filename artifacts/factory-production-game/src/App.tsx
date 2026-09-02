@@ -21,6 +21,7 @@ type UnitStatus = 'running' | 'starved' | 'blocked';
 
 type Recipe = RecipeCatalogEntry;
 type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'lab' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number };
+type HandcraftJob = { recipeKey: string; seconds: number; total: number };
 type GameState = {
   raw: Record<RawKey, number>;
   products: Record<string, number>;
@@ -33,6 +34,7 @@ type GameState = {
   miningProgress: Record<RawKey, number>;
   assemblyProgress: Record<string, number>;
   labProgress: number;
+  handcraft: HandcraftJob | null;
   queue: QueueItem[];
   research: ResearchKey[];
   produced: Record<string, number>;
@@ -136,7 +138,7 @@ const initialState: GameState = {
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labs: 1, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, queue: [], research: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
+  labProgress: 0, handcraft: null, queue: [], research: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
 };
 
@@ -248,7 +250,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage },
     assemblers: { ...previous.assemblers }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
-    queue: previous.queue.map((item) => ({ ...item })), research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
+    handcraft: previous.handcraft ? { ...previous.handcraft } : null, queue: previous.queue.map((item) => ({ ...item })), research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
   };
   const speed = state.simulationSpeed;
   const operatingSeconds = burnerOperatingSeconds(state, seconds);
@@ -280,6 +282,19 @@ function simulate(previous: GameState, seconds: number): GameState {
       state.assemblyProgress[key] -= 1; state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0); cycles += 1;
     }
   });
+  if (state.handcraft) {
+    state.handcraft.seconds = Math.max(0, state.handcraft.seconds - seconds * speed);
+    if (state.handcraft.seconds <= 0) {
+      const recipe = recipeMap[state.handcraft.recipeKey];
+      const outputs = recipeOutputs(recipe);
+      const outputFits = outputs.every(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount <= capFor(state, outputKey));
+      if (outputFits) {
+        outputs.forEach(({ key: outputKey, amount }) => { addTracked(state, outputKey, amount); recordProduction(state, outputKey, amount); });
+        state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0);
+        state.handcraft = null;
+      }
+    }
+  }
   state.labProgress += state.labs * seconds * speed / 5;
   while (state.labProgress >= 1) {
     const pack = scienceKeys.find((key) => state.products[key] > 0);
@@ -314,6 +329,7 @@ function loadState() {
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
       miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
+      handcraft: parsed.handcraft ? { ...parsed.handcraft } : null,
       produced: { ...initialState.produced, ...parsed.produced },
       upgrades: { ...initialState.upgrades, ...parsed.upgrades },
       queue: parsed.queue ?? [],
@@ -378,6 +394,24 @@ function BuildProgress({ items, label }: { items: QueueItem[]; label: string }) 
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(Math.max(0, complete))}% complete</span><span>building now</span></div>
   </div>;
 }
+function HandcraftProgress({ job, recipe }: { job: HandcraftJob; recipe: Recipe }) {
+  const output = recipeOutputs(recipe)[0];
+  const blocked = job.seconds <= 0;
+  return <div className="construction-panel mt-3 rounded-lg p-3" aria-live="polite" data-testid={`panel-handcraft-${job.recipeKey}`}>
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-2">
+        <div className="construction-pulse mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md">{output && <ResourceIcon item={output.key} size={15} />}</div>
+        <div className="min-w-0">
+          <div className="eyebrow text-[hsl(var(--primary))]">{blocked ? 'Handcraft waiting' : 'Handcraft in progress'}</div>
+          <div className="mt-1 truncate text-[10px] font-bold">{prettyLabel(job.recipeKey)}</div>
+        </div>
+      </div>
+      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{blocked ? 'storage full' : `${job.seconds.toFixed(2)}s`}</span>
+    </div>
+    <div className="mt-2"><Progress value={(1 - job.seconds / job.total) * 100} tone="amber" /></div>
+    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{blocked ? 'clear output storage to finish' : `${Math.floor(Math.max(0, 1 - job.seconds / job.total) * 100)}% complete`}</span><span>one item at a time</span></div>
+  </div>;
+}
 
 function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
   const active = totalUnits(state);
@@ -431,21 +465,19 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
     return matchesQuery && (category === 'all' || recipe.category === category);
   }), [category, query, state]);
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
-  const tap = (key: ComponentKey) => {
+  const handcraft = (key: ComponentKey) => {
     const recipe = recipeMap[key];
-    if (state.assemblers[key]) return notice('assembler already controls this recipe');
+    if (state.handcraft) return notice(state.handcraft.recipeKey === key ? `already handcrafting ${prettyLabel(key)}` : `finish handcrafting ${prettyLabel(state.handcraft.recipeKey)} first`);
     if (!hasInputs(state, recipeInputs(recipe))) return notice('missing recipe inputs');
     const outputs = recipeOutputs(recipe);
     if (outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) return notice('output storage is full');
     setState((s) => {
       const next = { ...s, raw: { ...s.raw }, products: { ...s.products } };
       spendInputs(next, recipeInputs(recipe));
-      outputs.forEach(({ key: outputKey, amount }) => { addTracked(next, outputKey, amount); recordProduction(next, outputKey, amount); });
-      next.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0);
-      applyResearchTriggers(next);
+      next.handcraft = { recipeKey: key, seconds: recipe.energyRequired, total: recipe.energyRequired };
       return next;
     });
-    notice(`${prettyLabel(outputs[0]?.key ?? recipe.name)} produced manually`);
+    notice(`handcrafting ${prettyLabel(outputs[0]?.key ?? recipe.name)}`);
   };
   const buildAssembler = (key: ComponentKey) => {
     if (!automationUnlocked) return notice('Automation technology required');
@@ -475,6 +507,9 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       const netRate = primaryOutput ? netRateFor(state, primaryOutput.key) : 0;
       const constructionItems = state.queue.filter((item) => item.action === 'assembler' && item.targetId === key);
       const isBuilding = constructionItems.length > 0;
+      const handcraftJob = state.handcraft?.recipeKey === key ? state.handcraft : null;
+      const handcraftBusy = Boolean(state.handcraft && !handcraftJob);
+      const handcraftControl = <button onClick={() => handcraft(key)} className={`button-base !py-2 ${count ? '!px-2' : 'button-primary flex-1'}`} aria-label={`Handcraft ${prettyLabel(key)}`} title={handcraftJob ? `Handcrafting ${prettyLabel(key)}` : handcraftBusy ? 'Another item is being handcrafted' : `Handcraft ${prettyLabel(key)}`} data-testid={`button-handcraft-production-${key}`}>{handcraftJob ? <><Clock3 size={13} /> {handcraftJob.seconds.toFixed(2)}s</> : handcraftBusy ? <Clock3 size={13} /> : <><Plus size={13} />{!count && ' handcraft'}</>}</button>;
       return <section className="surface rounded-xl p-4" key={key} data-testid={`section-production-${key}`}>
         <div className="flex items-start gap-3">
           <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
@@ -493,8 +528,8 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
           </div>
         </div>
         <div className="mt-4 flex items-end justify-between"><div><div className="eyebrow">Net rate · primary output</div><div className={`mono mt-1 text-[17px] ${netRate < 0 ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary))]'}`}>{netRate > 0 ? '+' : ''}{netRate.toFixed(1)} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">/ min</span></div></div><div className="text-right"><div className="eyebrow">Stored</div><div className="mono mt-1 text-[14px]">{fmt(primaryOutput ? quantityFor(state, primaryOutput.key) : 0)}</div></div></div>
-        <BuildProgress items={constructionItems} label={`${prettyLabel(key)} assembly machine 1`} />
-        <div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${prettyLabel(key)} assembler is running at ${rate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button><button onClick={() => buildAssembler(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another assembly machine 1 for ${prettyLabel(key)}`} data-testid={`button-build-more-assembler-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => tap(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-tap-production-${key}`}><Plus size={13} /> produce outputs</button><button onClick={() => buildAssembler(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct assembly machine 1 for ${prettyLabel(key)}`} data-testid={`button-build-assembler-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div>
+        {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} />}
+        <div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${prettyLabel(key)} assembler is running at ${rate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button>{handcraftControl}<button onClick={() => buildAssembler(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another assembly machine 1 for ${prettyLabel(key)}`} data-testid={`button-build-more-assembler-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => handcraft(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-handcraft-production-${key}`}><Plus size={13} /> handcraft</button><button onClick={() => buildAssembler(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct assembly machine 1 for ${prettyLabel(key)}`} data-testid={`button-build-assembler-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div>
       </section>;
     })}</div>
   </PageFrame>;
