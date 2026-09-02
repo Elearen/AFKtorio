@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/upgradeSystem.ts", "tests/**/*.test.ts"],
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "/tmp/factory-production-game-tests",
+    "rootDir": ".",
+    "noEmit": false,
+    "types": ["node"],
+    "sourceMap": false,
+    "declaration": false
+  }
+}

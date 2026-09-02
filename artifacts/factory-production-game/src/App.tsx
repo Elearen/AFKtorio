@@ -5,6 +5,11 @@ import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
 import {
+  applyUpgradeCompletion, beginUpgrade, machineCountForUpgrade as upgradeMachineCountFor,
+  migrateMachineUpgradeState, scaledBuildCosts, upgradeData, upgradeMap,
+  type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
+} from './upgradeSystem';
+import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, Factory as FactoryIcon, FlaskConical, Gauge, Hammer,
   Info, Layers3, Lightbulb, LockKeyhole, Pickaxe, Plus, Power,
@@ -16,8 +21,6 @@ type RawKey = 'iron' | 'copper' | 'stone' | 'coal' | 'wood' | 'water' | 'uranium
 type ComponentKey = string;
 type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militaryPack' | 'productionPack' | 'utilityPack';
 type TrackedKey = string;
-type MachineGroup = 'assembly' | 'mining';
-type UpgradeKey = 'assembly-machine-2' | 'electric-mining-drill';
 type ResearchKey = string;
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
@@ -31,23 +34,6 @@ type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'asse
 type HandcraftJob = { recipeKey: string; seconds: number; total: number };
 type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number };
 type RateSample = { seconds: number; production: Record<TrackedKey, number>; manualProduction?: Record<TrackedKey, number>; consumption: Record<TrackedKey, number> };
-type BuildMaterialCost = { key: string; amount: number; source: 'raw' | 'products' };
-type UpgradeDefinition = {
-  id: UpgradeKey;
-  name: string;
-  copy: string;
-  prerequisiteTechnology: ResearchKey;
-  relevantMachine: string;
-  machineGroup: MachineGroup;
-  upgradeCostPerMachine: BuildMaterialCost[];
-  upgradeTimePerMachine: number;
-  newMachine: string;
-  newMachineLabel: string;
-  newMachineMaterialCost: BuildMaterialCost[];
-  newMachinePowerDraw: number;
-  newMachineProductionSpeed: number;
-};
-type MachineVariants = Record<MachineGroup, string>;
 type GameState = {
   raw: Record<RawKey, number>;
   products: Record<string, number>;
@@ -145,13 +131,9 @@ const burnerMiningDrillCost = { gear: 3, ironPlate: 3, stone: 5 };
 const burnerMiningDrillCoalPerSecond = 0.25;
 const burnerMiningDrillProductionSpeed = 0.35;
 const electricMiningDrillRecipe = recipeMap['electric-mining-drill'];
-const electricMiningDrillBuildCost: BuildMaterialCost[] = [
-  { key: 'circuit', amount: 3, source: 'products' },
-  { key: 'gear', amount: 5, source: 'products' },
-  { key: 'ironPlate', amount: 10, source: 'products' },
-];
-const electricMiningDrillPowerKw = 90;
-const electricMiningDrillProductionSpeed = 0.5;
+const electricMiningDrillBuildCost = upgradeMap['electric-mining-drill'].newMachineMaterialCost;
+const electricMiningDrillPowerKw = upgradeMap['electric-mining-drill'].newMachinePowerDraw;
+const electricMiningDrillProductionSpeed = upgradeMap['electric-mining-drill'].newMachineProductionSpeed;
 const waterPumpPerSecond = 1200;
 const fueledBurnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'wood'];
 const smeltingRecipeKeys = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
@@ -162,14 +144,9 @@ const assemblyMachineOneBuildCost = { circuit: 3, gear: 5, ironPlate: 9 };
 const assemblyMachineOnePowerKw = 75;
 const assemblyMachineOneProductionSpeed = 0.5;
 const assemblyMachineTwoRecipe = recipeMap['assembling-machine-2'];
-const assemblyMachineTwoBuildCost: BuildMaterialCost[] = [
-  { key: 'circuit', amount: 6, source: 'products' },
-  { key: 'gear', amount: 10, source: 'products' },
-  { key: 'ironPlate', amount: 9, source: 'products' },
-  { key: 'steel', amount: 2, source: 'products' },
-];
-const assemblyMachineTwoPowerKw = 150;
-const assemblyMachineTwoProductionSpeed = 0.75;
+const assemblyMachineTwoBuildCost = upgradeMap['assembly-machine-2'].newMachineMaterialCost;
+const assemblyMachineTwoPowerKw = upgradeMap['assembly-machine-2'].newMachinePowerDraw;
+const assemblyMachineTwoProductionSpeed = upgradeMap['assembly-machine-2'].newMachineProductionSpeed;
 const labPowerKw = 7000;
 const storageBoxCapacity = 180;
 const storageBoxWoodCost = 2;
@@ -311,48 +288,6 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
   uranium: { label: 'Uranium', description: 'Dense fuel for the late-stage reactor chain.', research: 'nuclear-power', needs: 'Nuclear Power' },
 };
 
-const upgradeData: UpgradeDefinition[] = [
-  {
-    id: 'assembly-machine-2',
-    name: 'Upgrade Production to Assembly Machine 2',
-    copy: 'Replace every Assembly Machine 1 with a faster, higher-power Assembly Machine 2.',
-    prerequisiteTechnology: 'automation-2',
-    relevantMachine: 'Assembly Machine',
-    machineGroup: 'assembly',
-    upgradeCostPerMachine: [
-      { key: 'circuit', amount: 3, source: 'products' },
-      { key: 'gear', amount: 5, source: 'products' },
-      { key: 'steel', amount: 2, source: 'products' },
-    ],
-    upgradeTimePerMachine: 0.5,
-    newMachine: 'assembling-machine-2',
-    newMachineLabel: 'Assembly Machine 2',
-    newMachineMaterialCost: assemblyMachineTwoBuildCost,
-    newMachinePowerDraw: assemblyMachineTwoPowerKw,
-    newMachineProductionSpeed: assemblyMachineTwoProductionSpeed,
-  },
-  {
-    id: 'electric-mining-drill',
-    name: 'Upgrade Mining to Electric Mining',
-    copy: 'Replace every burner mining drill with an Electric Miner and remove the coal requirement.',
-    prerequisiteTechnology: 'electric-mining-drill',
-    relevantMachine: 'Burner Mining Drill',
-    machineGroup: 'mining',
-    upgradeCostPerMachine: [
-      { key: 'circuit', amount: 3, source: 'products' },
-      { key: 'gear', amount: 2, source: 'products' },
-      { key: 'ironPlate', amount: 7, source: 'products' },
-    ],
-    upgradeTimePerMachine: 2,
-    newMachine: 'electric-mining-drill',
-    newMachineLabel: 'Electric Miner',
-    newMachineMaterialCost: electricMiningDrillBuildCost,
-    newMachinePowerDraw: electricMiningDrillPowerKw,
-    newMachineProductionSpeed: electricMiningDrillProductionSpeed,
-  },
-];
-const upgradeMap: Record<UpgradeKey, UpgradeDefinition> = Object.fromEntries(upgradeData.map((upgrade) => [upgrade.id, upgrade])) as Record<UpgradeKey, UpgradeDefinition>;
-
 const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
 const duration = (n: number) => `${Math.floor(n / 60)}m ${String(Math.max(0, Math.floor(n % 60))).padStart(2, '0')}s`;
 const capFor = (state: GameState, key: TrackedKey) => Math.floor(state.storage[key] ?? 180);
@@ -392,8 +327,7 @@ const electricPowerRatioFor = (state: GameState) => {
 };
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
 const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels;
-const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgrade.machineGroup === 'assembly' ? electricAssemblerCount(state) : burnerMinerCount(state);
-const scaledBuildCosts = (costs: BuildMaterialCost[], multiplier: number) => costs.map((cost) => ({ ...cost, amount: cost.amount * multiplier }));
+const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade);
 const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
 const miningMachineBuildCostFor = (state: GameState): BuildMaterialCost[] => state.machineVariants.mining === 'electric-mining-drill'
@@ -745,8 +679,7 @@ function simulate(previous: GameState, seconds: number): GameState {
       state.storage[key] = (state.storage[key] ?? storageBoxCapacity) + storageBoxCapacity;
     }
     if (item.action === 'upgrade') {
-      const upgrade = upgradeMap[(item.targetId ?? item.target) as UpgradeKey];
-      if (upgrade) state.machineVariants[upgrade.machineGroup] = upgrade.newMachine;
+      state.machineVariants = applyUpgradeCompletion(state.machineVariants, item.targetId ?? item.target);
     }
   });
   applyResearchTriggers(state);
@@ -762,6 +695,7 @@ function loadState() {
     if (!parsed) return { state: initialState, away: 0, recovered: 0 };
     const savedRateHistory = parsed.rateHistory ?? [];
     const hasRateSourceData = savedRateHistory.every((sample) => sample.manualProduction !== undefined);
+    const migratedUpgradeState = migrateMachineUpgradeState({ machineVariants: parsed.machineVariants, queue: parsed.queue });
     const state = {
       ...initialState,
       ...parsed,
@@ -806,12 +740,8 @@ function loadState() {
         delete consumption.researchPack;
         return { ...sample, production, consumption };
       }) : [],
-      machineVariants: {
-        assembly: parsed.machineVariants?.assembly === 'assembling-machine-2' ? 'assembling-machine-2' : 'assembling-machine-1',
-        mining: parsed.machineVariants?.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
-      },
-      // Legacy level-based upgrade data and its in-flight jobs are intentionally not migrated.
-      queue: (parsed.queue ?? []).filter((item) => item.action !== 'upgrade' || Boolean(upgradeMap[item.targetId as UpgradeKey])),
+      machineVariants: migratedUpgradeState.machineVariants,
+      queue: migratedUpgradeState.queue,
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
       currentResearch: parsed.currentResearch ? normalizeResearchKey(String(parsed.currentResearch)) : initialState.currentResearch,
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
@@ -1348,25 +1278,18 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
   const costLabel = (cost: BuildMaterialCost) => `${fmt(cost.amount)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`;
   const costChips = (costs: BuildMaterialCost[]) => <div className="flex flex-wrap gap-1.5">{costs.map((cost) => <span className="resource-chip !px-1.5 !py-1" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={16} />{costLabel(cost)}</span>)}</div>;
   const startUpgrade = (upgrade: UpgradeDefinition) => {
-    if (state.machineVariants[upgrade.machineGroup] === upgrade.newMachine) return notice(`${upgrade.newMachineLabel} is already installed`);
-    if (activeUpgrade) return notice('finish the active upgrade before starting another');
-    if (!state.research.includes(upgrade.prerequisiteTechnology)) return notice(`${prettyLabel(upgrade.prerequisiteTechnology)} required`);
-    const machineCount = machineCountForUpgrade(state, upgrade);
-    if (!machineCount) return notice(`construct at least one ${upgrade.relevantMachine.toLowerCase()} first`);
-    const totalCosts = scaledBuildCosts(upgrade.upgradeCostPerMachine, machineCount);
-    const missing = missingBuildMaterials(state, totalCosts);
-    if (missing) return notice(`need ${missing}`);
-    const totalSeconds = upgrade.upgradeTimePerMachine * machineCount;
-    setState((s) => {
-      const products = { ...s.products };
-      const raw = { ...s.raw };
-      totalCosts.forEach(({ key, amount, source }) => {
-        if (source === 'raw') raw[key as RawKey] -= amount;
-        else products[key] = (products[key] ?? 0) - amount;
-      });
-      return { ...s, raw, products, queue: [...s.queue, { id: `upgrade-${Date.now()}`, action: 'upgrade', target: upgrade.name, targetId: upgrade.id, machineCount, seconds: totalSeconds, total: totalSeconds }] };
-    });
-    notice(`${upgrade.name} started for ${machineCount} machine${machineCount === 1 ? '' : 's'}`);
+    const jobId = `upgrade-${Date.now()}`;
+    const result = beginUpgrade({
+      raw: state.raw,
+      products: state.products,
+      research: state.research,
+      machineVariants: state.machineVariants,
+      machineCounts: { assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) },
+      queue: state.queue,
+    }, upgrade.id, jobId);
+    if (!result.ok) return notice(result.message);
+    setState((s) => ({ ...s, raw: result.state.raw, products: result.state.products, queue: result.state.queue as QueueItem[] }));
+    notice(`${upgrade.name} started for ${result.job.machineCount} machine${result.job.machineCount === 1 ? '' : 's'}`);
   };
   return <PageFrame>
     <Header eyebrow="Machine conversion" title="Upgrades" copy="Convert every relevant machine in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 2 machine upgrades</Tag>} />
