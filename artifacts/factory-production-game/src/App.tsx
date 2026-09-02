@@ -24,7 +24,7 @@ import {
   Cog, MoveRight, Cpu, Factory as FactoryIcon, FlaskConical, Gauge, Hammer,
   Info, Layers3, Lightbulb, LockKeyhole, Pickaxe, Plus, Power,
   RotateCcw, Save, Settings2, ShieldAlert, Sparkles, Sun, Trash2,
-  TrendingUp, TriangleAlert, Truck, Waves, Zap,
+  TrendingUp, TriangleAlert, Truck, Waves, X, Zap,
 } from 'lucide-react';
 
 type RawKey = 'iron' | 'copper' | 'stone' | 'coal' | 'wood' | 'water' | 'uranium' | 'crudeOil';
@@ -1750,6 +1750,7 @@ function ResearchArt({ technology, accent }: { technology: TechnologyDefinition;
 }
 function ResearchPage({ state, setState, notice }: PageProps) {
   const [selected, setSelected] = useState<ResearchKey>(state.currentResearch ?? orderedTechnologyCatalog[0]?.name ?? '');
+  const [detailsTechnology, setDetailsTechnology] = useState<ResearchKey | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<ResearchFilter>('unlocked');
   const accentFor = (name: string) => ['#65afba', '#df7165', '#dfb05c', '#8ea9db', '#92c86b', '#c9d3d0'][name.length % 6];
@@ -1779,16 +1780,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     const haystack = `${technology.name} ${technology.prerequisites.join(' ')} ${technology.effects.map((effect) => `${effect.type} ${effect.recipe ?? ''}`).join(' ')}`.toLowerCase();
     return status === filter && (!query.trim() || haystack.includes(query.trim().toLowerCase()));
   }), [filter, query, state.research]);
-  const item = technologyMap[selected] ?? orderedTechnologyCatalog[0];
-  if (!item) return null;
-  const selectedDone = state.research.includes(item.name);
-  const selectedPrerequisitesMet = technologyPrerequisitesMet(state, item);
-  const selectedTriggerProgress = researchTriggerProgress(state, item);
-  const selectedTriggerReady = researchTriggerMet(state, item);
-  const selectedProgress = researchProgressFor(state, item);
-  const selectedTotal = researchUnitsFor(item);
-  const selectedProgressPercent = selectedTriggerProgress ? selectedTriggerProgress.produced / selectedTriggerProgress.required * 100 : selectedProgress / selectedTotal * 100;
-  const selectedAuto = (state.autoResearch ?? []).includes(item.name);
+  const detailItem = detailsTechnology ? technologyMap[detailsTechnology] : undefined;
   const activeResearch = activeResearchFor(state);
   const activeResearchIsLabDriven = Boolean(activeResearch && !activeResearch.researchTrigger && activeResearch.scienceCosts.length);
   const activeResearchRate = activeResearchIsLabDriven ? scienceLabRateFor(state, activeResearch) : 0;
@@ -1806,7 +1798,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     </section>
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search technologies, prerequisites, or effects" className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search technologies" data-testid="input-search-technologies" />
-      <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Technology filters">{(['completed', 'unlocked', 'locked'] as ResearchFilter[]).map((option) => <button onClick={() => setFilter(option)} className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${filter === option ? 'button-primary' : 'button-ghost'}`} aria-pressed={filter === option} key={option} data-testid={`button-filter-${option}`}>{option} <span className="mono opacity-75">{technologyCounts[option]}</span></button>)}</div>
+      <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Technology filters">{(['completed', 'unlocked', 'locked'] as ResearchFilter[]).map((option) => <button onClick={() => setFilter(option)} className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${filter === option ? 'button-primary' : 'button-ghost'}`} aria-pressed={filter === option} key={option} data-testid={`button-filter-${option}`}>{option === 'locked' ? 'Available' : option} <span className="mono opacity-75">{technologyCounts[option]}</span></button>)}</div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source names remain intact for save compatibility and dependency matching.</span><span className="mono">{(state.autoResearch ?? []).length} auto selected · {visibleTechnologies.length} visible</span></div>
     </section>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -1832,6 +1824,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
               </div>
               <ChevronRight size={15} className="mt-1 shrink-0 text-[hsl(var(--muted-foreground))]" />
             </button>
+             <button type="button" onClick={(event) => { event.stopPropagation(); setDetailsTechnology(technology.name); }} className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] text-[hsl(var(--muted-foreground))] transition-colors hover:border-[hsl(var(--primary)/.55)] hover:text-[hsl(var(--primary))]" title={`More info about ${prettyLabel(technology.name)}`} aria-label={`More info about ${prettyLabel(technology.name)}`} data-testid={`button-more-info-${technology.name}`}><Info size={14} /></button>
             <label className="flex shrink-0 cursor-pointer flex-col items-center gap-1 text-center text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]" title="Auto research when available">
               <input type="checkbox" checked={autoPosition >= 0} onChange={() => toggleAutoResearch(technology.name)} className="h-4 w-4 accent-[hsl(var(--primary))]" aria-label={`Auto research ${prettyLabel(technology.name)}`} data-testid={`checkbox-auto-research-${technology.name}`} />
               <span>{autoPosition >= 0 ? `auto #${autoPosition + 1}` : 'auto'}</span>
@@ -1839,21 +1832,36 @@ function ResearchPage({ state, setState, notice }: PageProps) {
           </div>
         </div>;
       })}</section>
-      <aside className="surface h-fit rounded-xl p-5">
-        <div className="eyebrow">Technology detail</div>
-        <div className="mt-3 flex items-start justify-between gap-3"><h2 className="text-lg font-extrabold">{prettyLabel(item.name)}</h2><Tag tone={item.upgrade ? 'amber' : 'teal'}>{item.upgrade ? 'upgrade' : 'technology'}</Tag></div>
-        <div className="mt-2 flex flex-wrap gap-1">{item.essential && <Tag>essential</Tag>}{item.maxLevel && <Tag tone="muted">{prettyLabel(item.maxLevel)} levels</Tag>}{item.researchTrigger && <Tag tone="muted">triggered</Tag>}</div>
-        <div className="mt-5 border-y border-[hsl(var(--border))] py-4"><div className="flex items-center justify-between text-[10px]"><span className="eyebrow">Research progress</span><span className={`mono ${selectedDone ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--primary))]'}`}>{selectedDone ? 'complete' : selectedTriggerProgress ? `${fmt(selectedProgress)} / ${fmt(selectedTriggerProgress.required)}` : `${fmt(selectedProgress)} / ${item.countFormula ?? fmt(selectedTotal)} units`}</span></div><div className="mt-2"><Progress value={selectedDone ? 100 : selectedProgressPercent} tone={selectedDone ? 'teal' : 'amber'} /></div><div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">{item.researchTrigger ? 'Production triggers complete this technology when its requirement is met.' : `Labs advance one unit every ${item.time ?? 5}s at 1x speed.`}</div></div>
-        <div className="mt-5 border-y border-[hsl(var(--border))] py-4">
-          <div className="eyebrow mb-3">Prerequisites</div>
-          {item.prerequisites.length ? <div className="flex flex-wrap gap-1.5">{item.prerequisites.map((prerequisite) => <span className={`resource-chip ${state.research.includes(prerequisite) ? 'border-[hsl(var(--secondary)/.55)]' : ''}`} key={prerequisite}><span className={`status-dot ${state.research.includes(prerequisite) ? 'status-running' : 'status-starved'}`} />{prettyLabel(prerequisite)}</span>)}</div> : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No prerequisites · available at the start.</div>}
-        </div>
-          {item.researchTrigger ? <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-2">Unlock trigger</div><div className="text-[11px]">{researchTriggerLabel(item.researchTrigger)}</div>{selectedTriggerProgress ? <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">Starting inventory does not count toward this trigger.</div> : <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">This trigger type is not represented by a quantity counter in the current simulator.</div>}</div> : <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Science requirements</div><div className="space-y-2">{item.scienceCosts.length ? item.scienceCosts.map((cost) => { const costKey = keyForSource(cost.pack); const have = quantityFor(state, costKey); return <div className="flex items-center justify-between text-[11px]" key={cost.pack}><span className="flex items-center gap-2"><ResourceIcon item={costKey} size={20} />{meta[costKey].label} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per unit</span></span><span className={`mono ${have >= cost.amount ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{fmt(have)} / {cost.amount}</span></div>; }) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No science packs required.</div>}</div><div className="mt-3 text-[10px] text-[hsl(var(--muted-foreground))]">Total requirement: <span className="mono">{item.scienceCosts.length ? item.scienceCosts.map((cost) => researchRequirementLabel(item, cost)).join(' · ') : 'none'}</span></div></div>}
-        <div className="py-4"><div className="eyebrow mb-3">Effects</div><div className="space-y-2">{item.effects.length ? item.effects.map((effect, index) => <div className="data-row rounded-lg px-3 py-2 text-[10px]" key={`${effect.type}-${index}`}><span className="font-semibold">{effect.recipe ? `Unlock ${prettyLabel(effect.recipe)}` : prettyLabel(effect.type)}</span>{effect.target && <span className="text-[hsl(var(--muted-foreground))]"> · {prettyLabel(effect.target)}</span>}{effect.modifier !== undefined && <span className="mono float-right text-[hsl(var(--secondary))]">{typeof effect.modifier === 'number' && effect.modifier > 0 ? '+' : ''}{String(effect.modifier)}</span>}</div>) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No listed effects.</div>}</div></div>
-         <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.07)] p-3 text-[11px]"><span><span className="block font-bold">Auto research when available</span><span className="mt-1 block text-[9px] text-[hsl(var(--muted-foreground))]">{selectedAuto ? `Queue position ${((state.autoResearch ?? []).indexOf(item.name) + 1)} · runs in catalog order` : 'Add this technology to the ordered auto queue.'}</span></span><input type="checkbox" checked={selectedAuto} onChange={() => toggleAutoResearch(item.name)} className="h-5 w-5 accent-[hsl(var(--primary))]" aria-label={`Auto research ${prettyLabel(item.name)}`} data-testid={`checkbox-auto-research-detail-${item.name}`} /></label>
-      </aside>
     </div>
+    {detailItem && <TechnologyDetailModal item={detailItem} state={state} toggleAutoResearch={toggleAutoResearch} onClose={() => setDetailsTechnology(null)} />}
   </PageFrame>;
+}
+
+function TechnologyDetailModal({ item, state, toggleAutoResearch, onClose }: { item: TechnologyDefinition; state: GameState; toggleAutoResearch: (name: ResearchKey) => void; onClose: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+  const selectedDone = state.research.includes(item.name);
+  const selectedTriggerProgress = researchTriggerProgress(state, item);
+  const selectedProgress = researchProgressFor(state, item);
+  const selectedTotal = researchUnitsFor(item);
+  const selectedProgressPercent = selectedTriggerProgress ? selectedTriggerProgress.produced / selectedTriggerProgress.required * 100 : selectedProgress / selectedTotal * 100;
+  const selectedAuto = (state.autoResearch ?? []).includes(item.name);
+  return <div className="fixed inset-0 z-[60] overflow-y-auto bg-[hsl(0_0%_0%/.78)] p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="surface mx-auto my-2 max-h-[calc(100dvh-1rem)] w-full max-w-[560px] overflow-y-auto rounded-2xl p-5 shadow-2xl sm:my-6 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="technology-detail-title" data-testid="dialog-technology-detail">
+      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="eyebrow">Technology detail</div><h2 id="technology-detail-title" className="mt-2 text-xl font-extrabold">{prettyLabel(item.name)}</h2></div><div className="flex shrink-0 items-center gap-2"><Tag tone={item.upgrade ? 'amber' : 'teal'}>{item.upgrade ? 'upgrade' : 'technology'}</Tag><button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] text-[hsl(var(--muted-foreground))] transition-colors hover:border-[hsl(var(--primary)/.55)] hover:text-[hsl(var(--primary))]" aria-label="Close technology details" data-testid="button-close-technology-detail"><X size={15} /></button></div></div>
+      <div className="mt-2 flex flex-wrap gap-1">{item.essential && <Tag>essential</Tag>}{item.maxLevel && <Tag tone="muted">{prettyLabel(item.maxLevel)} levels</Tag>}{item.researchTrigger && <Tag tone="muted">triggered</Tag>}</div>
+      <div className="mt-5 border-y border-[hsl(var(--border))] py-4"><div className="flex items-center justify-between gap-3 text-[10px]"><span className="eyebrow">Research progress</span><span className={`mono ${selectedDone ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--primary))]'}`}>{selectedDone ? 'complete' : selectedTriggerProgress ? `${fmt(selectedProgress)} / ${fmt(selectedTriggerProgress.required)}` : `${fmt(selectedProgress)} / ${item.countFormula ?? fmt(selectedTotal)} units`}</span></div><div className="mt-2"><Progress value={selectedDone ? 100 : selectedProgressPercent} tone={selectedDone ? 'teal' : 'amber'} /></div><div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">{item.researchTrigger ? 'Production triggers complete this technology when its requirement is met.' : `Labs advance one unit every ${item.time ?? 5}s at 1x speed.`}</div></div>
+      <div className="mt-5 border-y border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Prerequisites</div>{item.prerequisites.length ? <div className="flex flex-wrap gap-1.5">{item.prerequisites.map((prerequisite) => <span className={`resource-chip ${state.research.includes(prerequisite) ? 'border-[hsl(var(--secondary)/.55)]' : ''}`} key={prerequisite}><span className={`status-dot ${state.research.includes(prerequisite) ? 'status-running' : 'status-starved'}`} />{prettyLabel(prerequisite)}</span>)}</div> : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No prerequisites · available at the start.</div>}</div>
+      {item.researchTrigger ? <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-2">Unlock trigger</div><div className="text-[11px]">{researchTriggerLabel(item.researchTrigger)}</div>{selectedTriggerProgress ? <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">Starting inventory does not count toward this trigger.</div> : <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">This trigger type is not represented by a quantity counter in the current simulator.</div>}</div> : <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Science requirements</div><div className="space-y-2">{item.scienceCosts.length ? item.scienceCosts.map((cost) => { const costKey = keyForSource(cost.pack); const have = quantityFor(state, costKey); return <div className="flex items-center justify-between gap-3 text-[11px]" key={cost.pack}><span className="flex min-w-0 items-center gap-2"><ResourceIcon item={costKey} size={20} />{meta[costKey].label} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per unit</span></span><span className={`mono shrink-0 ${have >= cost.amount ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{fmt(have)} / {cost.amount}</span></div>; }) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No science packs required.</div>}</div><div className="mt-3 text-[10px] text-[hsl(var(--muted-foreground))]">Total requirement: <span className="break-words mono">{item.scienceCosts.length ? item.scienceCosts.map((cost) => researchRequirementLabel(item, cost)).join(' · ') : 'none'}</span></div></div>}
+      <div className="py-4"><div className="eyebrow mb-3">Effects</div><div className="space-y-2">{item.effects.length ? item.effects.map((effect, index) => <div className="data-row rounded-lg px-3 py-2 text-[10px]" key={`${effect.type}-${index}`}><span className="font-semibold">{effect.recipe ? `Unlock ${prettyLabel(effect.recipe)}` : prettyLabel(effect.type)}</span>{effect.target && <span className="text-[hsl(var(--muted-foreground))]"> · {prettyLabel(effect.target)}</span>}{effect.modifier !== undefined && <span className="mono float-right text-[hsl(var(--secondary))]">{typeof effect.modifier === 'number' && effect.modifier > 0 ? '+' : ''}{String(effect.modifier)}</span>}</div>) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No listed effects.</div>}</div></div>
+      <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.07)] p-3 text-[11px]"><span><span className="block font-bold">Auto research when available</span><span className="mt-1 block text-[9px] text-[hsl(var(--muted-foreground))]">{selectedAuto ? `Queue position ${((state.autoResearch ?? []).indexOf(item.name) + 1)} · runs in catalog order` : 'Add this technology to the ordered auto queue.'}</span></span><input type="checkbox" checked={selectedAuto} onChange={() => toggleAutoResearch(item.name)} className="h-5 w-5 accent-[hsl(var(--primary))]" aria-label={`Auto research ${prettyLabel(item.name)}`} data-testid={`checkbox-auto-research-detail-${item.name}`} /></label>
+    </section>
+  </div>;
 }
 
 function ResearchCompletionModal({ state, setState }: Pick<PageProps, 'state' | 'setState'>) {
