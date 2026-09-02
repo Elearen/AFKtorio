@@ -11,6 +11,12 @@ The active research selection is shared between the Research and Science tabs. L
 
 Auto research is an ordered selection, not a parallel scheduler: the first checked incomplete technology in catalog order owns the labs, and later checked technologies wait until it completes.
 
+The Science tab's lab card reports aggregate current and peak science-pack usage alongside lab cycle capacity and shared construction-queue progress for new labs.
+
+**Why:** Lab construction and input demand are the two constraints players need to see together when expanding research capacity.
+
+**How to apply:** Keep the lab card aligned with Production cards: show the lab count/status, construction inputs, usage metrics, queue progress, and inline inspect/build controls.
+
 **Why:** The game needs deterministic one-at-a-time progression while still allowing players to plan a research path ahead of available prerequisites.
 
 **How to apply:** Keep auto selections normalized to catalog order and block later entries when the first pending selection is not yet available.
