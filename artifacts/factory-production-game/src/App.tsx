@@ -29,7 +29,7 @@ import {
 
 type RawKey = 'iron' | 'copper' | 'stone' | 'coal' | 'wood' | 'water' | 'uranium' | 'crudeOil';
 type ComponentKey = string;
-type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militaryPack' | 'productionPack' | 'utilityPack';
+type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militaryPack' | 'productionPack' | 'utilityPack' | 'spacePack';
 type TrackedKey = string;
 type ResearchKey = string;
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
@@ -96,7 +96,7 @@ type GameState = {
 
 const SAVE_KEY = 'factory-production-game-save-v2';
 const rawKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood', 'water', 'uranium', 'crudeOil'];
-const scienceKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'chemicalPack', 'militaryPack', 'productionPack', 'utilityPack'];
+const scienceKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'chemicalPack', 'militaryPack', 'productionPack', 'utilityPack', 'spacePack'];
 const normalizedTechnologyCatalog = technologyCatalog.map((technology) => ({ ...technology, time: technology.time ?? defaultTechnologyResearchTime }));
 const technologyMap: Record<string, TechnologyDefinition> = Object.fromEntries(normalizedTechnologyCatalog.map((technology) => [technology.name, technology]));
 const legacyResearchAliases: Record<string, string> = { steamPower: 'steam-power', solarPower: 'solar-energy', nuclearPower: 'nuclear-power', steelProcessing: 'steel-processing' };
@@ -107,7 +107,7 @@ const sourceKeyAliases: Record<string, TrackedKey> = {
   'iron-gear-wheel': 'gear', 'electronic-circuit': 'circuit',
   'automation-science-pack': 'automationPack', 'logistic-science-pack': 'logisticsPack',
   'chemical-science-pack': 'chemicalPack', 'military-science-pack': 'militaryPack',
-  'production-science-pack': 'productionPack', 'utility-science-pack': 'utilityPack',
+  'production-science-pack': 'productionPack', 'utility-science-pack': 'utilityPack', 'space-science-pack': 'spacePack',
 };
 const keyForSource = (name: string) => sourceKeyAliases[name] ?? name;
 const recipeMap: Record<string, Recipe> = Object.fromEntries(recipeCatalog.map((recipe) => [recipe.name, recipe]));
@@ -115,7 +115,7 @@ const componentKeys: ComponentKey[] = recipeCatalog.map((recipe) => recipe.name)
 const scienceRecipeKeys: Record<ScienceKey, string> = {
   automationPack: 'automation-science-pack', logisticsPack: 'logistic-science-pack',
   chemicalPack: 'chemical-science-pack', militaryPack: 'military-science-pack',
-  productionPack: 'production-science-pack', utilityPack: 'utility-science-pack',
+  productionPack: 'production-science-pack', utilityPack: 'utility-science-pack', spacePack: 'space-science-pack',
 };
 const technologyOrderIndex = new Map<string, number>(technologyOrder.map((name, index) => [name, index]));
 const catalogOrderIndex = new Map<string, number>(normalizedTechnologyCatalog.map((technology, index) => [technology.name, index]));
@@ -310,6 +310,7 @@ const baseMeta: Record<string, { label: string; short: string; color: string; ca
   militaryPack: { label: 'Military science', short: 'military', color: '#d96f68', category: 'Science' },
   productionPack: { label: 'Production science', short: 'production', color: '#8ea9db', category: 'Science' },
   utilityPack: { label: 'Utility science', short: 'utility', color: '#d6c06a', category: 'Science' },
+  spacePack: { label: 'Space science', short: 'space', color: '#9b8de3', category: 'Science' },
 };
 const meta: Record<TrackedKey, { label: string; short: string; color: string; category: string }> = Object.fromEntries(trackedKeys.map((key, index) => {
   const fallback = { label: prettyLabel(key), short: key, color: ['#c9d3d0', '#e6a067', '#8da8a7', '#dfb05c', '#54b8a8', '#8ea9db'][index % 6], category: 'Component' };
@@ -331,7 +332,7 @@ const missingBuildMaterials = (state: GameState, costs: BuildMaterialCost[]) => 
   .join(' + ');
 const starterProducts: Record<string, number> = {
   ...Object.fromEntries(trackedKeys.map((key) => [key, 0])),
-  ironPlate: 28, copperPlate: 14, steel: 4, gear: 9, pipe: 4, circuit: 3, automationPack: 9, logisticsPack: 5, chemicalPack: 0, militaryPack: 0, productionPack: 0, utilityPack: 0,
+  ironPlate: 28, copperPlate: 14, steel: 4, gear: 9, pipe: 4, circuit: 3, automationPack: 9, logisticsPack: 5, chemicalPack: 0, militaryPack: 0, productionPack: 0, utilityPack: 0, spacePack: 0,
 };
 
 const initialState: GameState = {

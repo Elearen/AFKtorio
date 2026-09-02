@@ -5364,6 +5364,27 @@ const recipeCatalogSource: Omit<RecipeCatalogEntry, 'scienceChain'>[] = [
     ]
   },
   {
+    "name": "space-science-pack",
+    "energyRequired": 40,
+    "enabled": false,
+    "hidden": false,
+    "category": "rocket-building",
+    "ingredients": [
+      {
+        "type": "item",
+        "name": "satellite",
+        "amount": 1
+      }
+    ],
+    "results": [
+      {
+        "type": "item",
+        "name": "space-science-pack",
+        "amount": 1000
+      }
+    ]
+  },
+  {
     "name": "nuclear-reactor",
     "energyRequired": 8,
     "enabled": false,
@@ -5669,7 +5690,7 @@ const recipeCatalogSource: Omit<RecipeCatalogEntry, 'scienceChain'>[] = [
 ];
 
 // A recipe is Core when it produces a science pack or an ingredient required
-// by one, recursively walking the recipe graph backward from all six packs.
+// by one, recursively walking the recipe graph backward from all seven packs.
 const coreScienceRecipeNames = new Set([
   'productivity-module', 'basic-oil-processing', 'advanced-oil-processing', 'coal-liquefaction',
   'heavy-oil-cracking', 'light-oil-cracking', 'sulfuric-acid', 'plastic-bar', 'sulfur',
@@ -5679,7 +5700,9 @@ const coreScienceRecipeNames = new Set([
   'rail', 'copper-plate', 'iron-plate', 'stone-brick', 'steel-plate', 'chemical-science-pack',
   'military-science-pack', 'production-science-pack', 'utility-science-pack', 'advanced-circuit',
   'processing-unit', 'electric-furnace', 'electric-engine-unit', 'flying-robot-frame',
-  'battery', 'low-density-structure',
+  'battery', 'low-density-structure', 'satellite', 'solar-panel', 'accumulator', 'radar',
+  'rocket-fuel', 'solid-fuel-from-light-oil', 'solid-fuel-from-petroleum-gas', 'solid-fuel-from-heavy-oil',
+  'space-science-pack',
 ]);
 
 // The normalized source can contain repeated prototype names from separate
