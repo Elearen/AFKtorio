@@ -17,6 +17,12 @@ The Science tab's lab card reports aggregate current and peak science-pack usage
 
 **How to apply:** Keep the lab card aligned with Production cards: show the lab count/status, construction inputs, usage metrics, queue progress, and inline inspect/build controls.
 
+Recent production samples distinguish automated output from manual output, and legacy samples without that source marker are discarded on load.
+
+**Why:** A current rate that includes handcrafting or stale samples from an earlier simulation model can exceed an automated-only peak and make a healthy line look inconsistent.
+
+**How to apply:** Keep peak production source-compatible with current production, and invalidate transient rate history whenever its source model changes.
+
 **Why:** The game needs deterministic one-at-a-time progression while still allowing players to plan a research path ahead of available prerequisites.
 
 **How to apply:** Keep auto selections normalized to catalog order and block later entries when the first pending selection is not yet available.

@@ -29,7 +29,7 @@ type Recipe = RecipeCatalogEntry;
 type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'storage' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number };
 type HandcraftJob = { recipeKey: string; seconds: number; total: number };
 type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number };
-type RateSample = { seconds: number; production: Record<TrackedKey, number>; consumption: Record<TrackedKey, number> };
+type RateSample = { seconds: number; production: Record<TrackedKey, number>; manualProduction?: Record<TrackedKey, number>; consumption: Record<TrackedKey, number> };
 type GameState = {
   raw: Record<RawKey, number>;
   products: Record<string, number>;
@@ -328,9 +328,10 @@ const addTracked = (state: GameState, key: TrackedKey, amount: number, ignoreCap
   if (rawKeys.includes(key as RawKey)) state.raw[key as RawKey] = ignoreCapacity ? state.raw[key as RawKey] + amount : Math.min(capFor(state, key), state.raw[key as RawKey] + amount);
   else state.products[key] = ignoreCapacity ? (state.products[key] ?? 0) + amount : Math.min(capFor(state, key), (state.products[key] ?? 0) + amount);
 };
-const recordProduction = (state: GameState, key: TrackedKey, amount: number, production?: Record<TrackedKey, number>) => {
+const recordProduction = (state: GameState, key: TrackedKey, amount: number, production?: Record<TrackedKey, number>, manualProduction?: Record<TrackedKey, number>) => {
   state.produced[key] = (state.produced[key] ?? 0) + amount;
   if (production) production[key] = (production[key] ?? 0) + amount;
+  if (manualProduction) manualProduction[key] = (manualProduction[key] ?? 0) + amount;
 };
 const researchTriggerProgress = (state: GameState, technology: TechnologyDefinition) => {
   const trigger = technology.researchTrigger;
@@ -402,6 +403,19 @@ const steamEngineInputStatusFor = (state: GameState): SupplyStatus => {
   }
   return { tone: 'red', label: 'insufficient', detail: `${steamFlowPerSecond.toFixed(1)} / ${requiredPerSecond.toFixed(1)} steam per sec available` };
 };
+const manualProductionRateFor = (state: GameState, key: TrackedKey) => {
+  const history = state.rateHistory ?? [];
+  const seconds = history.reduce((total, sample) => total + sample.seconds, 0);
+  if (!seconds) return 0;
+  const amount = history.reduce((total, sample) => total + (sample.manualProduction?.[key] ?? 0), 0);
+  return amount / seconds * 60;
+};
+const handcraftPeakProductionRateFor = (state: GameState, key: TrackedKey) => {
+  if (!state.handcraft) return 0;
+  const recipe = recipeMap[state.handcraft.recipeKey];
+  const output = recipe ? recipeOutputs(recipe).find((entry) => entry.key === key) : undefined;
+  return output ? output.amount * 60 * state.simulationSpeed / recipe.energyRequired : 0;
+};
 const peakProductionRateFor = (state: GameState, key: TrackedKey) => {
   let rate = rawKeys.includes(key as RawKey) ? miningProductionRateFor(state, key as RawKey) : 0;
   componentKeys.forEach((recipeKey) => {
@@ -411,7 +425,7 @@ const peakProductionRateFor = (state: GameState, key: TrackedKey) => {
       if (outputKey === key) rate += outputRate * amount;
     });
   });
-  return rate;
+  return rate + Math.max(manualProductionRateFor(state, key), handcraftPeakProductionRateFor(state, key));
 };
 const scienceCostAmountFor = (technology: TechnologyDefinition | undefined, key: string) => {
   const cost = technology?.scienceCosts.find((entry) => keyForSource(entry.pack) === key);
@@ -461,8 +475,7 @@ const scienceRecipeFor = (key: string) => {
 const sciencePackProductionRateFor = (state: GameState, key: string) => {
   const recipe = scienceRecipeFor(key);
   if (!recipe || !recipeIsUnlocked(recipe, state)) return 0;
-  const output = recipeOutputs(recipe).find((entry) => entry.key === key);
-  return output ? recipeCycleRateFor(state, recipe) * output.amount : 0;
+  return peakProductionRateFor(state, key);
 };
 const scienceCurrentSpmFor = (state: GameState, requiredKeys: string[]) => {
   if (!requiredKeys.length) return 0;
@@ -484,6 +497,7 @@ const burnerOperatingSeconds = (state: GameState, seconds: number) => {
 
 function simulate(previous: GameState, seconds: number): GameState {
   const liveProduction = emptyRateRecord();
+  const liveManualProduction = emptyRateRecord();
   const liveConsumption = emptyRateRecord();
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes },
@@ -542,7 +556,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (state.handcraft.seconds <= 0) {
       const recipe = recipeMap[state.handcraft.recipeKey];
       const outputs = recipeOutputs(recipe);
-      outputs.forEach(({ key: outputKey, amount }) => { addTracked(state, outputKey, amount, true); recordProduction(state, outputKey, amount, liveProduction); });
+      outputs.forEach(({ key: outputKey, amount }) => { addTracked(state, outputKey, amount, true); recordProduction(state, outputKey, amount, liveProduction, liveManualProduction); });
       state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0);
       state.handcraft = null;
     }
@@ -553,7 +567,7 @@ function simulate(previous: GameState, seconds: number): GameState {
       const resourceKey = state.manualMining.resourceKey;
       const amount = 1 + state.upgrades.manualMining;
       addTracked(state, resourceKey, amount, true);
-      recordProduction(state, resourceKey, amount, liveProduction);
+      recordProduction(state, resourceKey, amount, liveProduction, liveManualProduction);
       state.totalOutput += amount;
       state.manualMining = null;
     }
@@ -605,7 +619,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   });
   applyResearchTriggers(state);
   state.rateHistory = seconds > 0 && seconds <= 5
-    ? [...(previous.rateHistory ?? []), { seconds, production: liveProduction, consumption: liveConsumption }].slice(-5)
+    ? [...(previous.rateHistory ?? []), { seconds, production: liveProduction, manualProduction: liveManualProduction, consumption: liveConsumption }].slice(-5)
     : [];
   return state;
 }
@@ -614,6 +628,8 @@ function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(SAVE_KEY) ?? 'null') as Partial<GameState> | null;
     if (!parsed) return { state: initialState, away: 0, recovered: 0 };
+    const savedRateHistory = parsed.rateHistory ?? [];
+    const hasRateSourceData = savedRateHistory.every((sample) => sample.manualProduction !== undefined);
     const state = {
       ...initialState,
       ...parsed,
@@ -647,7 +663,9 @@ function loadState() {
         delete produced.researchPack;
         return produced;
       })(),
-      rateHistory: (parsed.rateHistory ?? []).map((sample) => {
+      // Rate history is transient. Discard pre-source-tracking samples so
+      // old inflated production readings cannot survive a catalog correction.
+      rateHistory: hasRateSourceData ? savedRateHistory.map((sample) => {
         const production = { ...sample.production };
         const consumption = { ...sample.consumption };
         if (production.researchPack !== undefined && production.productionPack === undefined) production.productionPack = production.researchPack;
@@ -655,7 +673,7 @@ function loadState() {
         delete production.researchPack;
         delete consumption.researchPack;
         return { ...sample, production, consumption };
-      }),
+      }) : [],
       upgrades: { ...initialState.upgrades, ...parsed.upgrades },
       queue: parsed.queue ?? [],
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
