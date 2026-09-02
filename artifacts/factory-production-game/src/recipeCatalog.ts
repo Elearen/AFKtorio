@@ -5682,7 +5682,12 @@ const coreScienceRecipeNames = new Set([
   'battery', 'low-density-structure',
 ]);
 
-export const recipeCatalog: RecipeCatalogEntry[] = recipeCatalogSource.map((recipe) => ({
+// The normalized source can contain repeated prototype names from separate
+// data sections. Keep the final definition once so simulation and rate
+// calculations cannot execute the same recipe more than once.
+const canonicalRecipeSource = Array.from(new Map(recipeCatalogSource.map((recipe) => [recipe.name, recipe])).values());
+
+export const recipeCatalog: RecipeCatalogEntry[] = canonicalRecipeSource.map((recipe) => ({
   ...recipe,
   scienceChain: coreScienceRecipeNames.has(recipe.name) ? 'Core' : 'Non-Core',
 }));

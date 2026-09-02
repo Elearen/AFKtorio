@@ -7,4 +7,4 @@ Treat technology prototype imports as structured source data, not line-based tex
 
 **Why:** A line-based parser can silently omit the prototype following a function block, undercount arithmetic science requirements, or turn boolean effect modifiers into invalid numeric placeholders.
 
-**How to apply:** Balance each prototype object, expand helper calls into concrete entries, evaluate numeric expressions safely, preserve boolean and hidden effect fields, and validate unique names plus prerequisite references before shipping.
+**How to apply:** Balance each prototype object, expand helper calls into concrete entries, evaluate numeric expressions safely, preserve boolean and hidden effect fields, canonicalize duplicate names, and validate unique names plus prerequisite references before shipping.
