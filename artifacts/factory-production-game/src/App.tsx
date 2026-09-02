@@ -5,6 +5,7 @@ import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
 import { assemblyMachineOneCraftingSpeed, craftingSpeedFor, cyclesPerMinuteFor } from './productionSystem';
+import { activateReadyConstruction, fulfillConstructionReservation, normalizeConstructionQueue, reserveConstructionMaterials } from './constructionSystem';
 import {
   applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
   migrateMachineUpgradeState, scaledBuildCosts, upgradeData, upgradeMap,
@@ -37,7 +38,18 @@ type SupplyStatusTone = 'teal' | 'amber' | 'red' | 'muted';
 type SupplyStatus = { tone: SupplyStatusTone; label: string; detail: string };
 
 type Recipe = RecipeCatalogEntry;
-type QueueItem = { id: string; action: 'miner' | 'pump' | 'pumpjack' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'storage' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number; machineCount?: number };
+type QueueItem = {
+  id: string;
+  action: 'miner' | 'pump' | 'pumpjack' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'storage' | 'upgrade';
+  target: string;
+  targetId?: string;
+  seconds: number;
+  total: number;
+  machineCount?: number;
+  costs?: BuildMaterialCost[];
+  reserved?: number[];
+  started?: boolean;
+};
 type HandcraftJob = { recipeKey: string; seconds: number; total: number };
 type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number };
 type RateSample = { seconds: number; production: Record<TrackedKey, number>; manualProduction?: Record<TrackedKey, number>; consumption: Record<TrackedKey, number> };
@@ -387,8 +399,11 @@ const spendInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number
   });
 };
 const addTracked = (state: GameState, key: TrackedKey, amount: number, ignoreCapacity = false) => {
-  if (rawKeys.includes(key as RawKey)) state.raw[key as RawKey] = ignoreCapacity ? state.raw[key as RawKey] + amount : Math.min(capFor(state, key), state.raw[key as RawKey] + amount);
-  else state.products[key] = ignoreCapacity ? (state.products[key] ?? 0) + amount : Math.min(capFor(state, key), (state.products[key] ?? 0) + amount);
+  const reserved = fulfillConstructionReservation(state.queue, key, amount, rawKeys.includes(key as RawKey) ? 'raw' : 'products');
+  const available = amount - reserved;
+  if (available <= 0) return;
+  if (rawKeys.includes(key as RawKey)) state.raw[key as RawKey] = ignoreCapacity ? state.raw[key as RawKey] + available : Math.min(capFor(state, key), state.raw[key as RawKey] + available);
+  else state.products[key] = ignoreCapacity ? (state.products[key] ?? 0) + available : Math.min(capFor(state, key), (state.products[key] ?? 0) + available);
 };
 const recordProduction = (state: GameState, key: TrackedKey, amount: number, production?: Record<TrackedKey, number>, manualProduction?: Record<TrackedKey, number>) => {
   state.produced[key] = (state.produced[key] ?? 0) + amount;
@@ -616,7 +631,9 @@ function simulate(previous: GameState, seconds: number): GameState {
     assemblers: { ...previous.assemblers }, boilers: previous.boilers, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
     researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])],
     rateHistory: previous.rateHistory ?? [],
-    handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null, queue: previous.queue.map((item) => ({ ...item })), research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
+    handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null,
+    queue: previous.queue.map((item) => ({ ...item, costs: item.costs?.map((cost) => ({ ...cost })), reserved: item.reserved ? [...item.reserved] : undefined })),
+    research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
   };
   const speed = state.simulationSpeed;
   const powerRatio = electricPowerRatioFor(state);
@@ -722,8 +739,9 @@ function simulate(previous: GameState, seconds: number): GameState {
     state.currentResearch = autoResearchTargetFor(state)?.name ?? currentResearch.name;
     researchTargetsProcessed += 1;
   }
-  const completed = state.queue.filter((item) => item.seconds <= seconds);
-  state.queue = state.queue.map((item) => ({ ...item, seconds: Math.max(0, item.seconds - seconds) })).filter((item) => item.seconds > 0);
+  activateReadyConstruction(state.queue);
+  const completed = state.queue.filter((item) => item.started !== false && item.seconds <= seconds);
+  state.queue = state.queue.map((item) => item.started === false ? item : ({ ...item, seconds: Math.max(0, item.seconds - seconds) })).filter((item) => item.started === false || item.seconds > 0);
   completed.forEach((item) => {
     if (item.action === 'miner' && (item.targetId ?? item.target) !== 'wood') state.miners[(item.targetId ?? item.target) as RawKey] += 1;
     if (item.action === 'pump') state.pumps += 1;
@@ -816,7 +834,7 @@ function loadState() {
         return { ...sample, production, consumption };
       }) : [],
       machineVariants: migratedUpgradeState.machineVariants,
-      queue: migratedUpgradeState.queue,
+       queue: normalizeConstructionQueue(migratedUpgradeState.queue as QueueItem[]),
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
       currentResearch: parsed.currentResearch ? normalizeResearchKey(String(parsed.currentResearch)) : initialState.currentResearch,
       researchSelected: parsed.researchSelected === true,
@@ -929,20 +947,29 @@ function PowerMetrics({ production, peakProduction, productionUnit, consumption,
 function BuildProgress({ items, label }: { items: QueueItem[]; label: string }) {
   if (!items.length) return null;
   const active = items[0];
-  const complete = (1 - active.seconds / active.total) * 100;
+  const waitingForMaterials = active.started === false;
+  const complete = waitingForMaterials
+    ? Math.min(...(active.costs ?? []).map((cost, index) => (active.reserved?.[index] ?? 0) / Math.max(0.0001, cost.amount) * 100), 0)
+    : (1 - active.seconds / active.total) * 100;
+  const missing = waitingForMaterials
+    ? (active.costs ?? []).map((cost, index) => {
+      const amount = Math.max(0, cost.amount - (active.reserved?.[index] ?? 0));
+      return amount > 0 ? `${Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2)} ${meta[cost.key]?.label.toLowerCase() ?? prettyLabel(cost.key).toLowerCase()}` : '';
+    }).filter(Boolean).join(' + ')
+    : '';
   return <div className="construction-panel mt-3 rounded-lg p-3" aria-live="polite" data-testid={`panel-construction-${active.id}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-2">
         <div className="construction-pulse mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md"><Hammer size={12} /></div>
         <div className="min-w-0">
-          <div className="eyebrow text-[hsl(var(--primary))]">Construction in progress</div>
+          <div className="eyebrow text-[hsl(var(--primary))]">{waitingForMaterials ? 'Materials requested' : 'Construction in progress'}</div>
           <div className="mt-1 truncate text-[10px] font-bold">{label}{items.length > 1 ? ` · ${items.length} queued` : ''}</div>
         </div>
       </div>
-      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{duration(active.seconds)}</span>
+      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(active.seconds)}</span>
     </div>
     <div className="mt-2"><Progress value={complete} tone="amber" /></div>
-    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(Math.max(0, complete))}% complete</span><span>building now</span></div>
+    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{waitingForMaterials ? `${Math.floor(Math.max(0, complete))}% funded` : `${Math.floor(Math.max(0, complete))}% complete`}</span><span>{waitingForMaterials ? `needs ${missing}` : 'building now'}</span></div>
   </div>;
 }
 function HandcraftProgress({ job, recipe }: { job: HandcraftJob; recipe: Recipe }) {
@@ -1008,6 +1035,7 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
   const researchTarget = activeResearchFor(state);
   const researchableCount = orderedTechnologyCatalog.filter((technology) => !state.research.includes(technology.name) && technologyPrerequisitesMet(state, technology)).length;
   const constructionCount = state.queue.length;
+  const waitingConstructionCount = state.queue.filter((item) => item.started === false).length;
   const healthParts = [
     powerRatio,
     activeAssemblers ? Math.max(0, 1 - starvedLines / Math.max(1, activeAssemblers)) : 1,
@@ -1021,7 +1049,11 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
   const miningState = rawDemandLines.length === 0 ? { tone: 'muted' as const, label: 'standby', detail: 'No raw-material demand is recorded yet.', href: '/mining', action: 'open mining' } : rawShortages > 0 ? { tone: 'amber' as const, label: 'tight', detail: `${rawShortages} of ${rawDemandLines.length} demanded raw-material flows are below their rate target.`, href: '/mining', action: 'expand mining' } : { tone: 'teal' as const, label: 'supplied', detail: `${rawDemandLines.length} demanded raw-material flows are meeting their current targets.`, href: '/mining', action: 'inspect supply' };
   const storageState = storageTracked === 0 ? { tone: 'muted' as const, label: 'unbuilt', detail: 'Storage headroom is not configured yet.', href: '/storage', action: 'configure storage' } : tightStorage > 0 ? { tone: 'amber' as const, label: 'tight', detail: `${tightStorage} tracked inventories are at or near their current capacity.`, href: '/storage', action: 'free headroom' } : { tone: 'teal' as const, label: 'clear', detail: `${storageTracked - tightStorage} tracked inventories have available headroom.`, href: '/storage', action: 'inspect storage' };
   const researchState = researchTarget ? { tone: 'teal' as const, label: 'active', detail: `${researchTarget.name} · ${Math.round(researchProgressPercentFor(state, researchTarget))}% complete.`, href: '/research', action: 'open research' } : researchableCount > 0 ? { tone: 'amber' as const, label: 'ready', detail: `${researchableCount} technology path${researchableCount === 1 ? '' : 's'} can be selected.`, href: '/research', action: 'choose research' } : { tone: 'muted' as const, label: 'idle', detail: `${state.research.length} technologies completed so far.`, href: '/research', action: 'inspect research' };
-  const constructionState = constructionCount > 0 ? { tone: 'amber' as const, label: 'building', detail: `${constructionCount} queued construction item${constructionCount === 1 ? '' : 's'} are progressing.`, href: '/production', action: 'view queue' } : { tone: 'muted' as const, label: 'clear', detail: 'No construction is in flight.', href: '/production', action: 'choose a build' };
+  const constructionState = constructionCount > 0
+    ? waitingConstructionCount > 0
+      ? { tone: 'amber' as const, label: 'awaiting materials', detail: `${waitingConstructionCount} construction request${waitingConstructionCount === 1 ? '' : 's'} need more materials before timing starts.`, href: '/production', action: 'fund queue' }
+      : { tone: 'amber' as const, label: 'building', detail: `${constructionCount} queued construction item${constructionCount === 1 ? '' : 's'} are progressing.`, href: '/production', action: 'view queue' }
+    : { tone: 'muted' as const, label: 'clear', detail: 'No construction is in flight.', href: '/production', action: 'choose a build' };
   const groupRows = [
     { label: 'Production', icon: Cog, state: productionState },
     { label: 'Power', icon: BatteryCharging, state: powerState },
@@ -1031,7 +1063,9 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
     { label: 'Construction', icon: Hammer, state: constructionState },
   ];
   const primaryConstraint = constructionCount > 0
-    ? { eyebrow: 'Construction is moving', title: `${constructionCount} item${constructionCount === 1 ? '' : 's'} in the build queue`, copy: 'Keep the queue moving, then use the network signals to pick the next expansion.', href: '/production', action: 'view construction' }
+    ? waitingConstructionCount > 0
+      ? { eyebrow: 'Construction is waiting', title: `${waitingConstructionCount} request${waitingConstructionCount === 1 ? '' : 's'} awaiting materials`, copy: 'Available materials are reserved first, and future production will fund the queue before it reaches storage.', href: '/production', action: 'fund construction' }
+      : { eyebrow: 'Construction is moving', title: `${constructionCount} item${constructionCount === 1 ? '' : 's'} in the build queue`, copy: 'Keep the queue moving, then use the network signals to pick the next expansion.', href: '/production', action: 'view construction' }
     : powerRatio < 1 && draw > 0
       ? { eyebrow: 'Power is the pressure point', title: 'Electrical coverage is below live demand', copy: 'Balance generation before adding more powered capacity.', href: '/power', action: 'balance power' }
       : starvedLines > 0
@@ -1073,7 +1107,13 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
         <div className="construction-panel mt-4 rounded-xl p-4"><div className="eyebrow text-[hsl(var(--primary))]">{primaryConstraint.eyebrow}</div><div className="mt-1 flex items-start justify-between gap-3"><div><h3 className="text-[14px] font-extrabold">{primaryConstraint.title}</h3><p className="mt-1 max-w-xl text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{primaryConstraint.copy}</p></div><TriangleAlert size={18} className={constructionCount || powerRatio < 1 || starvedLines || rawShortages || tightStorage ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--secondary))]'} /></div><Link href={primaryConstraint.href} className="button-base button-ghost mt-3 no-underline" data-testid="link-factory-next-action">{primaryConstraint.action}<ArrowRight size={13} /></Link></div>
       </section>
       <div className="space-y-5">
-        <section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={`${constructionCount} queued`}>Construction queue</SectionTitle>{constructionCount ? <div className="space-y-2">{state.queue.map((item) => <div className="data-row flex items-center gap-3 rounded-lg p-2.5" key={item.id} data-testid={`row-factory-queue-${item.id}`}><div className="grid h-7 w-7 place-items-center rounded-md bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]">{item.action === 'upgrade' ? <TrendingUp size={14} /> : <Hammer size={14} />}</div><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-semibold">{item.target} <span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">· {item.action}</span></div><Progress value={(1 - item.seconds / item.total) * 100} tone="amber" /></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(item.seconds)}</span></div>)}</div> : <div className="rounded-lg border border-dashed border-[hsl(var(--border))] p-4"><div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))]"><Clock3 size={14} /><span className="text-[11px]">Queue clear</span></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Nothing is under construction. Choose a build from a control tab when the network is ready.</p></div>}</section>
+         <section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={`${constructionCount} queued`}>Construction queue</SectionTitle>{constructionCount ? <div className="space-y-2">{state.queue.map((item) => {
+           const waitingForMaterials = item.started === false;
+           const progress = waitingForMaterials
+             ? Math.min(...(item.costs ?? []).map((cost, index) => (item.reserved?.[index] ?? 0) / Math.max(0.0001, cost.amount) * 100), 0)
+             : (1 - item.seconds / item.total) * 100;
+           return <div className="data-row flex items-center gap-3 rounded-lg p-2.5" key={item.id} data-testid={`row-factory-queue-${item.id}`}><div className="grid h-7 w-7 place-items-center rounded-md bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]">{item.action === 'upgrade' ? <TrendingUp size={14} /> : <Hammer size={14} />}</div><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-semibold">{item.target} <span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">· {waitingForMaterials ? 'materials requested' : item.action}</span></div><Progress value={progress} tone="amber" /></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(item.seconds)}</span></div>;
+         })}</div> : <div className="rounded-lg border border-dashed border-[hsl(var(--border))] p-4"><div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))]"><Clock3 size={14} /><span className="text-[11px]">Queue clear</span></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Nothing is under construction. Choose a build from a control tab when the network is ready.</p></div>}</section>
         <section className="surface rounded-xl p-4 sm:p-5"><SectionTitle detail={researchTarget ? `${Math.round(researchProgressPercentFor(state, researchTarget))}% complete` : `${state.research.length} complete`}>Research watch</SectionTitle>{researchTarget ? <div className="surface-soft rounded-lg p-3"><div className="flex items-start justify-between gap-2"><div><div className="eyebrow text-[hsl(var(--secondary))]">Active target</div><div className="mt-1 text-[12px] font-bold">{researchTarget.name}</div></div><FlaskConical size={17} className="text-[hsl(var(--secondary))]" /></div><div className="mt-3"><Progress value={researchProgressPercentFor(state, researchTarget)} /><div className="mt-2 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{fmt(researchProgressFor(state, researchTarget))} / {fmt(researchUnitsFor(researchTarget))} units</span><span>{activeResearchTimeRemainingFor(state, researchTarget) === null ? 'triggered path' : duration(activeResearchTimeRemainingFor(state, researchTarget) ?? 0)}</span></div></div></div> : <div className="rounded-lg border border-dashed border-[hsl(var(--border))] p-3 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{researchableCount ? `${researchableCount} technology path${researchableCount === 1 ? '' : 's'} ready when you are.` : 'No research target is active right now.'}</div>}<Link href="/research" className="button-base button-ghost mt-3 w-full no-underline" data-testid="link-factory-research">open research <ArrowRight size={13} /></Link></section>
         <section className="surface rounded-xl p-4 sm:p-5"><div className="flex items-center justify-between"><SectionTitle detail={historySeconds ? `${Math.round(historySeconds)} sec sampled` : 'no samples'}>Network pulse</SectionTitle><Activity size={15} className="text-[hsl(var(--secondary))]" /></div>{pulseRates.length ? <><div className="grid-lines flex h-20 items-end gap-1 rounded-lg border border-[hsl(var(--border))] px-2 pb-2 pt-3">{pulseRates.map((rate, index) => <div key={`${rate}-${index}`} className="min-h-[3px] flex-1 rounded-t-sm bg-[hsl(var(--secondary)/.68)]" style={{ height: `${Math.max(4, rate / Math.max(pulsePeak, .01) * 100)}%` }} title={`${rate.toFixed(1)} items / min`} />)}</div><div className="mt-2 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>oldest sample</span><span>now · {observedProduction.toFixed(1)} / min</span></div></> : <div className="grid h-20 place-items-center rounded-lg border border-dashed border-[hsl(var(--border))] text-center"><div><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Waiting for live rate samples</div><div className="mt-1 mono text-[9px] text-[hsl(var(--muted-foreground))]">The chart fills as the simulation ticks.</div></div></div>}</section>
       </div>
@@ -1091,38 +1131,16 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
   };
   const build = (key: RawKey) => {
     if (key === 'wood') return notice('Wood can only be collected manually');
-    if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); const missing = missingBuildMaterials(state, [{ key: 'ironPlate', amount: 10, source: 'products' }, { key: 'gear', amount: 2, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 10, gear: s.products.gear - 2 } })); enqueue('pump', 'Water pump', 40); return; }
+    if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); enqueue('pump', 'Water pump', 40, undefined, [{ key: 'ironPlate', amount: 10, source: 'products' }, { key: 'gear', amount: 2, source: 'products' }]); return; }
     if (key === 'crudeOil') {
       if (!state.research.includes('oil-gathering')) return notice('Oil Gathering required');
-      const missing = missingBuildMaterials(state, pumpjackBuildCost);
-      if (missing) return notice(`need ${missing}`);
-      setState((s) => {
-        const raw = { ...s.raw };
-        const products = { ...s.products };
-        pumpjackBuildCost.forEach(({ key: materialKey, amount, source }) => {
-          if (source === 'raw') raw[materialKey as RawKey] -= amount;
-          else products[materialKey] = (products[materialKey] ?? 0) - amount;
-        });
-        return { ...s, raw, products };
-      });
-      enqueue('pumpjack', 'Crude oil pumpjack', pumpjackRecipe.energyRequired);
+      enqueue('pumpjack', 'Crude oil pumpjack', pumpjackRecipe.energyRequired, undefined, pumpjackBuildCost);
       return;
     }
-    if (key === 'uranium') { if (!state.research.includes('nuclear-power')) return notice('Nuclear Power required'); const missing = missingBuildMaterials(state, [{ key: 'steel', amount: 20, source: 'products' }, { key: 'circuit', amount: 8, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, steel: s.products.steel - 20, circuit: s.products.circuit - 8 } })); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90); return; }
+    if (key === 'uranium') { if (!state.research.includes('nuclear-power')) return notice('Nuclear Power required'); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90, undefined, [{ key: 'steel', amount: 20, source: 'products' }, { key: 'circuit', amount: 8, source: 'products' }]); return; }
     const machineCosts = miningMachineBuildCostFor(state);
-    const missing = missingBuildMaterials(state, machineCosts);
-    if (missing) return notice(`need ${missing}`);
-    setState((s) => {
-      const raw = { ...s.raw };
-      const products = { ...s.products };
-      machineCosts.forEach(({ key: materialKey, amount, source }) => {
-        if (source === 'raw') raw[materialKey as RawKey] -= amount;
-        else products[materialKey] = (products[materialKey] ?? 0) - amount;
-      });
-      return { ...s, raw, products };
-    });
     const machine = miningMachineRecipeFor(state);
-    enqueue('miner', `${rawInfo[key].label} ${miningMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key);
+    enqueue('miner', `${rawInfo[key].label} ${miningMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key, machineCosts);
   };
   return <PageFrame>
     <Header eyebrow="Raw material control" title="Mining" copy={miningUsesStoredCoal(state) ? "Tap the ground to start. Build burner mining drills to make the ore lines autonomous. Wood remains manual-only, and coal drills offset their own fuel use against the coal they produce." : "Electric mining is online. Your upgraded drills run without coal while wood remains manual-only."} action={<Tag><Pickaxe size={11} /> 8 resource sections</Tag>} />
@@ -1244,23 +1262,13 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const buildProductionUnit = (key: ComponentKey) => {
     const recipe = recipeMap[key];
     if (isSmeltingRecipe(recipe)) {
-      const missing = missingBuildMaterials(state, [{ key: 'stone', amount: stoneFurnaceBuildCost.stone, source: 'raw' }]);
-      if (missing) return notice(`need ${missing}`);
-      setState((s) => ({ ...s, raw: { ...s.raw, stone: s.raw.stone - stoneFurnaceBuildCost.stone } }));
-      enqueue('furnace', `${prettyLabel(key)} stone furnace`, stoneFurnaceRecipe.energyRequired, key);
+      enqueue('furnace', `${prettyLabel(key)} stone furnace`, stoneFurnaceRecipe.energyRequired, key, [{ key: 'stone', amount: stoneFurnaceBuildCost.stone, source: 'raw' }]);
       return;
     }
     if (!automationUnlocked) return notice('Automation technology required');
     const machineCosts = productionMachineBuildCostFor(state);
-    const missing = missingBuildMaterials(state, machineCosts);
-    if (missing) return notice(`need ${missing}`);
-    setState((s) => {
-      const products = { ...s.products };
-      machineCosts.forEach(({ key: materialKey, amount }) => { products[materialKey] = (products[materialKey] ?? 0) - amount; });
-      return { ...s, products };
-    });
     const machine = productionMachineRecipeFor(state);
-    enqueue('assembler', `${prettyLabel(key)} ${productionMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key);
+    enqueue('assembler', `${prettyLabel(key)} ${productionMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key, machineCosts);
   };
   return <PageFrame>
     <Header eyebrow="Recipe catalog" title="Production" copy="The attached recipe definitions drive every card below. Search the full line, inspect item and fluid flows, then run recipes manually or with the appropriate production building." action={<Tag><Cog size={11} /> {recipeCatalog.length} recipes loaded</Tag>} />
@@ -1342,18 +1350,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
     const isSolarPanel = unit === 'solarPanel';
     if (!(isSolarPanel ? solar : steam)) return notice(isSolarPanel ? 'Solar Energy required' : 'Steam Power required');
     const costs = isSolarPanel ? solarPanelBuildCost : unit === 'boiler' ? boilerBuildCost : steamEngineBuildCost;
-    const missing = missingBuildMaterials(state, costs);
-    if (missing) return notice(`need ${missing}`);
-    setState((current) => {
-      const raw = { ...current.raw };
-      const products = { ...current.products };
-      costs.forEach(({ key, amount, source }) => {
-        if (source === 'raw') raw[key as RawKey] -= amount;
-        else products[key] = (products[key] ?? 0) - amount;
-      });
-      return { ...current, raw, products };
-    });
-    enqueue(unit, isSolarPanel ? 'Solar panel' : unit === 'boiler' ? 'Boiler' : 'Steam engine', isSolarPanel ? solarPanelRecipe.energyRequired : unit === 'boiler' ? boilerRecipe.energyRequired : steamEngineRecipe.energyRequired);
+    enqueue(unit, isSolarPanel ? 'Solar panel' : unit === 'boiler' ? 'Boiler' : 'Steam engine', isSolarPanel ? solarPanelRecipe.energyRequired : unit === 'boiler' ? boilerRecipe.energyRequired : steamEngineRecipe.energyRequired, undefined, costs);
   };
   const constructionChips = (costs: BuildMaterialCost[], output: string) => <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Construction</div><div className="flex flex-wrap items-center gap-1.5">{costs.map(({ key, amount }, index) => <span className="contents" key={`${key}-${index}`}><span className="resource-chip"><ResourceIcon item={key} size={17} /><strong>{amount}</strong> {meta[key]?.short ?? prettyLabel(key)}</span>{index < costs.length - 1 && <span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">+</span>}</span>)}<ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--primary)/.4)' }}><ResourceIcon item={output} size={17} /><strong>1</strong> {prettyLabel(output)}</span></div></div>;
   const statusTag = (unlocked: boolean, count: number, queued: number) => unlocked ? count ? <Tag><span className="status-dot status-running" /> auto</Tag> : queued > 0 ? <Tag tone="amber"><Clock3 size={10} /> queued</Tag> : <Tag tone="amber">offline</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>;
@@ -1415,18 +1412,7 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
     const costs = fluid ? storageTankBuildCost : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
     const buildSeconds = fluid ? storageTankRecipe.energyRequired : storageBoxBuildSeconds;
     const containerLabel = fluid ? 'storage tank' : 'wooden box';
-    const missing = missingBuildMaterials(state, costs);
-    if (missing) return notice(`need ${missing}`);
-    setState((s) => {
-      const raw = { ...s.raw };
-      const products = { ...s.products };
-      costs.forEach(({ key: materialKey, amount, source }) => {
-        if (source === 'raw') raw[materialKey as RawKey] -= amount;
-        else products[materialKey] = (products[materialKey] ?? 0) - amount;
-      });
-      return { ...s, raw, products };
-    });
-    enqueue('storage', `${containerLabel[0].toUpperCase()}${containerLabel.slice(1)} · ${meta[key].label}`, buildSeconds, key);
+    enqueue('storage', `${containerLabel[0].toUpperCase()}${containerLabel.slice(1)} · ${meta[key].label}`, buildSeconds, key, costs);
     notice(`${containerLabel} for ${meta[key].label} queued`);
   };
   const unlockedKeys = orderedTrackedKeys.filter((key) => unlockedProductKeys(state).has(key));
@@ -1539,7 +1525,7 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
   const currentSpm = scienceCurrentSpmFor(state, requiredScienceKeys);
   const peakSpm = sciencePeakSpmFor(state, requiredScienceKeys);
   const labRate = scienceLabRateFor(state, activeResearch);
-  const buildLab = () => { const missing = missingBuildMaterials(state, [{ key: 'ironPlate', amount: 12, source: 'products' }, { key: 'circuit', amount: 4, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 12, circuit: s.products.circuit - 4 } })); enqueue('lab', 'Science lab', labRecipe.energyRequired); };
+  const buildLab = () => { enqueue('lab', 'Science lab', labRecipe.energyRequired, undefined, [{ key: 'ironPlate', amount: 12, source: 'products' }, { key: 'circuit', amount: 4, source: 'products' }]); };
   const labConstructionItems = state.queue.filter((item) => item.action === 'lab');
   const labIsBuilding = labConstructionItems.length > 0;
   const currentLabUsage = requiredScienceKeys.reduce((total, key) => total + demandRateFor(state, key), 0);
@@ -1728,7 +1714,7 @@ function SettingsPage({ state, setState, saveNow, reset, notice }: PageProps) {
   return <PageFrame><Header eyebrow="Control room preferences" title="Settings" copy="Local controls for this browser instance. Nothing here changes the scope of the simulation." action={<Tag><Save size={11} /> local save</Tag>} /><div className="grid gap-5 lg:grid-cols-2"><section className="surface rounded-xl p-5"><SectionTitle>Local save controls</SectionTitle><div className="rounded-xl bg-[hsl(216_24%_10%/.7)] p-4"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><Save size={16} /></div><div><div className="text-[12px] font-bold">Browser save is active</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Production ticks and settings survive a reload.</div></div></div><div className="mt-4 flex gap-2"><button onClick={() => { saveNow(); notice('save committed now'); }} className="button-base button-primary" data-testid="button-save-now"><Save size={13} /> save now</button><button onClick={() => setConfirm(true)} className="button-base button-ghost text-[hsl(var(--destructive))]" data-testid="button-reset-save"><Trash2 size={13} /> reset progress</button></div></div>{confirm && <div className="mt-3 rounded-xl border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] p-4" data-testid="panel-reset-confirm"><div className="flex gap-2"><ShieldAlert size={16} className="text-[hsl(var(--destructive))]" /><div><div className="text-[12px] font-bold">Reset this factory?</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">This removes the local save and starts a new sector. This cannot be undone.</p></div></div><div className="mt-3 flex gap-2"><button onClick={() => { reset(); setConfirm(false); notice('new sector initialized'); }} className="button-base bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]" data-testid="button-confirm-reset">confirm reset</button><button onClick={() => setConfirm(false)} className="button-base button-ghost" data-testid="button-cancel-reset">cancel</button></div></div>}</section><section className="surface rounded-xl p-5"><SectionTitle>Simulation speed</SectionTitle><div className="grid grid-cols-3 gap-2">{[.5, 1, 2].map((speed) => <button onClick={() => setState((s) => ({ ...s, simulationSpeed: speed }))} className={`button-base py-3 ${state.simulationSpeed === speed ? 'button-primary' : 'button-ghost'}`} key={speed} data-testid={`button-speed-${speed}`}>{speed}x</button>)}</div><div className="mt-5 border-t border-[hsl(var(--border))] pt-4"><SectionTitle>Control legend</SectionTitle><div className="space-y-3 text-[11px] text-[hsl(var(--muted-foreground))]"><div className="flex items-center gap-2"><span className="status-dot status-running" /><span><strong className="text-[hsl(var(--foreground))]">Green</strong> means a unit is consuming and producing.</span></div><div className="flex items-center gap-2"><span className="status-dot status-starved" /><span><strong className="text-[hsl(var(--foreground))]">Yellow</strong> means an input is below recipe demand.</span></div><div className="flex items-center gap-2"><span className="status-dot status-blocked" /><span><strong className="text-[hsl(var(--foreground))]">Red</strong> means output or a control path is blocked.</span></div></div></div></section></div><section className="surface mt-5 rounded-xl p-5"><div className="flex items-start gap-3"><CircleHelp size={17} className="text-[hsl(var(--primary))]" /><div><div className="eyebrow">About this slice</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Production Game is a local, playable incremental factory. The resource art, production loop, and control-room language are original to this interface.</p></div></div></section></PageFrame>;
 }
 
-type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string) => void; saveNow: () => void; reset: () => void; notice: (message: string) => void; away: number; recovered: number };
+type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => void; saveNow: () => void; reset: () => void; notice: (message: string) => void; away: number; recovered: number };
 
 function PageFrame({ children }: { children: ReactNode }) { return <div className="mx-auto max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 md:px-8 md:pb-10">{children}</div>; }
 
@@ -1744,7 +1730,25 @@ function Game() {
   useEffect(() => { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }, [state]);
   const saveNow = () => localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, lastSeen: Date.now() }));
   const reset = () => { localStorage.removeItem(SAVE_KEY); setState({ ...initialState, lastSeen: Date.now(), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] }); };
-  const enqueue = (action: QueueItem['action'], target: string, seconds: number, targetId?: string) => setState((s) => ({ ...s, queue: [...s.queue, { id: `${action}-${Date.now()}`, action, target, targetId, seconds, total: seconds }] }));
+  const enqueue = (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => setState((s) => {
+    const raw = { ...s.raw };
+    const products = { ...s.products };
+    const requestCosts = costs?.map((cost) => ({ ...cost }));
+    const reserved = requestCosts?.length ? reserveConstructionMaterials({ raw, products }, requestCosts) : undefined;
+    const started = !requestCosts?.length || reserved?.every((amount, index) => amount >= requestCosts[index].amount - 0.000001);
+    const item: QueueItem = {
+      id: `${action}-${Date.now()}`,
+      action,
+      target,
+      targetId,
+      seconds: started ? seconds : 0,
+      total: seconds,
+      costs: requestCosts,
+      reserved,
+      started,
+    };
+    return { ...s, raw, products, queue: [...s.queue, item] };
+  });
   const props = { state, setState, enqueue, saveNow, reset, notice, away, recovered };
   const pageKey = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
   let page: ReactNode;
