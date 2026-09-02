@@ -5817,23 +5817,11 @@ export const technologyCatalog: TechnologyDefinition[] = [
     "effects": [
       {
         "type": "unlock-recipe",
-        "recipe": "advanced-oil-processing"
-      },
-      {
-        "type": "unlock-recipe",
         "recipe": "heavy-oil-cracking"
       },
       {
         "type": "unlock-recipe",
         "recipe": "light-oil-cracking"
-      },
-      {
-        "type": "unlock-recipe",
-        "recipe": "solid-fuel-from-heavy-oil"
-      },
-      {
-        "type": "unlock-recipe",
-        "recipe": "solid-fuel-from-light-oil"
       }
     ],
     "iconPath": "__base__/graphics/technology/advanced-oil-processing.png",

@@ -12,3 +12,13 @@ test('Oil Processing unlocks after constructing one pumpjack', () => {
     count: 1,
   });
 });
+
+test('Advanced Oil Processing unlocks only the two cracking recipes', () => {
+  const advancedOilProcessing = technologyCatalog.find((technology) => technology.name === 'advanced-oil-processing');
+
+  assert.ok(advancedOilProcessing);
+  assert.deepEqual(advancedOilProcessing.effects, [
+    { type: 'unlock-recipe', recipe: 'heavy-oil-cracking' },
+    { type: 'unlock-recipe', recipe: 'light-oil-cracking' },
+  ]);
+});

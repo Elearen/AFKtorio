@@ -7,8 +7,8 @@ import { technologyOrder } from './technologyOrder';
 import { assemblyMachineOneCraftingSpeed, craftingSpeedFor, cyclesPerMinuteFor, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, fulfillConstructionReservation, normalizeConstructionQueue, reserveConstructionMaterials } from './constructionSystem';
 import {
-  applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
-  migrateMachineUpgradeState, scaledBuildCosts, upgradeData, upgradeMap,
+  OIL_PROCESSING_UPGRADE_ID, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
+  migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeMap,
   type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
 import {
@@ -67,6 +67,7 @@ type GameState = {
   pumpjacks: number;
   uraniumMiners: number;
   assemblers: Record<string, number>;
+  oilProcessingAdvanced: boolean;
   labs: number;
   boilers: number;
   boilersEnabled: boolean;
@@ -281,8 +282,11 @@ const rawProductIsUnlocked = (key: string, state: GameState) => key !== 'water' 
   || key === 'water' && state.research.includes('steam-power')
   || key === 'uranium' && state.research.includes('nuclear-power')
   || key === 'crudeOil' && state.research.includes('oil-gathering');
-const recipeIsUnlocked = (recipe: Recipe, state: GameState) => recipe.enabled
-  || (recipeUnlockResearch[recipe.name] ?? []).some((technology) => state.research.includes(technology));
+const recipeIsUnlocked = (recipe: Recipe, state: GameState) => recipe.name === 'advanced-oil-processing'
+  ? state.oilProcessingAdvanced
+  : recipe.name === 'basic-oil-processing'
+    ? !state.oilProcessingAdvanced && (recipeUnlockResearch[recipe.name] ?? []).some((technology) => state.research.includes(technology))
+    : recipe.enabled || (recipeUnlockResearch[recipe.name] ?? []).some((technology) => state.research.includes(technology));
 const unlockedProductKeys = (state: GameState) => new Set([
   ...rawKeys.filter((key) => rawProductIsUnlocked(key, state)),
   ...recipeCatalog.filter((recipe) => recipeIsUnlocked(recipe, state)).flatMap((recipe) => recipeOutputs(recipe).map((output) => output.key)),
@@ -335,6 +339,7 @@ const initialState: GameState = {
   miners: { iron: 0, copper: 0, stone: 0, coal: 0, wood: 0, water: 0, uranium: 0, crudeOil: 0 },
   pumps: 0, pumpjacks: 0, uraniumMiners: 0,
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
+  oilProcessingAdvanced: false,
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace',
@@ -488,7 +493,7 @@ const recipeCycleRateFor = (state: GameState, recipe: Recipe) => cyclesPerMinute
   state.simulationSpeed,
   recipe.energyRequired,
   craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state), furnaceCraftingSpeedFor(state)),
-);
+) * (recipeAutoStartStopConditionFor(state, recipe).met ? 1 : 0);
 const miningBaseProductionRateFor = (state: GameState, key: RawKey) => {
   const count = miningMachineCountFor(state, key);
   const base = miningOutputPerSecondFor(key);
@@ -610,6 +615,21 @@ const recipeProductionRateFor = (state: GameState, recipe: Recipe) => {
   const output = recipeOutputs(recipe)[0];
   return output ? productionRateFor(state, output.key) : 0;
 };
+const recipeAutoStartStopConditionFor = (state: GameState, recipe: Recipe) => {
+  if (recipe.name === 'heavy-oil-cracking') {
+    return {
+      met: oilCrackingConditionMet(recipe.name, { 'heavy-oil': quantityFor(state, 'heavy-oil'), 'light-oil': quantityFor(state, 'light-oil') }),
+      label: 'heavy oil > light oil',
+    };
+  }
+  if (recipe.name === 'light-oil-cracking') {
+    return {
+      met: oilCrackingConditionMet(recipe.name, { 'light-oil': quantityFor(state, 'light-oil'), 'petroleum-gas': quantityFor(state, 'petroleum-gas') }),
+      label: 'light oil > petroleum gas',
+    };
+  }
+  return { met: true, label: '' };
+};
 const furnaceCoalPerItemFor = (state: GameState, recipe: Recipe) => {
   const output = recipeOutputs(recipe)[0];
   return recipe.fuel && output ? materialAmount(recipe.fuel) * furnaceFuelMultiplierFor(state) / Math.max(0.01, output.amount) : 0;
@@ -661,7 +681,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   const liveConsumption = emptyRateRecord();
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes }, storageTanks: { ...previous.storageTanks },
-    assemblers: { ...previous.assemblers }, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
+    assemblers: { ...previous.assemblers }, oilProcessingAdvanced: previous.oilProcessingAdvanced, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
     researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])],
     rateHistory: previous.rateHistory ?? [],
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null,
@@ -803,6 +823,12 @@ function simulate(previous: GameState, seconds: number): GameState {
         state.storage = Object.fromEntries(trackedKeys.map((key) => [key, storageCapacityFor(state, key)])) as Record<TrackedKey, number>;
       } else if (upgradeId === 'steel-furnaces') {
         state.furnaceVariant = 'steel-furnace';
+      } else if (upgradeId === OIL_PROCESSING_UPGRADE_ID) {
+        const machineCount = item.machineCount ?? state.assemblers['basic-oil-processing'] ?? 0;
+        state.assemblers = applyOilProcessingUpgradeCompletion(state.assemblers, machineCount);
+        state.assemblyProgress['basic-oil-processing'] = 0;
+        state.assemblyProgress['advanced-oil-processing'] = 0;
+        state.oilProcessingAdvanced = true;
       } else {
         state.machineVariants = applyUpgradeCompletion(state.machineVariants, upgradeId);
       }
@@ -855,6 +881,7 @@ function loadState() {
       storageTanks: migratedStorage.storageTanks as Record<TrackedKey, number>,
       storageBoxType,
       furnaceVariant,
+      oilProcessingAdvanced: parsed.oilProcessingAdvanced === true,
       miners: { ...initialState.miners, ...parsed.miners },
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
       labs: migratedLabCount,
@@ -1318,6 +1345,8 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       enqueue('furnace', `${prettyLabel(key)} ${currentFurnaceLabel.toLowerCase()}`, furnaceRecipe.energyRequired, key, recipeBuildCosts(furnaceRecipe));
       return;
     }
+    if (key === 'basic-oil-processing' && state.oilProcessingAdvanced) return notice('Advanced Oil Processing is already installed');
+    if (key === 'basic-oil-processing' && state.queue.some((item) => item.action === 'upgrade' && item.targetId === OIL_PROCESSING_UPGRADE_ID)) return notice('finish the oil processing conversion before building more refineries');
     if (!automationUnlocked) return notice('Automation technology required');
     const machineCosts = productionMachineBuildCostFor(state);
     const machine = productionMachineRecipeFor(state);
@@ -1353,6 +1382,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       const peakDemandRate = primaryOutput ? peakDemandRateFor(state, primaryOutput.key) : 0;
       const netRate = productionRate - demandRate;
       const smelting = isSmeltingRecipe(recipe);
+       const autoCondition = recipeAutoStartStopConditionFor(state, recipe);
        const building = productionBuildingFor(state, recipe);
        const buildingLabel = smelting ? currentFurnaceLabel : productionMachineLabelFor(state);
       const buildingAction: QueueItem['action'] = smelting ? 'furnace' : 'assembler';
@@ -1365,7 +1395,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
         <div className="flex items-start gap-3">
           <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <Tag><span className="status-dot status-running" /> auto</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
+             <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <Tag tone={autoCondition.met ? 'teal' : 'amber'}>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
             <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle · {buildingLabel}</div>
              <div className="mt-1 flex flex-wrap gap-1"><Tag tone={recipe.scienceChain === 'Core' ? 'teal' : 'muted'}>{recipe.scienceChain}</Tag>{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
           </div>
@@ -1378,6 +1408,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
             {outputs.map(({ key: outputKey, amount }, index) => <span className="resource-chip" style={{ borderColor: `${meta[outputKey].color}66` }} key={`${outputKey}-${index}`}><ResourceIcon item={outputKey} size={17} /><strong>{amountLabel(amount)}</strong> {meta[outputKey].short}</span>)}
           </div>
         </div>
+        {autoCondition.label && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-auto-condition-${key}`}><div className="flex items-center justify-between gap-2 text-[10px]"><span className="eyebrow text-[hsl(var(--primary))]">Auto start / stop</span><Tag tone={autoCondition.met ? 'teal' : 'amber'}>{autoCondition.met ? 'running' : 'stopped'}</Tag></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Runs when <span className="font-semibold text-[hsl(var(--foreground))]">{autoCondition.label}</span>.</div></div>}
          {smelting && recipe.fuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
          <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} />
          <div className="mt-4 flex gap-2">{count ? <><button onClick={() => notice(`${prettyLabel(key)} ${buildingLabel.toLowerCase()} is running at ${productionRate.toFixed(1)} / min`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-inspect-production-${key}`}><Gauge size={13} /> inspect live rate</button>{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct another ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-more-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <><button onClick={() => handcraft(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-handcraft-production-${key}`}><Plus size={13} /> handcraft</button><button onClick={() => buildProductionUnit(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-build-${buildingAction}-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div>
@@ -1552,6 +1583,12 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
   const furnaceUpgradeCosts = scaledBuildCosts(furnaceUpgradeCostPerFurnace, furnaceCount);
   const furnaceUpgradeTotalSeconds = steelFurnaceRecipe.energyRequired * furnaceCount;
   const furnaceUpgradeMissing = furnaceUpgradeComplete || !furnaceCount ? '' : missingBuildMaterials(state, furnaceUpgradeCosts);
+  const oilProcessingUpgradeComplete = state.oilProcessingAdvanced;
+  const oilProcessingUpgradeQueued = activeUpgrade?.targetId === OIL_PROCESSING_UPGRADE_ID;
+  const basicOilMachineCount = state.assemblers['basic-oil-processing'] ?? 0;
+  const oilProcessingConversionCount = activeUpgrade?.machineCount ?? basicOilMachineCount;
+  const oilProcessingUpgradeTotalSeconds = activeUpgrade?.targetId === OIL_PROCESSING_UPGRADE_ID ? activeUpgrade.total : oilProcessingUpgradeTimeFor(basicOilMachineCount);
+  const oilProcessingPrerequisiteMet = state.research.includes('advanced-oil-processing');
   const startUpgrade = (upgrade: UpgradeDefinition) => {
     const jobId = `upgrade-${Date.now()}`;
     const result = beginUpgrade({
@@ -1609,8 +1646,25 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     });
     notice(`Upgrade all furnaces to Steel Furnaces started for ${furnaceCount} furnace${furnaceCount === 1 ? '' : 's'}`);
   };
+  const startOilProcessingUpgrade = () => {
+    if (oilProcessingUpgradeComplete) return notice('Advanced Oil Processing is already installed');
+    if (activeUpgrade) return notice('finish the active upgrade before starting another');
+    if (!oilProcessingPrerequisiteMet) return notice('Advanced Oil Processing research required');
+    if (!basicOilMachineCount) return notice('construct at least one basic oil processing refinery first');
+    const job: QueueItem = {
+      id: `upgrade-${Date.now()}`,
+      action: 'upgrade',
+      target: 'Upgrade Basic Oil Processing to Advanced Oil Processing',
+      targetId: OIL_PROCESSING_UPGRADE_ID,
+      seconds: oilProcessingUpgradeTimeFor(basicOilMachineCount),
+      total: oilProcessingUpgradeTimeFor(basicOilMachineCount),
+      machineCount: basicOilMachineCount,
+    };
+    setState((s) => ({ ...s, queue: [...s.queue, job] }));
+    notice(`Advanced Oil Processing conversion started for ${basicOilMachineCount} refinery${basicOilMachineCount === 1 ? '' : 'ies'}`);
+  };
   return <PageFrame>
-    <Header eyebrow="Machine + storage conversion" title="Upgrades" copy="Convert machines, furnaces, or item-storage chests in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 4 upgrades</Tag>} />
+    <Header eyebrow="Machine + storage conversion" title="Upgrades" copy="Convert machines, furnaces, oil processing, or item-storage chests in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 5 upgrades</Tag>} />
     <section className="surface mb-5 rounded-xl border-[hsl(var(--primary)/.25)] bg-[linear-gradient(100deg,hsl(34_28%_16%/.82),hsl(216_25%_14%/.96))] p-4 sm:p-5">
       <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">How conversion works</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Costs are calculated from the current number of relevant machines, deducted immediately, and all matching machines change variant together when the timer completes. Construction elsewhere in the factory can continue.</p></div></div>
     </section>
@@ -1642,6 +1696,19 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
           {!complete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{machineCount ? `${machineCount} machines · ${totalSeconds.toFixed(1)}s · total cost` : 'No relevant machines built'}</div></div><button onClick={() => startUpgrade(item)} disabled={!canStart} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-start-upgrade-${item.id}`}><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : missing ? `need ${missing}` : !prerequisiteMet ? 'locked' : !machineCount ? 'build machines first' : 'start upgrade'}</button></div>{machineCount > 0 && <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Total reserved now: {totalCosts.map(costLabel).join(' + ')}</div>}</div>}
         </section>;
       })}
+       <section className="surface rounded-xl p-4 sm:p-5" data-testid="card-upgrade-advanced-oil-processing">
+         <div className="flex items-start gap-3">
+           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><FactoryIcon size={18} /></div>
+           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">Upgrade Basic Oil Processing to Advanced Oil Processing</h2>{oilProcessingUpgradeComplete ? <Tag><Check size={10} /> installed</Tag> : oilProcessingUpgradeQueued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : !oilProcessingPrerequisiteMet ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : <Tag tone="amber">available</Tag>}</div><p className="mt-1 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">Replace every constructed Basic Oil Processing refinery with Advanced Oil Processing. The conversion is free and takes one second per refinery.</p></div>
+         </div>
+         {oilProcessingUpgradeQueued && activeUpgrade && <div className="construction-panel mt-4 rounded-lg p-3" aria-live="polite" data-testid="panel-upgrade-progress-advanced-oil-processing"><div className="flex items-start justify-between gap-3"><div><div className="eyebrow text-[hsl(var(--primary))]">Upgrade in progress</div><div className="mt-1 text-[10px] font-bold">{oilProcessingConversionCount} refinery{oilProcessingConversionCount === 1 ? '' : 'ies'} converting</div></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(activeUpgrade.seconds)}</span></div><div className="mt-2"><Progress value={(1 - activeUpgrade.seconds / activeUpgrade.total) * 100} tone="amber" /></div><div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(Math.max(0, (1 - activeUpgrade.seconds / activeUpgrade.total) * 100))}% complete</span><span>{activeUpgrade.total.toFixed(1)}s total</span></div></div>}
+         <div className="mt-4 grid gap-2 text-[10px]">
+           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Current process</div><div className="mt-1 flex items-center justify-between gap-2"><span className="font-semibold">Basic Oil Processing</span><span className="mono text-[hsl(var(--secondary))]">{oilProcessingUpgradeQueued ? oilProcessingConversionCount : basicOilMachineCount} built</span></div></div>
+           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Upgrade cost · 1s per refinery</div><div className="mt-1 font-semibold text-[hsl(var(--secondary))]">Free</div></div>
+           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">New process</div><div className="mt-1 flex items-center justify-between gap-2 font-semibold"><span>Advanced Oil Processing</span><span className="mono text-[hsl(var(--secondary))]">same refinery count</span></div></div>
+         </div>
+         {!oilProcessingUpgradeComplete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{basicOilMachineCount ? `${basicOilMachineCount} refineries · ${oilProcessingUpgradeTotalSeconds.toFixed(1)}s · free` : 'No basic oil processing refineries built'}</div></div><button onClick={startOilProcessingUpgrade} disabled={!!activeUpgrade || !oilProcessingPrerequisiteMet || !basicOilMachineCount} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-upgrade-advanced-oil-processing"><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !oilProcessingPrerequisiteMet ? 'locked' : !basicOilMachineCount ? 'build refineries first' : 'start upgrade'}</button></div></div>}
+       </section>
        <section className="surface rounded-xl p-4 sm:p-5" data-testid="card-upgrade-steel-furnaces">
          <div className="flex items-start gap-3">
            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><FlameIcon /></div>

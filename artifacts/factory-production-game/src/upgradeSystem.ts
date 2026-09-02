@@ -1,5 +1,12 @@
 export type MachineGroup = 'assembly' | 'mining';
 export type UpgradeKey = 'assembly-machine-2' | 'electric-mining-drill';
+export const OIL_PROCESSING_UPGRADE_ID = 'advanced-oil-processing';
+export const oilProcessingUpgradeTimeFor = (machineCount: number) => Math.max(0, machineCount);
+export const oilCrackingConditionMet = (recipeId: string, inventory: Record<string, number>) => recipeId === 'heavy-oil-cracking'
+  ? (inventory['heavy-oil'] ?? 0) > (inventory['light-oil'] ?? 0)
+  : recipeId === 'light-oil-cracking'
+    ? (inventory['light-oil'] ?? 0) > (inventory['petroleum-gas'] ?? 0)
+    : true;
 export type BuildMaterialCost = { key: string; amount: number; source: 'raw' | 'products' };
 export type MachineVariants = Record<MachineGroup, string>;
 export type UpgradeDefinition = {
@@ -155,6 +162,12 @@ export const applyUpgradeCompletion = (machineVariants: MachineVariants, upgrade
   return { ...machineVariants, [upgrade.machineGroup]: upgrade.newMachine };
 };
 
+export const applyOilProcessingUpgradeCompletion = (assemblers: Record<string, number>, machineCount: number) => ({
+  ...assemblers,
+  'advanced-oil-processing': Math.max(0, machineCount),
+  'basic-oil-processing': 0,
+});
+
 export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: MachineVariants; queue: UpgradeQueueRecord[] } => {
   const record = saved && typeof saved === 'object' ? saved as { machineVariants?: unknown; queue?: unknown } : {};
   const savedVariants = record.machineVariants && typeof record.machineVariants === 'object'
@@ -166,7 +179,7 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
   };
   const persistedQueue = Array.isArray(record.queue) ? record.queue : [];
   let upgradeSeen = false;
-  const validUpgradeIds = new Set<string>([...Object.keys(upgradeMap), 'iron-chests', 'steel-furnaces']);
+  const validUpgradeIds = new Set<string>([...Object.keys(upgradeMap), 'iron-chests', 'steel-furnaces', OIL_PROCESSING_UPGRADE_ID]);
   const queue = persistedQueue.filter((item): item is UpgradeQueueRecord => {
     if (!item || typeof item !== 'object') return false;
     const candidate = item as UpgradeQueueRecord;

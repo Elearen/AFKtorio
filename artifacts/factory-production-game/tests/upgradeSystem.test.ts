@@ -2,9 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyUpgradeCompletion,
+  applyOilProcessingUpgradeCompletion,
   bufferedActualRateFor,
   beginUpgrade,
   migrateMachineUpgradeState,
+  oilCrackingConditionMet,
+  oilProcessingUpgradeTimeFor,
   upgradeMap,
   type UpgradeStartState,
 } from '../src/upgradeSystem.js';
@@ -115,6 +118,27 @@ test('completion switches all machines in the upgraded group and leaves other gr
 
   const afterMining = applyUpgradeCompletion(afterProduction, 'electric-mining-drill');
   assert.deepEqual(afterMining, { assembly: 'assembling-machine-2', mining: 'electric-mining-drill' });
+});
+
+test('oil processing conversion is free-time and moves basic machines to advanced', () => {
+  assert.equal(oilProcessingUpgradeTimeFor(4), 4);
+  assert.equal(oilProcessingUpgradeTimeFor(0), 0);
+  assert.deepEqual(applyOilProcessingUpgradeCompletion({
+    'basic-oil-processing': 4,
+    'advanced-oil-processing': 0,
+    'sulfuric-acid': 2,
+  }, 4), {
+    'basic-oil-processing': 0,
+    'advanced-oil-processing': 4,
+    'sulfuric-acid': 2,
+  });
+});
+
+test('oil cracking auto-start conditions require a strict storage lead', () => {
+  assert.equal(oilCrackingConditionMet('heavy-oil-cracking', { 'heavy-oil': 41, 'light-oil': 40 }), true);
+  assert.equal(oilCrackingConditionMet('heavy-oil-cracking', { 'heavy-oil': 40, 'light-oil': 40 }), false);
+  assert.equal(oilCrackingConditionMet('light-oil-cracking', { 'light-oil': 21, 'petroleum-gas': 20 }), true);
+  assert.equal(oilCrackingConditionMet('light-oil-cracking', { 'light-oil': 20, 'petroleum-gas': 21 }), false);
 });
 
 test('save migration keeps valid state, removes legacy upgrade jobs, and allows one valid job', () => {
