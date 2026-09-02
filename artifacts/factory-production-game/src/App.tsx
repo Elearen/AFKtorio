@@ -413,14 +413,16 @@ const recordProduction = (state: GameState, key: TrackedKey, amount: number, pro
 };
 const researchTriggerProgress = (state: GameState, technology: TechnologyDefinition) => {
   const trigger = technology.researchTrigger;
-  if (!trigger || trigger.type !== 'craft-item' || !trigger.item) return null;
+  if (!trigger || !['craft-item', 'construct-item'].includes(trigger.type) || !trigger.item) return null;
   const key = keyForSource(trigger.item);
   return { key, produced: state.produced[key] ?? 0, required: trigger.count ?? 1 };
 };
 const researchTriggerLabel = (trigger: TechnologyDefinition['researchTrigger']) => {
   if (!trigger) return '';
-  const action = trigger.type === 'craft-item'
-    ? 'Craft'
+  const action = trigger.type === 'construct-item'
+    ? 'Construct'
+    : trigger.type === 'craft-item'
+      ? 'Craft'
     : trigger.type === 'send-item-to-orbit'
       ? 'Send to orbit'
       : trigger.type === 'mine-entity'
@@ -746,7 +748,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   completed.forEach((item) => {
     if (item.action === 'miner' && (item.targetId ?? item.target) !== 'wood') state.miners[(item.targetId ?? item.target) as RawKey] += 1;
     if (item.action === 'pump') state.pumps += 1;
-    if (item.action === 'pumpjack') state.pumpjacks += 1;
+    if (item.action === 'pumpjack') { state.pumpjacks += 1; recordProduction(state, 'pumpjack', 1); }
     if (item.action === 'uraniumMiner') state.uraniumMiners += 1;
      if (item.action === 'assembler' || item.action === 'furnace') state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
     if (item.action === 'lab') { state.labs += 1; recordProduction(state, 'lab', 1, liveProduction); }
