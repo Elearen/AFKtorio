@@ -206,6 +206,12 @@ const meta: Record<TrackedKey, { label: string; short: string; color: string; ca
   const fallback = { label: prettyLabel(key), short: key, color: ['#c9d3d0', '#e6a067', '#8da8a7', '#dfb05c', '#54b8a8', '#8ea9db'][index % 6], category: 'Component' };
   return [key, baseMeta[key] ?? fallback];
 }));
+type BuildMaterialCost = { key: string; amount: number; source: 'raw' | 'products' };
+const missingBuildMaterials = (state: GameState, costs: BuildMaterialCost[]) => costs
+  .map(({ key, amount, source }) => ({ key, missing: Math.max(0, amount - ((state[source] as Record<string, number>)[key] ?? 0)) }))
+  .filter(({ missing }) => missing > 0)
+  .map(({ key, missing }) => `${Number.isInteger(missing) ? fmt(missing) : missing.toFixed(2)} ${meta[key]?.label.toLowerCase() ?? prettyLabel(key).toLowerCase()}`)
+  .join(' + ');
 const starterProducts: Record<string, number> = {
   ...Object.fromEntries(trackedKeys.map((key) => [key, 0])),
   ironPlate: 28, copperPlate: 14, steel: 4, gear: 9, pipe: 4, circuit: 3, automationPack: 9, logisticsPack: 5, chemicalPack: 0, militaryPack: 0, productionPack: 0, utilityPack: 0,
@@ -698,9 +704,10 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
     notice(`manual ${rawInfo[key].label.toLowerCase()} mining started`);
   };
   const build = (key: RawKey) => {
-    if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); if (state.products.ironPlate < 10 || state.products.gear < 2) return notice('need 10 iron plates + 2 gears'); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 10, gear: s.products.gear - 2 } })); enqueue('pump', 'Water pump', 40); return; }
-    if (key === 'uranium') { if (!state.research.includes('nuclear-power')) return notice('Nuclear Power required'); if (state.products.steel < 20 || state.products.circuit < 8) return notice('need 20 steel + 8 circuits'); setState((s) => ({ ...s, products: { ...s.products, steel: s.products.steel - 20, circuit: s.products.circuit - 8 } })); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90); return; }
-    if (state.products.gear < burnerMiningDrillCost.gear || state.products.ironPlate < burnerMiningDrillCost.ironPlate || state.raw.stone < burnerMiningDrillCost.stone) return notice('need 3 iron gears + 3 iron plates + 5 stone');
+    if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); const missing = missingBuildMaterials(state, [{ key: 'ironPlate', amount: 10, source: 'products' }, { key: 'gear', amount: 2, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 10, gear: s.products.gear - 2 } })); enqueue('pump', 'Water pump', 40); return; }
+    if (key === 'uranium') { if (!state.research.includes('nuclear-power')) return notice('Nuclear Power required'); const missing = missingBuildMaterials(state, [{ key: 'steel', amount: 20, source: 'products' }, { key: 'circuit', amount: 8, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, steel: s.products.steel - 20, circuit: s.products.circuit - 8 } })); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90); return; }
+    const missing = missingBuildMaterials(state, [{ key: 'gear', amount: burnerMiningDrillCost.gear, source: 'products' }, { key: 'ironPlate', amount: burnerMiningDrillCost.ironPlate, source: 'products' }, { key: 'stone', amount: burnerMiningDrillCost.stone, source: 'raw' }]);
+    if (missing) return notice(`need ${missing}`);
     setState((s) => ({ ...s, raw: { ...s.raw, stone: s.raw.stone - burnerMiningDrillCost.stone }, products: { ...s.products, ironPlate: s.products.ironPlate - burnerMiningDrillCost.ironPlate, gear: s.products.gear - burnerMiningDrillCost.gear } }));
     enqueue('miner', `${rawInfo[key].label} burner mining drill`, burnerMiningDrillRecipe.energyRequired, key);
   };
@@ -734,13 +741,15 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const buildProductionUnit = (key: ComponentKey) => {
     const recipe = recipeMap[key];
     if (isSmeltingRecipe(recipe)) {
-      if (state.raw.stone < stoneFurnaceBuildCost.stone) return notice('need 5 stone');
+      const missing = missingBuildMaterials(state, [{ key: 'stone', amount: stoneFurnaceBuildCost.stone, source: 'raw' }]);
+      if (missing) return notice(`need ${missing}`);
       setState((s) => ({ ...s, raw: { ...s.raw, stone: s.raw.stone - stoneFurnaceBuildCost.stone } }));
       enqueue('furnace', `${prettyLabel(key)} stone furnace`, stoneFurnaceRecipe.energyRequired, key);
       return;
     }
     if (!automationUnlocked) return notice('Automation technology required');
-    if (state.products.circuit < assemblyMachineOneBuildCost.circuit || state.products.gear < assemblyMachineOneBuildCost.gear || state.products.ironPlate < assemblyMachineOneBuildCost.ironPlate) return notice('need 3 electronic circuits + 5 iron gears + 9 iron plates');
+    const missing = missingBuildMaterials(state, [{ key: 'circuit', amount: assemblyMachineOneBuildCost.circuit, source: 'products' }, { key: 'gear', amount: assemblyMachineOneBuildCost.gear, source: 'products' }, { key: 'ironPlate', amount: assemblyMachineOneBuildCost.ironPlate, source: 'products' }]);
+    if (missing) return notice(`need ${missing}`);
     setState((s) => ({ ...s, products: { ...s.products, circuit: s.products.circuit - assemblyMachineOneBuildCost.circuit, gear: s.products.gear - assemblyMachineOneBuildCost.gear, ironPlate: s.products.ironPlate - assemblyMachineOneBuildCost.ironPlate } }));
     enqueue('assembler', `${prettyLabel(key)} assembly machine 1`, assemblyMachineOneRecipe.energyRequired, key);
   };
@@ -818,7 +827,8 @@ function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" ar
 function StoragePage({ state, setState, enqueue, notice }: PageProps) {
   const buildStorageBox = (key: TrackedKey) => {
     const constructionItems = state.queue.filter((item) => item.action === 'storage' && item.targetId === key);
-    if (state.raw.wood < storageBoxWoodCost) return notice(`need ${storageBoxWoodCost} wood`);
+    const missing = missingBuildMaterials(state, [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' }]);
+    if (missing) return notice(`need ${missing}`);
     setState((s) => ({ ...s, raw: { ...s.raw, wood: s.raw.wood - storageBoxWoodCost } }));
     enqueue('storage', `Wooden box · ${meta[key].label}`, storageBoxBuildSeconds, key);
     notice(`wooden box for ${meta[key].label} queued`);
@@ -877,7 +887,7 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
   const currentSpm = scienceCurrentSpmFor(state, requiredScienceKeys);
   const peakSpm = sciencePeakSpmFor(state, requiredScienceKeys);
   const labRate = scienceLabRateFor(state, activeResearch);
-  const buildLab = () => { if (state.products.ironPlate < 12 || state.products.circuit < 4) return notice('need 12 iron plates + 4 circuits'); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 12, circuit: s.products.circuit - 4 } })); enqueue('lab', 'Science lab', 65); };
+  const buildLab = () => { const missing = missingBuildMaterials(state, [{ key: 'ironPlate', amount: 12, source: 'products' }, { key: 'circuit', amount: 4, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 12, circuit: s.products.circuit - 4 } })); enqueue('lab', 'Science lab', 65); };
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   return <PageFrame>
     <Header eyebrow="Research fuel" title="Science" copy="Labs consume every science pack required by the active research. SPM is limited by lab capacity and the tightest available pack line." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><FlaskConical size={17} className="text-[hsl(var(--primary))]" /><span className="mono text-[15px]">{currentSpm.toFixed(1)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">SPM</span></span></div>} />
