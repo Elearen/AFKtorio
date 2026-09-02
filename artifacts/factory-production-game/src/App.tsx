@@ -22,6 +22,7 @@ type UnitStatus = 'running' | 'starved' | 'blocked';
 type Recipe = RecipeCatalogEntry;
 type QueueItem = { id: string; action: 'miner' | 'pump' | 'uraniumMiner' | 'assembler' | 'lab' | 'upgrade'; target: string; targetId?: string; seconds: number; total: number };
 type HandcraftJob = { recipeKey: string; seconds: number; total: number };
+type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number };
 type GameState = {
   raw: Record<RawKey, number>;
   products: Record<string, number>;
@@ -35,6 +36,7 @@ type GameState = {
   assemblyProgress: Record<string, number>;
   labProgress: number;
   handcraft: HandcraftJob | null;
+  manualMining: ManualMiningJob | null;
   queue: QueueItem[];
   research: ResearchKey[];
   produced: Record<string, number>;
@@ -69,6 +71,7 @@ const assemblyMachineOneRecipe = recipeMap['assembling-machine-1'];
 const assemblyMachineOneBuildCost = { circuit: 3, gear: 5, ironPlate: 9 };
 const assemblyMachineOnePowerKw = 75;
 const labPowerKw = 7000;
+const manualMiningSeconds = 0.5;
 const materialAmount = (material: RecipeMaterial) => {
   const base = material.amount ?? ((material.amountMin ?? 0) + (material.amountMax ?? material.amountMin ?? 0)) / 2;
   const probability = material.probability ?? (material.sharedProbability ? material.sharedProbability.max - material.sharedProbability.min : 1);
@@ -138,7 +141,7 @@ const initialState: GameState = {
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labs: 1, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, queue: [], research: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
 };
 
@@ -250,7 +253,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage },
     assemblers: { ...previous.assemblers }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
-    handcraft: previous.handcraft ? { ...previous.handcraft } : null, queue: previous.queue.map((item) => ({ ...item })), research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
+    handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null, queue: previous.queue.map((item) => ({ ...item })), research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
   };
   const speed = state.simulationSpeed;
   const operatingSeconds = burnerOperatingSeconds(state, seconds);
@@ -292,6 +295,17 @@ function simulate(previous: GameState, seconds: number): GameState {
       state.handcraft = null;
     }
   }
+  if (state.manualMining) {
+    state.manualMining.seconds = Math.max(0, state.manualMining.seconds - seconds * speed);
+    if (state.manualMining.seconds <= 0) {
+      const resourceKey = state.manualMining.resourceKey;
+      const amount = 1 + state.upgrades.manualMining;
+      addTracked(state, resourceKey, amount, true);
+      recordProduction(state, resourceKey, amount);
+      state.totalOutput += amount;
+      state.manualMining = null;
+    }
+  }
   state.labProgress += state.labs * seconds * speed / 5;
   while (state.labProgress >= 1) {
     const pack = scienceKeys.find((key) => state.products[key] > 0);
@@ -327,6 +341,7 @@ function loadState() {
       miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
       handcraft: parsed.handcraft ? { ...parsed.handcraft } : null,
+      manualMining: parsed.manualMining ? { ...parsed.manualMining } : null,
       produced: { ...initialState.produced, ...parsed.produced },
       upgrades: { ...initialState.upgrades, ...parsed.upgrades },
       queue: parsed.queue ?? [],
@@ -409,6 +424,23 @@ function HandcraftProgress({ job, recipe }: { job: HandcraftJob; recipe: Recipe 
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{finishing ? 'output will be stored above capacity if needed' : `${Math.floor(Math.max(0, 1 - job.seconds / job.total) * 100)}% complete`}</span><span>one item at a time</span></div>
   </div>;
 }
+function ManualMiningProgress({ job }: { job: ManualMiningJob }) {
+  const complete = Math.floor(Math.max(0, 1 - job.seconds / job.total) * 100);
+  return <div className="construction-panel mt-3 rounded-lg p-3" aria-live="polite" data-testid={`panel-manual-mining-${job.resourceKey}`}>
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-2">
+        <div className="construction-pulse mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md"><Pickaxe size={13} /></div>
+        <div className="min-w-0">
+          <div className="eyebrow text-[hsl(var(--primary))]">Manual mining in progress</div>
+          <div className="mt-1 truncate text-[10px] font-bold">{prettyLabel(job.resourceKey)}</div>
+        </div>
+      </div>
+      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{job.seconds.toFixed(2)}s</span>
+    </div>
+    <div className="mt-2"><Progress value={complete} tone="amber" /></div>
+    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{complete}% complete</span><span>one item at a time</span></div>
+  </div>;
+}
 
 function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
   const active = totalUnits(state);
@@ -433,14 +465,9 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
 function MiningPage({ state, setState, enqueue, notice }: PageProps) {
   const tap = (key: RawKey) => {
     if (state.miners[key] || key === 'water' || key === 'uranium') return;
-    setState((s) => {
-      const amount = Math.min(1 + s.upgrades.manualMining, Math.max(0, capFor(s, key) - s.raw[key]));
-      const next = { ...s, raw: { ...s.raw, [key]: s.raw[key] + amount }, totalOutput: s.totalOutput + amount, produced: { ...s.produced } };
-      recordProduction(next, key, amount);
-      applyResearchTriggers(next);
-      return next;
-    });
-    notice(`manual ${rawInfo[key].label.toLowerCase()} extracted`);
+    if (state.manualMining) return notice(state.manualMining.resourceKey === key ? `already mining ${rawInfo[key].label.toLowerCase()}` : `finish mining ${rawInfo[state.manualMining.resourceKey].label.toLowerCase()} first`);
+    setState((s) => ({ ...s, manualMining: { resourceKey: key, seconds: manualMiningSeconds, total: manualMiningSeconds } }));
+    notice(`manual ${rawInfo[key].label.toLowerCase()} mining started`);
   };
   const build = (key: RawKey) => {
     if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); if (state.products.ironPlate < 10 || state.products.gear < 2) return notice('need 10 iron plates + 2 gears'); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 10, gear: s.products.gear - 2 } })); enqueue('pump', 'Water pump', 40); return; }
@@ -449,7 +476,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
     setState((s) => ({ ...s, raw: { ...s.raw, stone: s.raw.stone - burnerMiningDrillCost.stone }, products: { ...s.products, ironPlate: s.products.ironPlate - burnerMiningDrillCost.ironPlate, gear: s.products.gear - burnerMiningDrillCost.gear } }));
     enqueue('miner', `${rawInfo[key].label} burner mining drill`, burnerMiningDrillRecipe.energyRequired, key);
   };
-  return <PageFrame><Header eyebrow="Raw material control" title="Mining" copy="Tap the ground to start. Build burner mining drills to make the ore line autonomous — each drill consumes coal while it operates." action={<Tag><Pickaxe size={11} /> 7 resource sections</Tag>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{rawKeys.map((key) => { const info = rawInfo[key]; const locked = !!info.research && !state.research.includes(info.research); const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key]; const isBurnerOre = burnerMinerKeys.includes(key); const fuelRate = count * burnerMiningDrillCoalPerSecond; const autonomous = count > 0; const constructionAction = key === 'water' ? 'pump' : key === 'uranium' ? 'uraniumMiner' : 'miner'; const constructionItems = state.queue.filter((item) => item.action === constructionAction && (constructionAction !== 'miner' || item.targetId === key)); const isBuilding = constructionItems.length > 0; const constructionLabel = key === 'water' ? 'Water pump' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} burner mining drill`; return <section className={`surface rounded-xl p-4 ${locked ? 'locked-wash opacity-75' : ''}`} key={key} data-testid={`section-mining-${key}`}><div className="flex items-start gap-3"><div className="resource-orb"><ResourceIcon item={key} size={29} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">{info.label}</h2>{locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <Tag><span className="status-dot status-running" /> autonomous</Tag> : <Tag tone="amber">manual</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{info.description}</p></div></div><div className="mt-4 flex items-end justify-between"><div><div className="eyebrow">Buffer</div><div className="mono mt-1 text-[18px]">{fmt(state.raw[key])}<span className="text-[10px] text-[hsl(var(--muted-foreground))]"> / {capFor(state, key)}</span></div></div><div className="text-right">{isBurnerOre ? <div className="eyebrow flex items-center justify-end gap-1"><ResourceIcon item="burner-mining-drill" size={14} /> burner drills</div> : <div className="eyebrow">{key === 'water' ? 'pumps' : 'acid miners'}</div>}<div className="mono mt-1 text-[18px] text-[hsl(var(--secondary))]">{count}</div></div></div><Progress value={state.raw[key] / capFor(state, key) * 100} />{isBurnerOre && <><div className="data-row mt-3 flex items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="burner-mining-drill" size={18} /><span className="text-[10px] font-semibold">Burner drill fuel</span><span className="ml-auto flex items-center gap-1 mono text-[10px] text-[hsl(var(--primary))]"><ResourceIcon item="coal" size={15} /> {fuelRate.toFixed(2)} /s</span><span className="text-[9px] text-[hsl(var(--muted-foreground))]">no electricity</span></div><div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Build: {burnerMiningDrillCost.gear} gears + {burnerMiningDrillCost.ironPlate} iron plates + {burnerMiningDrillCost.stone} stone · {burnerMiningDrillRecipe.energyRequired}s</div></>}<BuildProgress items={constructionItems} label={constructionLabel} /><div className="mt-4 flex gap-2">{locked ? <button onClick={() => notice(`${info.needs} research required`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-locked-mining-${key}`}><LockKeyhole size={13} /> requires {info.needs}</button> : autonomous ? <button onClick={() => build(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} data-testid={`button-build-more-${key}`}>{isBuilding ? <><Check size={13} /> queued · construct another</> : <><Plus size={13} /> construct {key === 'water' ? 'pump' : 'burner drill'}</>}</button> : <><button onClick={() => tap(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-tap-${key}`}><Pickaxe size={13} /> tap to mine</button><button onClick={() => build(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${info.label} miner`} data-testid={`button-build-miner-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div></section>; })}</div><div className="mt-5 surface rounded-xl border-[hsl(var(--secondary)/.25)] p-4"><div className="flex items-start gap-3"><div className="text-[hsl(var(--secondary))]"><Lightbulb size={17} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Mining rule</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Manual taps are intentionally useful at the start of a run. Burner mining drills take over after construction and consume 0.25 coal per second each.</p></div></div></div></PageFrame>;
+  return <PageFrame><Header eyebrow="Raw material control" title="Mining" copy="Tap the ground to start. Build burner mining drills to make the ore line autonomous — each drill consumes coal while it operates." action={<Tag><Pickaxe size={11} /> 7 resource sections</Tag>} /><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{rawKeys.map((key) => { const info = rawInfo[key]; const locked = !!info.research && !state.research.includes(info.research); const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key]; const isBurnerOre = burnerMinerKeys.includes(key); const fuelRate = count * burnerMiningDrillCoalPerSecond; const autonomous = count > 0; const manualMiningJob = state.manualMining?.resourceKey === key ? state.manualMining : null; const manualMiningBusy = Boolean(state.manualMining && !manualMiningJob); const constructionAction = key === 'water' ? 'pump' : key === 'uranium' ? 'uraniumMiner' : 'miner'; const constructionItems = state.queue.filter((item) => item.action === constructionAction && (constructionAction !== 'miner' || item.targetId === key)); const isBuilding = constructionItems.length > 0; const constructionLabel = key === 'water' ? 'Water pump' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} burner mining drill`; return <section className={`surface rounded-xl p-4 ${locked ? 'locked-wash opacity-75' : ''}`} key={key} data-testid={`section-mining-${key}`}><div className="flex items-start gap-3"><div className="resource-orb"><ResourceIcon item={key} size={29} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">{info.label}</h2>{locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <Tag><span className="status-dot status-running" /> autonomous</Tag> : <Tag tone="amber">manual</Tag>}</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{info.description}</p></div></div><div className="mt-4 flex items-end justify-between"><div><div className="eyebrow">Buffer</div><div className="mono mt-1 text-[18px]">{fmt(state.raw[key])}<span className="text-[10px] text-[hsl(var(--muted-foreground))]"> / {capFor(state, key)}</span></div></div><div className="text-right">{isBurnerOre ? <div className="eyebrow flex items-center justify-end gap-1"><ResourceIcon item="burner-mining-drill" size={14} /> burner drills</div> : <div className="eyebrow">{key === 'water' ? 'pumps' : 'acid miners'}</div>}<div className="mono mt-1 text-[18px] text-[hsl(var(--secondary))]">{count}</div></div></div><Progress value={state.raw[key] / capFor(state, key) * 100} />{manualMiningJob && <ManualMiningProgress job={manualMiningJob} />}{isBurnerOre && <><div className="data-row mt-3 flex items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item="burner-mining-drill" size={18} /><span className="text-[10px] font-semibold">Burner drill fuel</span><span className="ml-auto flex items-center gap-1 mono text-[10px] text-[hsl(var(--primary))]"><ResourceIcon item="coal" size={15} /> {fuelRate.toFixed(2)} /s</span><span className="text-[9px] text-[hsl(var(--muted-foreground))]">no electricity</span></div><div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Build: {burnerMiningDrillCost.gear} gears + {burnerMiningDrillCost.ironPlate} iron plates + {burnerMiningDrillCost.stone} stone · {burnerMiningDrillRecipe.energyRequired}s</div></>}<BuildProgress items={constructionItems} label={constructionLabel} /><div className="mt-4 flex gap-2">{locked ? <button onClick={() => notice(`${info.needs} research required`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-locked-mining-${key}`}><LockKeyhole size={13} /> requires {info.needs}</button> : autonomous ? <button onClick={() => build(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} data-testid={`button-build-more-${key}`}>{isBuilding ? <><Check size={13} /> queued · construct another</> : <><Plus size={13} /> construct {key === 'water' ? 'pump' : 'burner drill'}</>}</button> : <><button onClick={() => tap(key)} className="button-base button-primary flex-1 !py-2" data-testid={`button-tap-${key}`}>{manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} /> tap to mine</>}</button><button onClick={() => build(key)} className={`button-base !px-3 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`Construct ${info.label} miner`} data-testid={`button-build-miner-${key}`}>{isBuilding ? <Check size={13} /> : <Hammer size={13} />}</button></>}</div></section>; })}</div><div className="mt-5 surface rounded-xl border-[hsl(var(--secondary)/.25)] p-4"><div className="flex items-start gap-3"><div className="text-[hsl(var(--secondary))]"><Lightbulb size={17} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Mining rule</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Manual taps now take 0.5 seconds and only one resource can be mined by hand at a time. Hand-mined output can exceed storage capacity.</p></div></div></div></PageFrame>;
 }
 
 function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
