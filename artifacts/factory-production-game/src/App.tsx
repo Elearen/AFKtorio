@@ -46,6 +46,7 @@ type GameState = {
   currentResearch: ResearchKey | null;
   researchProgress: Record<ResearchKey, number>;
   autoResearch: ResearchKey[];
+  researchNotifications: ResearchKey[];
   produced: Record<string, number>;
   rateHistory: RateSample[];
   upgrades: Record<UpgradeKey, number>;
@@ -213,7 +214,7 @@ const initialState: GameState = {
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labs: 1, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: orderedTechnologyCatalog[0]?.name ?? null, researchProgress: {}, autoResearch: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: orderedTechnologyCatalog[0]?.name ?? null, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], upgrades: { manualMining: 0, productionSpeed: 0, storageEfficiency: 0, powerEfficiency: 0 },
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
 };
 
@@ -281,6 +282,11 @@ const researchTriggerMet = (state: GameState, technology: TechnologyDefinition) 
   const progress = researchTriggerProgress(state, technology);
   return Boolean(progress && progress.produced >= progress.required);
 };
+const markResearchComplete = (state: GameState, technology: TechnologyDefinition) => {
+  if (state.research.includes(technology.name)) return;
+  state.research.push(technology.name);
+  if (!state.researchNotifications.includes(technology.name)) state.researchNotifications.push(technology.name);
+};
 const applyResearchTriggers = (state: GameState) => {
   let added = true;
   while (added) {
@@ -288,7 +294,7 @@ const applyResearchTriggers = (state: GameState) => {
     orderedTechnologyCatalog.forEach((technology) => {
       if (!technology.researchTrigger || state.research.includes(technology.name) || !researchTriggerMet(state, technology)) return;
       if (!technology.prerequisites.every((prerequisite) => state.research.includes(prerequisite))) return;
-      state.research.push(technology.name);
+      markResearchComplete(state, technology);
       added = true;
     });
   }
@@ -369,7 +375,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes },
     assemblers: { ...previous.assemblers }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
-    researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])],
+    researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])],
     rateHistory: previous.rateHistory ?? [],
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null, queue: previous.queue.map((item) => ({ ...item })), research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
   };
@@ -444,7 +450,7 @@ function simulate(previous: GameState, seconds: number): GameState {
       state.labProgress -= 1;
       researchCycles += 1;
       if (nextProgress >= totalUnits) {
-        state.research = Array.from(new Set([...state.research, currentResearch.name]));
+        markResearchComplete(state, currentResearch);
         state.currentResearch = autoResearchTargetFor(state)?.name ?? currentResearch.name;
         state.labProgress = 0;
         break;
@@ -525,6 +531,7 @@ function loadState() {
       currentResearch: parsed.currentResearch ? normalizeResearchKey(String(parsed.currentResearch)) : initialState.currentResearch,
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
       autoResearch: orderedTechnologyCatalog.filter((technology) => (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
+      researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
       lastSeen: parsed.lastSeen ?? Date.now(),
     } as GameState;
     Object.keys(state.storageBoxes).forEach((key) => { state.storage[key] = state.storageBoxes[key] * storageBoxCapacity; });
@@ -994,6 +1001,25 @@ function ResearchPage({ state, setState, notice }: PageProps) {
   </PageFrame>;
 }
 
+function ResearchCompletionModal({ state, setState }: Pick<PageProps, 'state' | 'setState'>) {
+  const technology = technologyMap[state.researchNotifications[0]];
+  if (!technology) return null;
+  const acknowledge = () => setState((current) => ({ ...current, researchNotifications: current.researchNotifications.slice(1) }));
+  const scienceSummary = technology.scienceCosts.length
+    ? technology.scienceCosts.map((cost) => researchRequirementLabel(technology, cost)).join(' · ')
+    : technology.researchTrigger ? 'Production trigger' : 'No science packs';
+  return <div className="fixed inset-0 z-[70] grid place-items-center bg-[hsl(0_0%_0%/.78)] p-4 backdrop-blur-sm" role="presentation">
+    <section className="surface w-full max-w-[520px] rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="research-complete-title" data-testid="dialog-research-complete">
+      <div className="flex items-center justify-between gap-3"><Tag><Check size={11} /> research complete</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{state.researchNotifications.length > 1 ? `${state.researchNotifications.length} queued` : 'new unlock'}</span></div>
+      <h2 id="research-complete-title" className="mt-4 text-xl font-extrabold">{prettyLabel(technology.name)}</h2>
+      <p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">This technology is now online and its effects are available across the factory.</p>
+      <div className="mt-5 grid grid-cols-2 gap-2"><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Research effort</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{technology.researchTrigger ? 'production trigger' : `${fmt(researchUnitsFor(technology))} lab units`}</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Science invested</div><div className="mono mt-1 truncate text-[12px] text-[hsl(var(--primary))]" title={scienceSummary}>{scienceSummary}</div></div></div>
+      <div className="mt-5"><div className="eyebrow mb-2">Effects enabled</div><div className="space-y-2">{technology.effects.length ? technology.effects.map((effect, index) => <div className="data-row rounded-lg px-3 py-2 text-[10px]" key={`${effect.type}-${index}`}><span className="font-semibold">{effect.recipe ? `Unlock ${prettyLabel(effect.recipe)}` : prettyLabel(effect.type)}</span>{effect.target && <span className="text-[hsl(var(--muted-foreground))]"> · {prettyLabel(effect.target)}</span>}{effect.modifier !== undefined && <span className="mono float-right text-[hsl(var(--secondary))]">{typeof effect.modifier === 'number' && effect.modifier > 0 ? '+' : ''}{String(effect.modifier)}</span>}</div>) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No listed effects.</div>}</div></div>
+      <button onClick={acknowledge} className="button-base button-primary mt-6 w-full" data-testid="button-acknowledge-research"><Check size={14} /> acknowledge</button>
+    </section>
+  </div>;
+}
+
 function SettingsPage({ state, setState, saveNow, reset, notice }: PageProps) {
   const [confirm, setConfirm] = useState(false);
   return <PageFrame><Header eyebrow="Control room preferences" title="Settings" copy="Local controls for this browser instance. Nothing here changes the scope of the simulation." action={<Tag><Save size={11} /> local save</Tag>} /><div className="grid gap-5 lg:grid-cols-2"><section className="surface rounded-xl p-5"><SectionTitle>Local save controls</SectionTitle><div className="rounded-xl bg-[hsl(216_24%_10%/.7)] p-4"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><Save size={16} /></div><div><div className="text-[12px] font-bold">Browser save is active</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Production ticks and settings survive a reload.</div></div></div><div className="mt-4 flex gap-2"><button onClick={() => { saveNow(); notice('save committed now'); }} className="button-base button-primary" data-testid="button-save-now"><Save size={13} /> save now</button><button onClick={() => setConfirm(true)} className="button-base button-ghost text-[hsl(var(--destructive))]" data-testid="button-reset-save"><Trash2 size={13} /> reset progress</button></div></div>{confirm && <div className="mt-3 rounded-xl border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] p-4" data-testid="panel-reset-confirm"><div className="flex gap-2"><ShieldAlert size={16} className="text-[hsl(var(--destructive))]" /><div><div className="text-[12px] font-bold">Reset this factory?</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">This removes the local save and starts a new sector. This cannot be undone.</p></div></div><div className="mt-3 flex gap-2"><button onClick={() => { reset(); setConfirm(false); notice('new sector initialized'); }} className="button-base bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]" data-testid="button-confirm-reset">confirm reset</button><button onClick={() => setConfirm(false)} className="button-base button-ghost" data-testid="button-cancel-reset">cancel</button></div></div>}</section><section className="surface rounded-xl p-5"><SectionTitle>Simulation speed</SectionTitle><div className="grid grid-cols-3 gap-2">{[.5, 1, 2].map((speed) => <button onClick={() => setState((s) => ({ ...s, simulationSpeed: speed }))} className={`button-base py-3 ${state.simulationSpeed === speed ? 'button-primary' : 'button-ghost'}`} key={speed} data-testid={`button-speed-${speed}`}>{speed}x</button>)}</div><div className="mt-5 border-t border-[hsl(var(--border))] pt-4"><SectionTitle>Control legend</SectionTitle><div className="space-y-3 text-[11px] text-[hsl(var(--muted-foreground))]"><div className="flex items-center gap-2"><span className="status-dot status-running" /><span><strong className="text-[hsl(var(--foreground))]">Green</strong> means a unit is consuming and producing.</span></div><div className="flex items-center gap-2"><span className="status-dot status-starved" /><span><strong className="text-[hsl(var(--foreground))]">Yellow</strong> means an input is below recipe demand.</span></div><div className="flex items-center gap-2"><span className="status-dot status-blocked" /><span><strong className="text-[hsl(var(--foreground))]">Red</strong> means output or a control path is blocked.</span></div></div></div></section></div><section className="surface mt-5 rounded-xl p-5"><div className="flex items-start gap-3"><CircleHelp size={17} className="text-[hsl(var(--primary))]" /><div><div className="eyebrow">About this slice</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Production Game is a local, playable incremental factory. The resource art, production loop, and control-room language are original to this interface.</p></div></div></section></PageFrame>;
@@ -1029,7 +1055,7 @@ function Game() {
   else if (pageKey === 'research') page = <ResearchPage {...props} />;
   else if (pageKey === 'settings') page = <SettingsPage {...props} />;
   else page = <FactoryPage {...props} />;
-  return <Shell>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}</Shell>;
+  return <Shell>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}</Shell>;
 }
 
 function App() { return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Game /></WouterRouter>; }

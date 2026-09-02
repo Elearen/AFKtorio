@@ -20,3 +20,9 @@ The Research screen’s live summary uses lab units per minute for the active la
 **Why:** Trigger-based unlocks do not advance through labs, so presenting a lab rate or numeric ETA for them would be misleading.
 
 **How to apply:** Keep trigger progress visible on the technology card, but use a waiting label rather than inventing a research rate or completion time.
+
+Research completions are persisted as an ordered acknowledgement queue rendered by the top-level game shell, so completion summaries cannot be missed when the player is viewing another tab.
+
+**Why:** Research advances in the background and can complete while the user is away from the Technology screen.
+
+**How to apply:** Queue both lab-driven and production-trigger completions, show one blocking summary at a time, and remove only the acknowledged entry.
