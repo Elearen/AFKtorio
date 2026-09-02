@@ -345,7 +345,11 @@ const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
 const duration = (n: number) => `${Math.floor(n / 60)}m ${String(Math.max(0, Math.floor(n % 60))).padStart(2, '0')}s`;
 const containerCountFor = (state: GameState, key: TrackedKey) => calculateStorageContainerCountFor(key, fluidKeys, state.storageBoxes, state.storageTanks);
 const storageBoxCapacityFor = (state: GameState) => state.storageBoxType === 'iron' ? ironStorageBoxCapacity : storageBoxCapacity;
-const storageBoxCountFor = (state: GameState) => itemStorageBoxCountFor(trackedKeys, fluidKeys, state.storageBoxes);
+const storageBoxCountFor = (state: GameState) => itemStorageBoxCountFor(
+  trackedKeys.filter((key) => unlockedProductKeys(state).has(key)),
+  fluidKeys,
+  state.storageBoxes,
+);
 const storageCapacityFor = (state: GameState, key: TrackedKey) => calculateStorageCapacityFor(key, fluidKeys, state.storageBoxes, state.storageTanks, storageBoxCapacityFor(state));
 const capFor = (state: GameState, key: TrackedKey) => Math.floor(state.storage[key] ?? storageCapacityFor(state, key));
 const burnerMinerCount = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
