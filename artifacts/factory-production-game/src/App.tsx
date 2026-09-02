@@ -171,6 +171,9 @@ const storageTankCapacity = STORAGE_TANK_CAPACITY;
 const storageBoxWoodCost = 2;
 const storageBoxBuildSeconds = 1;
 const manualMiningSeconds = 2.5;
+const boilerRecipe = recipeMap['boiler'];
+const steamEngineRecipe = recipeMap['steam-engine'];
+const labRecipe = recipeMap['lab'];
 const labBaseResearchSpeed = 1;
 const technologyResearchTimeFor = (technology?: TechnologyDefinition) => Math.max(1, technology?.time ?? defaultTechnologyResearchTime);
 const boilerSteamPerSecond = 30;
@@ -296,7 +299,7 @@ const initialState: GameState = {
   miners: { iron: 0, copper: 0, stone: 0, coal: 0, wood: 0, water: 0, uranium: 0, crudeOil: 0 },
   pumps: 0, pumpjacks: 0, uraniumMiners: 0,
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labs: 1, boilers: 0, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
+  labs: 0, boilers: 0, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
@@ -760,6 +763,8 @@ function loadState() {
     const savedRateHistory = parsed.rateHistory ?? [];
     const hasRateSourceData = savedRateHistory.every((sample) => sample.manualProduction !== undefined);
     const migratedUpgradeState = migrateMachineUpgradeState({ machineVariants: parsed.machineVariants, queue: parsed.queue });
+    const savedLabCount = typeof parsed.labs === 'number' ? Math.max(0, parsed.labs) : initialState.labs;
+    const migratedLabCount = savedLabCount === 1 && !(Array.isArray(parsed.queue) && parsed.queue.some((item) => item.action === 'lab')) ? 0 : savedLabCount;
     const normalizedStorage = (() => {
       const storage = { ...initialState.storage, ...parsed.storage };
       if (parsed.storage?.researchPack !== undefined && parsed.storage?.productionPack === undefined) storage.productionPack = parsed.storage.researchPack;
@@ -788,6 +793,7 @@ function loadState() {
       storageTanks: migratedStorage.storageTanks as Record<TrackedKey, number>,
       miners: { ...initialState.miners, ...parsed.miners },
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
+      labs: migratedLabCount,
       miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
       handcraft: parsed.handcraft ? { ...parsed.handcraft } : null,
@@ -1347,7 +1353,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
       });
       return { ...current, raw, products };
     });
-    enqueue(unit, isSolarPanel ? 'Solar panel' : unit === 'boiler' ? 'Boiler' : 'Steam engine', isSolarPanel ? solarPanelRecipe.energyRequired : unit === 'boiler' ? 45 : 55);
+    enqueue(unit, isSolarPanel ? 'Solar panel' : unit === 'boiler' ? 'Boiler' : 'Steam engine', isSolarPanel ? solarPanelRecipe.energyRequired : unit === 'boiler' ? boilerRecipe.energyRequired : steamEngineRecipe.energyRequired);
   };
   const constructionChips = (costs: BuildMaterialCost[], output: string) => <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Construction</div><div className="flex flex-wrap items-center gap-1.5">{costs.map(({ key, amount }, index) => <span className="contents" key={`${key}-${index}`}><span className="resource-chip"><ResourceIcon item={key} size={17} /><strong>{amount}</strong> {meta[key]?.short ?? prettyLabel(key)}</span>{index < costs.length - 1 && <span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">+</span>}</span>)}<ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--primary)/.4)' }}><ResourceIcon item={output} size={17} /><strong>1</strong> {prettyLabel(output)}</span></div></div>;
   const statusTag = (unlocked: boolean, count: number, queued: number) => unlocked ? count ? <Tag><span className="status-dot status-running" /> auto</Tag> : queued > 0 ? <Tag tone="amber"><Clock3 size={10} /> queued</Tag> : <Tag tone="amber">offline</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>;
@@ -1533,7 +1539,7 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
   const currentSpm = scienceCurrentSpmFor(state, requiredScienceKeys);
   const peakSpm = sciencePeakSpmFor(state, requiredScienceKeys);
   const labRate = scienceLabRateFor(state, activeResearch);
-  const buildLab = () => { const missing = missingBuildMaterials(state, [{ key: 'ironPlate', amount: 12, source: 'products' }, { key: 'circuit', amount: 4, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 12, circuit: s.products.circuit - 4 } })); enqueue('lab', 'Science lab', 65); };
+  const buildLab = () => { const missing = missingBuildMaterials(state, [{ key: 'ironPlate', amount: 12, source: 'products' }, { key: 'circuit', amount: 4, source: 'products' }]); if (missing) return notice(`need ${missing}`); setState((s) => ({ ...s, products: { ...s.products, ironPlate: s.products.ironPlate - 12, circuit: s.products.circuit - 4 } })); enqueue('lab', 'Science lab', labRecipe.energyRequired); };
   const labConstructionItems = state.queue.filter((item) => item.action === 'lab');
   const labIsBuilding = labConstructionItems.length > 0;
   const currentLabUsage = requiredScienceKeys.reduce((total, key) => total + demandRateFor(state, key), 0);
