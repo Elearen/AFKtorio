@@ -3233,7 +3233,12 @@ export const technologyCatalog: TechnologyDefinition[] = [
       "type": "send-item-to-orbit",
       "item": "satellite"
     },
-    "effects": [],
+    "effects": [
+      {
+        "type": "unlock-recipe",
+        "recipe": "satellite"
+      }
+    ],
     "iconPath": "__base__/graphics/technology/space-science-pack.png",
     "upgrade": false,
     "essential": true

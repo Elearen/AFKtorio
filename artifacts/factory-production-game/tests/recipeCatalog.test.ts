@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { recipeCatalog } from '../src/recipeCatalog.js';
+import { technologyCatalog } from '../src/technologyCatalog.js';
 
 test('Space Science Pack uses the requested ingredients, produces 1000 packs, and is part of the core chain', () => {
   const spaceScience = recipeCatalog.find((recipe) => recipe.name === 'space-science-pack');
@@ -28,4 +29,11 @@ test('Space Science Pack uses the requested ingredients, produces 1000 packs, an
     'solid-fuel-from-petroleum-gas',
     'solid-fuel-from-heavy-oil',
   ].forEach((recipeName) => assert.equal(coreRecipes.has(recipeName), true, `${recipeName} should be Core`));
+});
+
+test('Space Science technology unlocks the Satellite recipe', () => {
+  const spaceScienceTechnology = technologyCatalog.find((technology) => technology.name === 'space-science-pack');
+
+  assert.ok(spaceScienceTechnology);
+  assert.equal(spaceScienceTechnology.effects.some((effect) => effect.type === 'unlock-recipe' && effect.recipe === 'satellite'), true);
 });
