@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type ReactNode, type SetStateAction } from 'react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
 import { recipeCatalog, type RecipeCatalogEntry, type RecipeMaterial, type RecipeScienceChain } from './recipeCatalog';
 import { tierProductCatalog } from './productTierCatalog';
@@ -580,19 +580,32 @@ function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [menu, setMenu] = useState(false);
   const active = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
-  return <div className="app-shell">
-    <header className="sticky top-0 z-30 border-b border-[hsl(var(--sidebar-border))] bg-[hsl(217_30%_8%/.94)] backdrop-blur-xl">
+  const contentRef = useRef<HTMLElement>(null);
+  const scrollPositions = useRef<Record<string, number>>({});
+  const handleNavClick = (key: string, event: MouseEvent<HTMLAnchorElement>) => {
+    if (contentRef.current) scrollPositions.current[active] = contentRef.current.scrollTop;
+    if (active === key) {
+      event.preventDefault();
+      contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    setMenu(false);
+  };
+  useEffect(() => {
+    if (contentRef.current) contentRef.current.scrollTop = scrollPositions.current[active] ?? 0;
+  }, [active]);
+  return <div className="app-shell flex h-[100dvh] flex-col">
+    <header className="shrink-0 border-b border-[hsl(var(--sidebar-border))] bg-[hsl(217_30%_8%/.94)]">
       <div className="mx-auto flex h-[68px] max-w-[1500px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3"><button onClick={() => setMenu(!menu)} className="icon-button md:hidden" aria-label="Open navigation" data-testid="button-open-navigation"><Layers3 size={17} /></button><Link href="/" className="flex items-center gap-3 no-underline" data-testid="link-logo"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.5)] bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><FactoryIcon size={19} /></div><div className="min-w-0"><div className="text-[13px] font-extrabold tracking-[.05em]">FACTORY</div><div className="mono truncate text-[9px] tracking-[.18em] text-[hsl(var(--primary))]">PRODUCTION GAME</div></div></Link></div>
         <div className="hidden items-center gap-3 lg:flex"><Tag><span className="status-dot status-running mini-pulse" /> simulation live</Tag><span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">SECTOR 07 · LOCAL INSTANCE</span></div>
         <div className="flex items-center gap-2"><span className="mono hidden text-[10px] text-[hsl(var(--muted-foreground))] sm:block">T+ NETWORK</span><button onClick={() => setMenu(!menu)} className="icon-button" aria-label="Toggle command navigation" data-testid="button-toggle-command"><Settings2 size={16} /></button></div>
       </div>
     </header>
-    <div className="mx-auto flex max-w-[1500px]">
-      <aside className={`${menu ? 'fixed inset-x-3 top-[78px] z-40 block shadow-2xl' : 'hidden'} surface rounded-xl p-2 md:sticky md:top-[84px] md:block md:h-[calc(100dvh-100px)] md:w-[214px] md:shrink-0 md:rounded-none md:border-0 md:border-r md:border-[hsl(var(--sidebar-border))] md:bg-transparent md:p-5 md:shadow-none`}><div className="mb-4 hidden px-3 md:block"><span className="eyebrow">Command tabs · 10</span></div><nav className="grid grid-cols-2 gap-1 md:flex md:flex-col" aria-label="Primary navigation">{nav.map(([key, path, Icon]) => <Link key={key} href={path} onClick={() => setMenu(false)} className={`nav-link flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[11px] font-bold no-underline transition-colors ${active === key ? 'bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'}`} data-testid={`link-tab-${key}`}><Icon size={15} /><span>{tabLabel(key)}</span>{active === key && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--primary))]" />}</Link>)}</nav></aside>
-      <main className="min-w-0 flex-1">{children}</main>
+    <div className="mx-auto flex min-h-0 w-full max-w-[1500px] flex-1">
+      <aside className={`${menu ? 'fixed inset-x-3 top-[78px] z-40 block shadow-2xl' : 'hidden'} surface rounded-xl p-2 md:sticky md:top-0 md:block md:h-full md:w-[214px] md:shrink-0 md:rounded-none md:border-0 md:border-r md:border-[hsl(var(--sidebar-border))] md:bg-transparent md:p-5 md:shadow-none`}><div className="mb-4 hidden px-3 md:block"><span className="eyebrow">Command tabs · 10</span></div><nav className="grid grid-cols-2 gap-1 md:flex md:flex-col" aria-label="Primary navigation">{nav.map(([key, path, Icon]) => <Link key={key} href={path} onClick={(event) => handleNavClick(key, event)} className={`nav-link flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[11px] font-bold no-underline transition-colors ${active === key ? 'bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'}`} data-testid={`link-tab-${key}`}><Icon size={15} /><span>{tabLabel(key)}</span>{active === key && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--primary))]" />}</Link>)}</nav></aside>
+      <main ref={contentRef} onScroll={() => { if (contentRef.current) scrollPositions.current[active] = contentRef.current.scrollTop; }} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">{children}</main>
     </div>
-    <div className="tab-rail fixed inset-x-0 bottom-0 z-30 overflow-x-auto border-t border-[hsl(var(--border))] bg-[hsl(217_30%_8%/.97)] px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-1 backdrop-blur-xl md:hidden"><div className="flex min-w-max gap-1">{nav.map(([key, path, Icon]) => <Link key={key} href={path} className={`flex min-w-[62px] flex-col items-center gap-1 rounded-lg px-2 py-2 text-[9px] font-bold no-underline ${active === key ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-tab-${key}`}><Icon size={16} /><span>{tabLabel(key)}</span></Link>)}</div></div>
+    <div className="tab-rail fixed inset-x-0 bottom-0 z-30 border-t border-[hsl(var(--border))] bg-[hsl(217_30%_8%/.97)] px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-1 backdrop-blur-xl md:hidden"><div className="grid w-full grid-cols-5 grid-rows-2 gap-1">{nav.map(([key, path, Icon]) => <Link key={key} href={path} onClick={(event) => handleNavClick(key, event)} className={`flex min-w-0 w-full flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[9px] font-bold no-underline ${active === key ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-tab-${key}`}><Icon size={16} /><span className="truncate">{tabLabel(key)}</span></Link>)}</div></div>
   </div>;
 }
 
