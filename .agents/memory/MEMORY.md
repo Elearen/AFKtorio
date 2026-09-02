@@ -6,3 +6,4 @@
 - [Smelting fuel metrics](smelting-fuel-metrics.md) — show normalized cost per item alongside current and peak furnace coal usage.
 - [Mining card layout](mining-card-layout.md) — mining cards mirror Production while keeping manual collection available alongside automated drills.
 - [Navigation scroll behavior](navigation-scroll.md) — mobile tabs stay in a 5×2 rail and each route owns its scroll position.
+- [Coal mining exception](coal-mining-exception.md) — coal miners self-fuel and report net yield without consuming stored coal.

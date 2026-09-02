@@ -118,6 +118,7 @@ const burnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood'];
 const burnerMiningDrillRecipe = recipeMap['burner-mining-drill'];
 const burnerMiningDrillCost = { gear: 3, ironPlate: 3, stone: 5 };
 const burnerMiningDrillCoalPerSecond = 0.25;
+const fueledBurnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'wood'];
 const smeltingRecipeKeys = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
 const stoneFurnaceRecipe = recipeMap['stone-furnace'];
 const stoneFurnaceBuildCost = { stone: 5 };
@@ -261,7 +262,8 @@ const capFor = (state: GameState, key: TrackedKey) => Math.floor((state.storage[
 const burnerMinerCount = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
 const electricAssemblerCount = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && !isSmeltingRecipe(recipeMap[recipeKey]) ? count : 0), 0);
 const productionUnitCount = (state: GameState) => Object.values(state.assemblers).reduce((total, count) => total + count, 0);
-const burnerMinerCoalRate = (state: GameState) => burnerMinerCount(state) * burnerMiningDrillCoalPerSecond;
+const fueledBurnerMinerCount = (state: GameState) => fueledBurnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
+const burnerMinerCoalRate = (state: GameState) => fueledBurnerMinerCount(state) * burnerMiningDrillCoalPerSecond;
 const electricPowerDraw = (state: GameState) => {
   const assemblerPower = electricAssemblerCount(state) * assemblyMachineOnePowerKw;
   return (state.labs * labPowerKw + assemblerPower) * (1 - state.upgrades.powerEfficiency * 0.06) / 1000;
@@ -322,11 +324,12 @@ const miningBaseProductionRateFor = (state: GameState, key: RawKey) => {
   return count * base * 60 * state.simulationSpeed;
 };
 const miningProductionRateFor = (state: GameState, key: RawKey) => {
-  const fuelRatio = burnerMinerCount(state) ? Math.min(1, state.raw.coal / Math.max(0.01, burnerMinerCoalRate(state) * 60 * state.simulationSpeed)) : 1;
-  return miningBaseProductionRateFor(state, key) * (burnerMinerKeys.includes(key) ? fuelRatio : 1);
+  if (key === 'coal') return Math.max(0, miningBaseProductionRateFor(state, key) - state.miners.coal * burnerMiningDrillCoalPerSecond * 60 * state.simulationSpeed);
+  const fuelRatio = fueledBurnerMinerCount(state) ? Math.min(1, state.raw.coal / Math.max(0.01, burnerMinerCoalRate(state) * 60 * state.simulationSpeed)) : 1;
+  return miningBaseProductionRateFor(state, key) * (fueledBurnerMinerKeys.includes(key) ? fuelRatio : 1);
 };
 const peakProductionRateFor = (state: GameState, key: TrackedKey) => {
-  let rate = rawKeys.includes(key as RawKey) ? miningBaseProductionRateFor(state, key as RawKey) : 0;
+  let rate = rawKeys.includes(key as RawKey) ? miningProductionRateFor(state, key as RawKey) : 0;
   componentKeys.forEach((recipeKey) => {
     const recipe = recipeMap[recipeKey];
     const outputRate = recipeCycleRateFor(state, recipe);
@@ -404,7 +407,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   };
   const speed = state.simulationSpeed;
   const operatingSeconds = burnerOperatingSeconds(state, seconds);
-  if (burnerMinerCount(state)) {
+  if (fueledBurnerMinerCount(state)) {
     const coalConsumed = burnerMinerCoalRate(state) * operatingSeconds * speed;
     state.raw.coal = Math.max(0, state.raw.coal - coalConsumed);
     liveConsumption.coal += coalConsumed;
@@ -413,8 +416,9 @@ function simulate(previous: GameState, seconds: number): GameState {
     const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key];
     if (!count) return;
     const base = key === 'uranium' ? 0.32 : key === 'water' ? 0.7 : key === 'copper' ? 0.88 : 1;
-    const minerSeconds = burnerMinerKeys.includes(key) ? operatingSeconds : seconds;
-    state.miningProgress[key] += count * base * minerSeconds * speed;
+    const minerSeconds = fueledBurnerMinerKeys.includes(key) ? operatingSeconds : seconds;
+    const outputRate = key === 'coal' ? base - burnerMiningDrillCoalPerSecond : base;
+    state.miningProgress[key] += count * outputRate * minerSeconds * speed;
     while (state.miningProgress[key] >= 1) {
       if (state.raw[key] >= capFor(state, key)) { state.miningProgress[key] = 0; break; }
       state.raw[key] += 1; state.miningProgress[key] -= 1; state.totalOutput += 1; recordProduction(state, key, 1, liveProduction);
@@ -725,7 +729,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
     enqueue('miner', `${rawInfo[key].label} burner mining drill`, burnerMiningDrillRecipe.energyRequired, key);
   };
   return <PageFrame>
-    <Header eyebrow="Raw material control" title="Mining" copy="Tap the ground to start. Build burner mining drills to make the ore line autonomous — each drill consumes coal while it operates." action={<Tag><Pickaxe size={11} /> 7 resource sections</Tag>} />
+    <Header eyebrow="Raw material control" title="Mining" copy="Tap the ground to start. Build burner mining drills to make the ore line autonomous. Coal drills offset their own fuel use against the coal they produce." action={<Tag><Pickaxe size={11} /> 7 resource sections</Tag>} />
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {rawKeys.map((key) => {
         const info = rawInfo[key];
@@ -733,7 +737,9 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
         const count = key === 'water' ? state.pumps : key === 'uranium' ? state.uraniumMiners : state.miners[key];
         const isBurnerOre = burnerMinerKeys.includes(key);
         const manualCollectionAvailable = isBurnerOre;
-        const fuelRate = count * burnerMiningDrillCoalPerSecond;
+        const coalSelfFueled = key === 'coal';
+        const usesFuel = isBurnerOre && !coalSelfFueled;
+        const fuelRate = usesFuel ? count * burnerMiningDrillCoalPerSecond : 0;
         const autonomous = count > 0;
         const productionRate = miningProductionRateFor(state, key);
         const peakProductionRate = peakProductionRateFor(state, key);
@@ -768,7 +774,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
                 </div>
               </div>
               <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{key === 'water' ? 'Fluid collection' : 'Raw material'} · {machineLabel}</div>
-              <div className="mt-1 flex flex-wrap gap-1"><Tag tone={manualCollectionAvailable ? 'amber' : 'muted'}>{collectionLabel}</Tag>{isBurnerOre && <Tag tone="muted">coal fueled</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
+              <div className="mt-1 flex flex-wrap gap-1"><Tag tone={manualCollectionAvailable ? 'amber' : 'muted'}>{collectionLabel}</Tag>{usesFuel && <Tag tone="muted">coal fueled</Tag>}{coalSelfFueled && <Tag>self-fueled</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
             </div>
           </div>
           <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
@@ -779,9 +785,13 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
               <span className="resource-chip"><ResourceIcon item={key} size={17} /><strong>{machineLabel}</strong></span>
             </div>
           </div>
-          {isBurnerOre && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-mining-fuel-${key}`}>
+          {usesFuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-mining-fuel-${key}`}>
             <div className="flex items-center gap-2 text-[10px]"><ResourceIcon item="burner-mining-drill" size={17} /><span className="font-semibold">Burner drill fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">coal usage</span></div>
             <div className="mt-3 grid grid-cols-2 gap-2"><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{fuelRate.toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / sec</div></div><div><div className="eyebrow">Power draw</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">0.0</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">electricity</div></div></div>
+          </div>}
+          {coalSelfFueled && <div className="mt-2 rounded-lg border border-[hsl(var(--secondary)/.25)] bg-[hsl(var(--secondary)/.06)] p-3" data-testid={`panel-coal-self-fueled-${key}`}>
+            <div className="flex items-center gap-2 text-[10px]"><ResourceIcon item="coal" size={17} /><span className="font-semibold">Coal mining exception</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">no stored fuel</span></div>
+            <div className="mt-2 text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">Drill usage is deducted from mined coal output. This line continues working even when stored coal reaches zero.</div>
           </div>}
           <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={productionRate - demandRate} storage={state.raw[key]} capacity={capFor(state, key)} />
           {manualMiningJob && <ManualMiningProgress job={manualMiningJob} />}
@@ -792,7 +802,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
         </section>;
       })}
     </div>
-    <div className="mt-5 surface rounded-xl border-[hsl(var(--secondary)/.25)] p-4"><div className="flex items-start gap-3"><div className="text-[hsl(var(--secondary))]"><Lightbulb size={17} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Mining rule</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Manual collection takes 0.5 seconds and remains available while automated drills run. Only one resource can be collected by hand at a time, and hand-collected output can exceed storage capacity.</p></div></div></div>
+    <div className="mt-5 surface rounded-xl border-[hsl(var(--secondary)/.25)] p-4"><div className="flex items-start gap-3"><div className="text-[hsl(var(--secondary))]"><Lightbulb size={17} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Mining rule</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Manual collection takes 0.5 seconds and remains available while automated drills run. Only one resource can be collected by hand at a time, and hand-collected output can exceed storage capacity. Coal drills are self-fueled: their usage is offset from mined coal instead of stored fuel.</p></div></div></div>
   </PageFrame>;
 }
 
