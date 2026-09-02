@@ -56,6 +56,7 @@ type GameState = {
   queue: QueueItem[];
   research: ResearchKey[];
   currentResearch: ResearchKey | null;
+  researchSelected: boolean;
   researchProgress: Record<ResearchKey, number>;
   autoResearch: ResearchKey[];
   researchNotifications: ResearchKey[];
@@ -109,7 +110,7 @@ const autoResearchTargetFor = (state: GameState) => {
 };
 const activeResearchFor = (state: GameState) => {
   if ((state.autoResearch ?? []).length) return autoResearchTargetFor(state);
-  if (!state.currentResearch || state.research.includes(state.currentResearch)) return undefined;
+  if (!state.researchSelected || !state.currentResearch || state.research.includes(state.currentResearch)) return undefined;
   const technology = technologyMap[state.currentResearch];
   return technology && technologyPrerequisitesMet(state, technology) ? technology : undefined;
 };
@@ -273,7 +274,7 @@ const initialState: GameState = {
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labs: 1, boilers: 0, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: orderedTechnologyCatalog[0]?.name ?? null, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1,
 };
 
@@ -751,6 +752,7 @@ function loadState() {
       queue: migratedUpgradeState.queue,
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
       currentResearch: parsed.currentResearch ? normalizeResearchKey(String(parsed.currentResearch)) : initialState.currentResearch,
+      researchSelected: parsed.researchSelected === true,
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
       autoResearch: orderedTechnologyCatalog.filter((technology) => (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
       researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
@@ -807,7 +809,7 @@ function Shell({ children, state }: { children: ReactNode; state: GameState }) {
   return <div className="app-shell flex h-[100dvh] flex-col">
     <header className="shrink-0 border-b border-[hsl(var(--sidebar-border))] bg-[hsl(217_30%_8%/.94)]">
       <div className="mx-auto flex h-[68px] max-w-[1500px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-        <div className="flex min-w-0 items-center gap-3"><button onClick={() => setMenu(!menu)} className="icon-button md:hidden" aria-label="Open navigation" data-testid="button-open-navigation"><Layers3 size={17} /></button><Link href="/" className="flex items-center gap-3 no-underline" data-testid="link-logo"><div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-[hsl(var(--primary)/.5)] bg-[hsl(var(--primary)/.12)]"><BrandLogo size={36} /></div><div className="min-w-0"><div className="text-[13px] font-extrabold tracking-[.05em]">FACTORY PLANET</div><div className="mono truncate text-[9px] tracking-[.18em] text-[hsl(var(--primary))]">the factory must grow</div></div></Link></div>
+        <div className="flex min-w-0 items-center gap-3"><button onClick={() => setMenu(!menu)} className="icon-button md:hidden" aria-label="Open navigation" data-testid="button-open-navigation"><Layers3 size={17} /></button><Link href="/" className="flex items-center gap-3 no-underline" data-testid="link-logo"><div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg border border-[hsl(var(--primary)/.5)] bg-[hsl(var(--primary)/.12)]"><BrandLogo size={36} /></div><div className="min-w-0"><div className="text-[13px] font-extrabold tracking-[.05em]">FACTORY PLANET</div><div className="mono truncate text-[9px] tracking-[.18em] text-[hsl(var(--primary))]">Idle production</div></div></Link></div>
         <div className="hidden items-center gap-3 lg:flex"><Tag><span className="status-dot status-running mini-pulse" /> simulation live</Tag><span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">SECTOR 07 · LOCAL INSTANCE</span></div>
         <div className="flex items-center gap-2"><span className="mono hidden text-[10px] text-[hsl(var(--muted-foreground))] sm:block">T+ NETWORK</span><button onClick={() => setMenu(!menu)} className="icon-button" aria-label="Toggle command navigation" data-testid="button-toggle-command"><Settings2 size={16} /></button></div>
       </div>
@@ -1405,7 +1407,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
   const accentFor = (name: string) => ['#65afba', '#df7165', '#dfb05c', '#8ea9db', '#92c86b', '#c9d3d0'][name.length % 6];
   const selectResearch = (name: ResearchKey) => {
     setSelected(name);
-    setState((s) => s.currentResearch === name ? s : { ...s, currentResearch: name });
+    setState((s) => s.currentResearch === name && s.researchSelected ? s : { ...s, currentResearch: name, researchSelected: true });
   };
   const toggleAutoResearch = (name: ResearchKey) => {
     setState((s) => {
@@ -1413,7 +1415,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
       if (selectedAuto.has(name)) selectedAuto.delete(name);
       else selectedAuto.add(name);
       const autoResearch = orderedTechnologyCatalog.filter((technology) => selectedAuto.has(technology.name)).map((technology) => technology.name);
-      return { ...s, autoResearch, currentResearch: s.currentResearch ?? name };
+      return { ...s, autoResearch, currentResearch: s.currentResearch ?? name, researchSelected: true };
     });
   };
   const technologyCounts = useMemo(() => orderedTechnologyCatalog.reduce<Record<ResearchFilter, number>>((counts, technology) => {
