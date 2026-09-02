@@ -1188,8 +1188,7 @@ function RocketEndgameCard({ state, enqueue, notice }: Pick<PageProps, 'state' |
     enqueue('rocketParts', `Rocket Parts · ${ROCKET_PART_TARGET}`, rocketPartBatchTimeFor(rocketPartRecipe), 'rocket-part', rocketPartBatchCost);
     notice(`${ROCKET_PART_TARGET} rocket parts queued`);
   };
-  return <article className="surface relative overflow-hidden rounded-xl border-[hsl(var(--primary)/.55)] bg-[linear-gradient(145deg,hsl(35_24%_16%),hsl(216_25%_12%))] p-4 shadow-lg sm:p-5 md:col-span-2 xl:col-span-3" data-testid="card-win-factory-planet">
-    <div className="pointer-events-none absolute inset-0 opacity-[.16]" aria-hidden="true" style={{ backgroundImage: 'repeating-linear-gradient(135deg, #f5b52e 0 13px, #15181a 13px 26px)', backgroundSize: '52px 52px' }} />
+  return <article className="relative overflow-hidden rounded-xl border-[3px] border-transparent p-4 shadow-lg sm:p-5 md:col-span-2 xl:col-span-3" style={{ background: 'linear-gradient(145deg, hsl(35 24% 16%), hsl(216 25% 12%)) padding-box, repeating-linear-gradient(135deg, #f5b52e 0 11px, #15181a 11px 22px) border-box' }} data-testid="card-win-factory-planet">
     <div className="relative z-10">
     <div className="flex items-start gap-3">
       <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[hsl(var(--primary)/.55)] bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Rocket size={22} /></div>
