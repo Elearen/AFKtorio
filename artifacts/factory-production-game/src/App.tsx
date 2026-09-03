@@ -2199,16 +2199,12 @@ function WelcomeModal({ onBegin, replay = false }: { onBegin: () => void; replay
   return <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--primary)/.7)] bg-[linear-gradient(145deg,hsl(35_30%_18%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="welcome-title" data-testid={replay ? 'dialog-milestone-crash-landed' : 'dialog-welcome'}>
       <div className="absolute inset-x-0 top-0 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />
-      <div className="flex items-start gap-4 pt-1">
-        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-[hsl(var(--primary)/.5)] bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Rocket size={28} /></div>
-        <div className="min-w-0">
-          <div className="eyebrow text-[hsl(var(--primary))]">Factory Planet · emergency briefing</div>
-          <h1 id="welcome-title" className="mt-2 text-3xl font-extrabold tracking-[-.04em]">Welcome!</h1>
-        </div>
+      <div className="pt-1">
+        <h1 id="welcome-title" className="text-3xl font-extrabold tracking-[-.04em]">Emergency Briefing</h1>
       </div>
       <div className="mt-6 space-y-4 text-[12px] leading-6 text-[hsl(var(--muted-foreground))]">
-        <p className="text-[15px] font-bold text-[hsl(var(--foreground))]">...to production hell.</p>
-        <p>Your ship has crashed while travelling across the galaxy towards home. You are the only survivor. You have emergency supplies from your escape pod, but you must survive and construct a new ship to get off the planet and make it home.</p>
+        <p className="text-[15px] font-bold text-[hsl(var(--foreground))]">Welcome... to production hell.</p>
+        <p>Your ship has crashed while travelling across the galaxy towards home. You are the only survivor. You have emergency supplies from your escape pod, so now you will need to build a factory to get home.</p>
       </div>
       <div className="mt-6 rounded-xl border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]"><span className="font-bold text-[hsl(var(--primary))]">Mission brief:</span> Build your production network, unlock the science chain, and find a way off-world.</div>
       <button onClick={onBegin} className="button-base button-primary mt-6 w-full !py-3 text-[12px]" data-testid={replay ? 'button-dismiss-milestone-crash-landed' : 'button-begin-game'}><Rocket size={15} /> {replay ? 'Continue' : 'Begin production'}</button>
