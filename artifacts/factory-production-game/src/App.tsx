@@ -1246,6 +1246,7 @@ function tutorialGoalsFor(state: GameState): TutorialGoal[] {
     { id: 'unlock-military-science', label: 'Unlock military science', complete: state.research.includes('military-science-pack') },
     { id: 'unlock-chemical-science', label: 'Unlock chemical science', complete: state.research.includes('chemical-science-pack') },
     { id: 'unlock-production-science', label: 'Unlock production science', complete: state.research.includes('production-science-pack') },
+    { id: 'unlock-utility-science', label: 'Unlock utility science', complete: state.research.includes('utility-science-pack') },
     { id: 'unlock-rocket-silo', label: 'Unlock rocket silo to escape the planet', complete: state.research.includes('rocket-silo') },
   ];
 }
