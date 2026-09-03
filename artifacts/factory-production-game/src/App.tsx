@@ -1118,6 +1118,91 @@ function BrandLogo({ size = 36 }: { size?: number }) {
 function Tag({ children, tone = 'teal' }: { children: ReactNode; tone?: 'teal' | 'amber' | 'red' | 'muted' }) {
   return <span className={`status-tag ${tone === 'teal' ? 'tag-running' : tone === 'amber' ? 'tag-starved' : tone === 'red' ? 'tag-blocked' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{children}</span>;
 }
+function UpgradeIconPair({ from, to, fromLabel, toLabel }: { from: ReactNode; to: ReactNode; fromLabel: string; toLabel: string }) {
+  return <div className="upgrade-icon-pair" role="img" aria-label={`${fromLabel} to ${toLabel}`}>
+    <div className="upgrade-icon-pair-from">{from}</div>
+    <div className="upgrade-icon-pair-to">{to}</div>
+  </div>;
+}
+function UpgradeFlow({ count, from, to }: { count: number; from: string; to: string }) {
+  return <div className="upgrade-flow flex min-w-0 items-center gap-2 rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_9%/.7)] px-2.5 py-2">
+    <span className="mono shrink-0 text-[12px] font-bold text-[hsl(var(--primary))]">{count}×</span>
+    <span className="min-w-0 truncate text-[10px] font-semibold">{from}</span>
+    <MoveRight size={14} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
+    <span className="mono shrink-0 text-[12px] font-bold text-[hsl(var(--secondary))]">{count}×</span>
+    <span className="min-w-0 truncate text-right text-[10px] font-semibold">{to}</span>
+  </div>;
+}
+function UpgradeCostChips({ costs }: { costs: BuildMaterialCost[] }) {
+  if (!costs.length) return <span className="mono text-[12px] text-[hsl(var(--secondary))]">0</span>;
+  return <div className="flex flex-wrap items-center gap-2">{costs.map((cost) => {
+    const label = meta[cost.key]?.label ?? prettyLabel(cost.key);
+    return <span className="inline-flex items-center gap-1.5" key={`${cost.source}-${cost.key}`} title={`${fmt(cost.amount)} ${label}`} aria-label={`${fmt(cost.amount)} ${label}`}>
+      <ResourceIcon item={cost.key} size={18} />
+      <span className="mono text-[11px] font-semibold">{fmt(cost.amount)}</span>
+    </span>;
+  })}</div>;
+}
+function UpgradeMetaGrid({ prerequisite, prerequisiteMet, machine, machineCount }: { prerequisite?: string; prerequisiteMet: boolean; machine: string; machineCount: number }) {
+  return <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
+    <div className="data-row rounded-md p-2">
+      <div className="eyebrow">Prerequisite</div>
+      {prerequisite ? <div className={`mt-1 flex min-w-0 items-center gap-1.5 font-semibold ${prerequisiteMet ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
+        {prerequisiteMet ? <Check size={11} /> : <LockKeyhole size={11} />}
+        <span className="truncate">{prettyLabel(prerequisite)}</span>
+      </div> : <div className="mt-1 flex items-center gap-1.5 font-semibold text-[hsl(var(--secondary))]"><Check size={11} />none</div>}
+    </div>
+    <div className="data-row rounded-md p-2">
+      <div className="eyebrow">Relevant machine</div>
+      <div className="mt-1 flex min-w-0 items-center justify-between gap-1.5 font-semibold">
+        <span className="truncate">{machine}</span>
+        <span className="mono shrink-0 text-[hsl(var(--secondary))]">{machineCount}</span>
+      </div>
+    </div>
+  </div>;
+}
+function UpgradeProgress({ count, label, seconds, total, testId }: { count: number; label: string; seconds: number; total: number; testId: string }) {
+  const progress = visualProgressFor(seconds, total, 1);
+  return <div className="construction-panel mt-3 rounded-md p-2.5" aria-live="polite" data-testid={testId}>
+    <div className="flex items-center justify-between gap-2">
+      <div className="min-w-0 truncate text-[10px] font-bold">{count} {label} converting</div>
+      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{duration(seconds)}</span>
+    </div>
+    <div className="mt-2"><Progress value={progress} tone="amber" /></div>
+    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(progress)}% complete</span><span>{total.toFixed(1)}s total</span></div>
+  </div>;
+}
+function UpgradeCard({ testId, title, copy, status, iconPair, flow, progress, meta, costPerItem, totalCost, action }: {
+  testId: string;
+  title: string;
+  copy: string;
+  status: ReactNode;
+  iconPair: ReactNode;
+  flow: ReactNode;
+  progress?: ReactNode;
+  meta: ReactNode;
+  costPerItem: BuildMaterialCost[];
+  totalCost: BuildMaterialCost[];
+  action?: ReactNode;
+}) {
+  return <section className="surface rounded-xl p-3 sm:p-4" data-testid={testId}>
+    <div className="flex items-start gap-3">
+      {iconPair}
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-start justify-between gap-2"><h2 className="text-[13px] font-extrabold leading-5">{title}</h2>{status}</div>
+        <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{copy}</p>
+      </div>
+    </div>
+    <div className="mt-3">{flow}</div>
+    {progress}
+    {meta}
+    <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+      <div className="data-row rounded-md p-2"><div className="eyebrow">Cost / item</div><div className="mt-1.5"><UpgradeCostChips costs={costPerItem} /></div></div>
+      <div className="data-row rounded-md p-2"><div className="eyebrow">Total cost</div><div className="mt-1.5"><UpgradeCostChips costs={totalCost} /></div></div>
+    </div>
+    {action}
+  </section>;
+}
 function SupplyStatus({ label, status, testId }: { label: string; status: SupplyStatus; testId: string }) {
   return <div className="data-row rounded-lg p-2.5" data-testid={testId}>
     <div className="flex items-center justify-between gap-2"><div className="eyebrow">{label}</div><Tag tone={status.tone}>{status.label}</Tag></div>
@@ -1876,8 +1961,6 @@ function LogisticsPage({ notice }: PageProps) {
 
 function UpgradesPage({ state, setState, notice }: PageProps) {
   const activeUpgrade = state.queue.find((item) => item.action === 'upgrade');
-  const costLabel = (cost: BuildMaterialCost) => `${fmt(cost.amount)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`;
-  const costChips = (costs: BuildMaterialCost[]) => <div className="flex flex-wrap gap-1.5">{costs.map((cost) => <span className="resource-chip !px-1.5 !py-1" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={16} />{costLabel(cost)}</span>)}</div>;
   const storageBoxCount = storageBoxCountFor(state);
   const storageUpgradeComplete = state.storageBoxType === 'iron';
   const storageUpgradeQueued = activeUpgrade?.targetId === 'iron-chests';
@@ -1894,7 +1977,8 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
   const oilProcessingUpgradeComplete = state.oilProcessingAdvanced;
   const oilProcessingUpgradeQueued = activeUpgrade?.targetId === OIL_PROCESSING_UPGRADE_ID;
   const basicOilMachineCount = state.assemblers['basic-oil-processing'] ?? 0;
-  const oilProcessingConversionCount = activeUpgrade?.machineCount ?? basicOilMachineCount;
+  const oilProcessingMachineCount = oilRefineryCountFor(state);
+  const oilProcessingConversionCount = activeUpgrade?.machineCount ?? oilProcessingMachineCount;
   const oilProcessingUpgradeTotalSeconds = activeUpgrade?.targetId === OIL_PROCESSING_UPGRADE_ID ? activeUpgrade.total : oilProcessingUpgradeTimeFor(basicOilMachineCount);
   const oilProcessingPrerequisiteMet = state.research.includes('advanced-oil-processing');
   const startUpgrade = (upgrade: UpgradeDefinition) => {
@@ -1981,75 +2065,73 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     <section className="surface mb-5 rounded-xl border-[hsl(var(--primary)/.25)] bg-[linear-gradient(100deg,hsl(34_28%_16%/.82),hsl(216_25%_14%/.96))] p-4 sm:p-5">
       <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">How conversion works</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Costs are calculated from the current number of relevant machines, deducted immediately, and all matching machines change variant together when the timer completes. Construction elsewhere in the factory can continue.</p></div></div>
     </section>
-    <div className="grid gap-3 md:grid-cols-2">
-      {upgradeData.map((item) => {
-        const Icon = item.machineGroup === 'assembly' ? Cog : Pickaxe;
-        const machineCount = machineCountForUpgrade(state, item);
-        const complete = state.machineVariants[item.machineGroup] === item.newMachine;
-        const prerequisiteMet = state.research.includes(item.prerequisiteTechnology);
-        const queued = activeUpgrade?.targetId === item.id;
-        const totalCosts = scaledBuildCosts(item.upgradeCostPerMachine, machineCount);
-        const missing = complete || !machineCount ? '' : missingBuildMaterials(state, totalCosts);
-        const conversionCount = activeUpgrade?.machineCount ?? machineCount;
-        const totalSeconds = activeUpgrade?.total ?? item.upgradeTimePerMachine * conversionCount;
-        const canStart = !complete && !activeUpgrade && prerequisiteMet && machineCount > 0 && !missing;
-        const progress = queued && activeUpgrade ? (1 - activeUpgrade.seconds / activeUpgrade.total) * 100 : 0;
-        return <section className="surface rounded-xl p-4 sm:p-5" key={item.id} data-testid={`card-upgrade-${item.id}`}>
-          <div className="flex items-start gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><Icon size={18} /></div>
-            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">{item.name}</h2>{complete ? <Tag><Check size={10} /> installed</Tag> : queued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : !prerequisiteMet ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : <Tag tone="amber">available</Tag>}</div><p className="mt-1 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">{item.copy}</p></div>
-          </div>
-          {queued && activeUpgrade && <div className="construction-panel mt-4 rounded-lg p-3" aria-live="polite" data-testid={`panel-upgrade-progress-${item.id}`}><div className="flex items-start justify-between gap-3"><div><div className="eyebrow text-[hsl(var(--primary))]">Upgrade in progress</div><div className="mt-1 text-[10px] font-bold">{conversionCount} {item.relevantMachine.toLowerCase()}{conversionCount === 1 ? '' : 's'} converting</div></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(activeUpgrade.seconds)}</span></div><div className="mt-2"><Progress value={progress} tone="amber" /></div><div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(Math.max(0, progress))}% complete</span><span>{totalSeconds.toFixed(1)}s total</span></div></div>}
-          <div className="mt-4 grid gap-2 text-[10px]">
-            <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Prerequisite</div><div className={`mt-1 flex items-center gap-1.5 font-semibold ${prerequisiteMet ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--muted-foreground))]'}`}>{prerequisiteMet ? <Check size={12} /> : <LockKeyhole size={12} />}{prettyLabel(item.prerequisiteTechnology)}</div></div>
-            <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Relevant machine</div><div className="mt-1 flex items-center justify-between gap-2"><span className="font-semibold">{item.relevantMachine}</span><span className="mono text-[hsl(var(--secondary))]">{machineCount} built</span></div></div>
-            <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Cost per machine · {item.upgradeTimePerMachine}s</div><div className="mt-2">{costChips(item.upgradeCostPerMachine)}</div></div>
-            <div className="data-row rounded-lg p-2.5"><div className="eyebrow">New machine</div><div className="mt-1 flex items-center gap-2 font-semibold"><ResourceIcon item={item.newMachine} size={18} />{item.newMachineLabel}<span className="ml-auto mono text-[hsl(var(--secondary))]">{item.newMachinePowerDraw} kW · speed {item.newMachineProductionSpeed}</span></div><div className="mt-2">{costChips(item.newMachineMaterialCost)}</div></div>
-          </div>
-          {!complete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{machineCount ? `${machineCount} machines · ${totalSeconds.toFixed(1)}s · total cost` : 'No relevant machines built'}</div></div><button onClick={() => startUpgrade(item)} disabled={!canStart} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-start-upgrade-${item.id}`}><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : missing ? `need ${missing}` : !prerequisiteMet ? 'locked' : !machineCount ? 'build machines first' : 'start upgrade'}</button></div>{machineCount > 0 && <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Total reserved now: {totalCosts.map(costLabel).join(' + ')}</div>}</div>}
-        </section>;
-      })}
-       <section className="surface rounded-xl p-4 sm:p-5" data-testid="card-upgrade-advanced-oil-processing">
-         <div className="flex items-start gap-3">
-           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><FactoryIcon size={18} /></div>
-           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">Upgrade Basic Oil Processing to Advanced Oil Processing</h2>{oilProcessingUpgradeComplete ? <Tag><Check size={10} /> installed</Tag> : oilProcessingUpgradeQueued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : !oilProcessingPrerequisiteMet ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : <Tag tone="amber">available</Tag>}</div><p className="mt-1 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">Replace every constructed Basic Oil Processing refinery with Advanced Oil Processing. The conversion is free and takes one second per refinery.</p></div>
-         </div>
-         {oilProcessingUpgradeQueued && activeUpgrade && <div className="construction-panel mt-4 rounded-lg p-3" aria-live="polite" data-testid="panel-upgrade-progress-advanced-oil-processing"><div className="flex items-start justify-between gap-3"><div><div className="eyebrow text-[hsl(var(--primary))]">Upgrade in progress</div><div className="mt-1 text-[10px] font-bold">{oilProcessingConversionCount} refinery{oilProcessingConversionCount === 1 ? '' : 'ies'} converting</div></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(activeUpgrade.seconds)}</span></div><div className="mt-2"><Progress value={(1 - activeUpgrade.seconds / activeUpgrade.total) * 100} tone="amber" /></div><div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(Math.max(0, (1 - activeUpgrade.seconds / activeUpgrade.total) * 100))}% complete</span><span>{activeUpgrade.total.toFixed(1)}s total</span></div></div>}
-         <div className="mt-4 grid gap-2 text-[10px]">
-           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Current process</div><div className="mt-1 flex items-center justify-between gap-2"><span className="font-semibold">Basic Oil Processing</span><span className="mono text-[hsl(var(--secondary))]">{oilProcessingUpgradeQueued ? oilProcessingConversionCount : basicOilMachineCount} built</span></div></div>
-           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Upgrade cost · 1s per refinery</div><div className="mt-1 font-semibold text-[hsl(var(--secondary))]">Free</div></div>
-           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">New process</div><div className="mt-1 flex items-center justify-between gap-2 font-semibold"><span>Advanced Oil Processing</span><span className="mono text-[hsl(var(--secondary))]">same refinery count</span></div></div>
-         </div>
-         {!oilProcessingUpgradeComplete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{basicOilMachineCount ? `${basicOilMachineCount} refineries · ${oilProcessingUpgradeTotalSeconds.toFixed(1)}s · free` : 'No basic oil processing refineries built'}</div></div><button onClick={startOilProcessingUpgrade} disabled={!!activeUpgrade || !oilProcessingPrerequisiteMet || !basicOilMachineCount} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-upgrade-advanced-oil-processing"><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !oilProcessingPrerequisiteMet ? 'locked' : !basicOilMachineCount ? 'build refineries first' : 'start upgrade'}</button></div></div>}
-       </section>
-       <section className="surface rounded-xl p-4 sm:p-5" data-testid="card-upgrade-steel-furnaces">
-         <div className="flex items-start gap-3">
-           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><FlameIcon /></div>
-           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">Upgrade all furnaces to Steel Furnaces</h2>{furnaceUpgradeComplete ? <Tag><Check size={10} /> installed</Tag> : furnaceUpgradeQueued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : <Tag tone="amber">available</Tag>}</div><p className="mt-1 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">Convert every constructed stone furnace together. Steel Furnaces run at twice the speed and use half the coal per item.</p></div>
-         </div>
-         {furnaceUpgradeQueued && activeUpgrade && <div className="construction-panel mt-4 rounded-lg p-3" aria-live="polite" data-testid="panel-upgrade-progress-steel-furnaces"><div className="flex items-start justify-between gap-3"><div><div className="eyebrow text-[hsl(var(--primary))]">Upgrade in progress</div><div className="mt-1 text-[10px] font-bold">{activeUpgrade.machineCount} stone furnace{activeUpgrade.machineCount === 1 ? '' : 's'} converting</div></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(activeUpgrade.seconds)}</span></div><div className="mt-2"><Progress value={(1 - activeUpgrade.seconds / activeUpgrade.total) * 100} tone="amber" /></div><div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(Math.max(0, (1 - activeUpgrade.seconds / activeUpgrade.total) * 100))}% complete</span><span>{activeUpgrade.total.toFixed(1)}s total</span></div></div>}
-         <div className="mt-4 grid gap-2 text-[10px]">
-           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Current furnaces</div><div className="mt-1 flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 font-semibold"><ResourceIcon item={state.furnaceVariant} size={18} />{furnaceLabelFor(state)}s</span><span className="mono text-[hsl(var(--secondary))]">{furnaceUpgradeQueued ? activeUpgrade?.machineCount : furnaceCount} built</span></div></div>
-           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Upgrade cost · {steelFurnaceRecipe.energyRequired}s per furnace</div><div className="mt-2">{costChips(furnaceUpgradeCostPerFurnace)}</div></div>
-           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">New furnace</div><div className="mt-1 flex items-center justify-between gap-2 font-semibold"><span className="flex items-center gap-1.5"><ResourceIcon item="steel-furnace" size={18} />Steel Furnaces</span><span className="mono text-[hsl(var(--secondary))]">speed {steelFurnaceCraftingSpeed} · 0.05 coal/item</span></div></div>
-         </div>
-         {!furnaceUpgradeComplete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{furnaceCount ? `${furnaceCount} furnaces · ${furnaceUpgradeTotalSeconds.toFixed(1)}s · total cost` : 'No stone furnaces built'}</div></div><button onClick={startFurnaceUpgrade} disabled={!!activeUpgrade || !furnaceCount || !!furnaceUpgradeMissing} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-upgrade-steel-furnaces"><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : furnaceUpgradeMissing ? `need ${furnaceUpgradeMissing}` : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</button></div>{furnaceCount > 0 && <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Total reserved now: {furnaceUpgradeCosts.map(costLabel).join(' + ')}</div>}</div>}
-       </section>
-       <section className="surface rounded-xl p-4 sm:p-5" data-testid="card-upgrade-iron-chests">
-         <div className="flex items-start gap-3">
-           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]"><Box size={18} /></div>
-           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-[13px] font-extrabold">Upgrade storage to Iron Chests</h2>{storageUpgradeComplete ? <Tag><Check size={10} /> installed</Tag> : storageUpgradeQueued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : <Tag tone="amber">available</Tag>}</div><p className="mt-1 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]">Replace every constructed wooden chest with an Iron Chest. Fluid storage tanks are not affected.</p></div>
-         </div>
-         {storageUpgradeQueued && activeUpgrade && <div className="construction-panel mt-4 rounded-lg p-3" aria-live="polite" data-testid="panel-upgrade-progress-iron-chests"><div className="flex items-start justify-between gap-3"><div><div className="eyebrow text-[hsl(var(--primary))]">Upgrade in progress</div><div className="mt-1 text-[10px] font-bold">{activeUpgrade.machineCount} wooden chest{activeUpgrade.machineCount === 1 ? '' : 's'} converting</div></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(activeUpgrade.seconds)}</span></div><div className="mt-2"><Progress value={(1 - activeUpgrade.seconds / activeUpgrade.total) * 100} tone="amber" /></div><div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(Math.max(0, (1 - activeUpgrade.seconds / activeUpgrade.total) * 100))}% complete</span><span>{activeUpgrade.total.toFixed(1)}s total</span></div></div>}
-         <div className="mt-4 grid gap-2 text-[10px]">
-           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Current storage</div><div className="mt-1 flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 font-semibold"><ResourceIcon item="wooden-chest" size={18} />Wooden chests</span><span className="mono text-[hsl(var(--secondary))]">{storageUpgradeQueued ? activeUpgrade?.machineCount : storageBoxCount} built</span></div></div>
-           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Upgrade cost · {STORAGE_IRON_BOX_UPGRADE_TIME}s per chest</div><div className="mt-2">{costChips(storageUpgradeCosts)}</div></div>
-           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">New storage</div><div className="mt-1 flex items-center justify-between gap-2 font-semibold"><span className="flex items-center gap-1.5"><ResourceIcon item="iron-chest" size={18} />Iron chests</span><span className="mono text-[hsl(var(--secondary))]">+{STORAGE_IRON_BOX_CAPACITY} per box</span></div></div>
-           <div className="data-row rounded-lg p-2.5"><div className="eyebrow">Fluid storage</div><div className="mt-1 font-semibold text-[hsl(var(--muted-foreground))]">Storage tanks unchanged</div></div>
-         </div>
-         {!storageUpgradeComplete && <div className="mt-4 border-t border-[hsl(var(--border))] pt-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Current conversion</div><div className="mono mt-1 text-[10px] text-[hsl(var(--primary))]">{storageBoxCount ? `${storageBoxCount} chests · ${storageUpgradeTotalSeconds.toFixed(1)}s · total cost` : 'No wooden chests built'}</div></div><button onClick={startStorageUpgrade} disabled={!!activeUpgrade || !storageBoxCount || !!storageUpgradeMissing} className="button-base button-primary !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-upgrade-iron-chests"><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : storageUpgradeMissing ? `need ${storageUpgradeMissing}` : !storageBoxCount ? 'build chests first' : 'start upgrade'}</button></div>{storageBoxCount > 0 && <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Total reserved now: {storageUpgradeCosts.map(costLabel).join(' + ')}</div>}</div>}
-       </section>
-    </div>
+     <div className="grid gap-3 md:grid-cols-2">
+       {upgradeData.map((item) => {
+         const machineCount = machineCountForUpgrade(state, item);
+         const complete = state.machineVariants[item.machineGroup] === item.newMachine;
+         const prerequisiteMet = state.research.includes(item.prerequisiteTechnology);
+         const queued = activeUpgrade?.targetId === item.id;
+         const totalCosts = scaledBuildCosts(item.upgradeCostPerMachine, machineCount);
+         const missing = complete || !machineCount ? '' : missingBuildMaterials(state, totalCosts);
+         const conversionCount = activeUpgrade?.machineCount ?? machineCount;
+         const canStart = !complete && !activeUpgrade && prerequisiteMet && machineCount > 0 && !missing;
+         const fromMachine = item.id === 'assembly-machine-2' ? 'assembling-machine-1' : 'burner-mining-drill';
+         const fromLabel = item.id === 'assembly-machine-2' ? 'Assembly Machine 1' : 'Burner Mining Drill';
+         return <UpgradeCard
+           key={item.id}
+           testId={`card-upgrade-${item.id}`}
+           title={item.name}
+           copy={item.copy}
+           status={complete ? <Tag><Check size={10} /> installed</Tag> : queued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : !prerequisiteMet ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : <Tag tone="amber">available</Tag>}
+           iconPair={<UpgradeIconPair from={<ResourceIcon item={fromMachine} size={26} />} to={<ResourceIcon item={item.newMachine} size={26} />} fromLabel={fromLabel} toLabel={item.newMachineLabel} />}
+           flow={<UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} />}
+           progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId={`panel-upgrade-progress-${item.id}`} /> : undefined}
+           meta={<UpgradeMetaGrid prerequisite={item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={item.relevantMachine} machineCount={machineCount} />}
+           costPerItem={item.upgradeCostPerMachine}
+           totalCost={totalCosts}
+           action={!complete ? <div className="mt-3"><button onClick={() => startUpgrade(item)} disabled={!canStart} className="button-base button-primary w-full !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid={`button-start-upgrade-${item.id}`}><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : missing ? `need ${missing}` : !prerequisiteMet ? 'locked' : !machineCount ? 'build machines first' : 'start upgrade'}</button></div> : undefined}
+         />;
+       })}
+       <UpgradeCard
+         testId="card-upgrade-advanced-oil-processing"
+         title="Upgrade Basic Oil Processing to Advanced Oil Processing"
+         copy="Replace every constructed Basic Oil Processing refinery with Advanced Oil Processing. The conversion is free and takes one second per refinery."
+         status={oilProcessingUpgradeComplete ? <Tag><Check size={10} /> installed</Tag> : oilProcessingUpgradeQueued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : !oilProcessingPrerequisiteMet ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : <Tag tone="amber">available</Tag>}
+         iconPair={<UpgradeIconPair from={<FactoryIcon size={24} />} to={<Waves size={24} />} fromLabel="Basic Oil Processing" toLabel="Advanced Oil Processing" />}
+         flow={<UpgradeFlow count={oilProcessingConversionCount} from="Basic Oil Processing" to="Advanced Oil Processing" />}
+         progress={oilProcessingUpgradeQueued && activeUpgrade ? <UpgradeProgress count={oilProcessingConversionCount} label={oilProcessingConversionCount === 1 ? 'refinery' : 'refineries'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-advanced-oil-processing" /> : undefined}
+         meta={<UpgradeMetaGrid prerequisite="advanced-oil-processing" prerequisiteMet={oilProcessingPrerequisiteMet} machine="Oil Refinery" machineCount={oilProcessingMachineCount} />}
+         costPerItem={[]}
+         totalCost={[]}
+         action={!oilProcessingUpgradeComplete ? <div className="mt-3"><button onClick={startOilProcessingUpgrade} disabled={!!activeUpgrade || !oilProcessingPrerequisiteMet || !basicOilMachineCount} className="button-base button-primary w-full !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-upgrade-advanced-oil-processing"><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !oilProcessingPrerequisiteMet ? 'locked' : !basicOilMachineCount ? 'build refineries first' : 'start upgrade'}</button></div> : undefined}
+       />
+       <UpgradeCard
+         testId="card-upgrade-steel-furnaces"
+         title="Upgrade all furnaces to Steel Furnaces"
+         copy="Convert every constructed stone furnace together. Steel Furnaces run at twice the speed and use half the coal per item."
+         status={furnaceUpgradeComplete ? <Tag><Check size={10} /> installed</Tag> : furnaceUpgradeQueued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : <Tag tone="amber">available</Tag>}
+         iconPair={<UpgradeIconPair from={<ResourceIcon item="stone-furnace" size={26} />} to={<ResourceIcon item="steel-furnace" size={26} />} fromLabel="Stone Furnace" toLabel="Steel Furnace" />}
+         flow={<UpgradeFlow count={furnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} from="Stone Furnace" to="Steel Furnace" />}
+         progress={furnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'stone furnace' : 'stone furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-steel-furnaces" /> : undefined}
+         meta={<UpgradeMetaGrid prerequisiteMet={true} machine="Stone Furnace" machineCount={furnaceCount} />}
+         costPerItem={furnaceUpgradeCostPerFurnace}
+         totalCost={furnaceUpgradeCosts}
+         action={!furnaceUpgradeComplete ? <div className="mt-3"><button onClick={startFurnaceUpgrade} disabled={!!activeUpgrade || !furnaceCount || !!furnaceUpgradeMissing} className="button-base button-primary w-full !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-upgrade-steel-furnaces"><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : furnaceUpgradeMissing ? `need ${furnaceUpgradeMissing}` : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</button></div> : undefined}
+       />
+       <UpgradeCard
+         testId="card-upgrade-iron-chests"
+         title="Upgrade storage to Iron Chests"
+         copy="Replace every constructed wooden chest with an Iron Chest. Fluid storage tanks are not affected."
+         status={storageUpgradeComplete ? <Tag><Check size={10} /> installed</Tag> : storageUpgradeQueued ? <Tag tone="amber"><Clock3 size={10} /> converting</Tag> : <Tag tone="amber">available</Tag>}
+         iconPair={<UpgradeIconPair from={<ResourceIcon item="wooden-chest" size={26} />} to={<ResourceIcon item="iron-chest" size={26} />} fromLabel="Wooden Chest" toLabel="Iron Chest" />}
+         flow={<UpgradeFlow count={storageUpgradeQueued ? activeUpgrade?.machineCount ?? storageBoxCount : storageBoxCount} from="Wooden Chest" to="Iron Chest" />}
+         progress={storageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'wooden chest' : 'wooden chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-iron-chests" /> : undefined}
+         meta={<UpgradeMetaGrid prerequisiteMet={true} machine="Wooden Chest" machineCount={storageBoxCount} />}
+         costPerItem={[{ key: 'ironPlate', amount: ironChestUpgradeCostFor(1), source: 'products' }]}
+         totalCost={storageUpgradeCosts}
+         action={!storageUpgradeComplete ? <div className="mt-3"><button onClick={startStorageUpgrade} disabled={!!activeUpgrade || !storageBoxCount || !!storageUpgradeMissing} className="button-base button-primary w-full !py-2 disabled:cursor-not-allowed disabled:opacity-45" data-testid="button-start-upgrade-iron-chests"><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : storageUpgradeMissing ? `need ${storageUpgradeMissing}` : !storageBoxCount ? 'build chests first' : 'start upgrade'}</button></div> : undefined}
+       />
+     </div>
   </PageFrame>;
 }
 
