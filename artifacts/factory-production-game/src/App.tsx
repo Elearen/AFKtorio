@@ -108,7 +108,7 @@ type GameState = {
 };
 
 const SAVE_KEY = 'factory-production-game-save-v2';
-const rawKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood', 'water', 'uranium', 'crudeOil'];
+const rawKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood', 'water', 'crudeOil', 'uranium'];
 const scienceKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'chemicalPack', 'militaryPack', 'productionPack', 'utilityPack', 'spacePack'];
 const normalizedTechnologyCatalog = technologyCatalog.map((technology) => ({ ...technology, time: technology.time ?? defaultTechnologyResearchTime }));
 const technologyMap: Record<string, TechnologyDefinition> = Object.fromEntries(normalizedTechnologyCatalog.map((technology) => [technology.name, technology]));
