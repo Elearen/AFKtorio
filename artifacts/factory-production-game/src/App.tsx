@@ -6,7 +6,7 @@ import { technologyCatalog, type TechnologyDefinition } from './technologyCatalo
 import { technologyOrder } from './technologyOrder';
 import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
 import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
-import { activateReadyConstruction, fulfillConstructionReservation, normalizeConstructionQueue, reserveConstructionMaterials } from './constructionSystem';
+import { activateReadyConstruction, fulfillConstructionReservation, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import {
   OIL_PROCESSING_UPGRADE_ID, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
@@ -342,6 +342,20 @@ const recipeBuildCosts = (recipe: Recipe): BuildMaterialCost[] => Object.entries
   amount: amount ?? 0,
   source: rawKeys.includes(key as RawKey) ? 'raw' : 'products',
 }));
+const legacyUpgradeCostsFor = (item: QueueItem): BuildMaterialCost[] | undefined => {
+  if (item.action !== 'upgrade' || item.costs?.length || !item.targetId || !item.machineCount || item.machineCount <= 0) return undefined;
+  if (item.targetId === 'assembly-machine-2' || item.targetId === 'electric-mining-drill') {
+    const upgrade = upgradeMap[item.targetId];
+    return scaledBuildCosts(upgrade.upgradeCostPerMachine, item.machineCount);
+  }
+  if (item.targetId === 'iron-chests') {
+    return [{ key: 'ironPlate', amount: ironChestUpgradeCostFor(item.machineCount), source: 'products' }];
+  }
+  if (item.targetId === 'steel-furnaces') {
+    return scaledBuildCosts(recipeBuildCosts(steelFurnaceRecipe), item.machineCount);
+  }
+  return undefined;
+};
 const rocketSiloRecipe = recipeMap['rocket-silo'];
 const rocketPartRecipe = recipeMap['rocket-part'];
 const rocketSiloBuildCost: BuildMaterialCost[] = recipeBuildCostsForRocket(rocketSiloRecipe);
@@ -1030,7 +1044,10 @@ function loadState() {
         return { ...sample, production, consumption };
       }) : [],
       machineVariants: migratedUpgradeState.machineVariants,
-       queue: normalizeConstructionQueue(migratedUpgradeState.queue as QueueItem[]),
+      queue: normalizeConstructionQueue(migratedUpgradeState.queue.map((item) => {
+        const costs = legacyUpgradeCostsFor(item as QueueItem);
+        return costs ? { ...item, costs, reserved: costs.map((cost) => cost.amount) } : item;
+      }) as QueueItem[]),
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
       currentResearch: parsed.currentResearch ? normalizeResearchKey(String(parsed.currentResearch)) : initialState.currentResearch,
       researchSelected: parsed.researchSelected === true,
@@ -1315,7 +1332,7 @@ function TutorialSection({ state }: { state: GameState }) {
   </section>;
 }
 
-function FactoryPage({ state, setState, away, recovered, offlineReportVisible, dismissOfflineReport, notice }: PageProps) {
+function FactoryPage({ state, setState, away, recovered, offlineReportVisible, dismissOfflineReport, notice, cancelConstruction }: PageProps) {
   const active = totalUnits(state);
   const powerProduction = powerProductionFor(state);
   const draw = electricPowerDraw(state);
@@ -1403,7 +1420,7 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
     const progress = waitingForMaterials
       ? Math.min(...(item.costs ?? []).map((cost, index) => (item.reserved?.[index] ?? 0) / Math.max(0.0001, cost.amount) * 100), 0)
       : (1 - item.seconds / item.total) * 100;
-    return <div className="data-row flex items-center gap-3 rounded-lg p-2.5" key={item.id} data-testid={`row-factory-queue-${item.id}`}><div className="grid h-7 w-7 place-items-center rounded-md bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]">{item.action === 'upgrade' ? <TrendingUp size={14} /> : <Hammer size={14} />}</div><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-semibold">{item.target} <span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">· {waitingForMaterials ? 'materials requested' : item.action}</span></div><Progress value={progress} tone="amber" /></div><span className="mono text-[10px] text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(item.seconds)}</span></div>;
+     return <div className="data-row flex items-center gap-3 rounded-lg p-2.5" key={item.id} data-testid={`row-factory-queue-${item.id}`}><div className="grid h-7 w-7 place-items-center rounded-md bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]">{item.action === 'upgrade' ? <TrendingUp size={14} /> : <Hammer size={14} />}</div><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-semibold">{item.target} <span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">· {waitingForMaterials ? 'materials requested' : item.action}</span></div><Progress value={progress} tone="amber" /></div><span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(item.seconds)}</span><button type="button" onClick={() => { cancelConstruction(item.id); notice(`${item.target} cancelled · materials refunded`); }} className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label={`Cancel ${item.target}`} title="Cancel construction and refund materials" data-testid={`button-cancel-queue-${item.id}`}><X size={12} /></button></div>;
   })}</div> : <div className="rounded-lg border border-dashed border-[hsl(var(--border))] p-4"><div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))]"><Clock3 size={14} /><span className="text-[11px]">Queue clear</span></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Nothing is under construction. Choose a build from a control tab when the network is ready.</p></div>}</section>;
   return <PageFrame>
     {offlineReportVisible && away >= 60 && recovered > 0 && <div className="surface mb-5 flex flex-col gap-3 rounded-xl border-[hsl(var(--secondary)/.4)] bg-[linear-gradient(100deg,hsl(174_35%_17%/.8),hsl(216_25%_14%/.96))] p-4 sm:flex-row sm:items-center sm:justify-between enter" data-testid="status-offline-production"><div className="flex items-start gap-3"><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--secondary)/.14)] text-[hsl(var(--secondary))]"><RotateCcw size={18} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Network recovered</div><div className="mt-1 text-[13px] font-bold">{duration(away)} of offline production reconciled</div><div className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">The line added <span className="mono text-[hsl(var(--secondary))]">{fmt(recovered)} items</span> while the control room was closed.</div></div></div><button onClick={() => { dismissOfflineReport(); notice('offline report acknowledged'); }} className="button-base button-ghost shrink-0" data-testid="button-dismiss-offline">acknowledge <ArrowRight size={13} /></button></div>}
@@ -1864,6 +1881,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     if (activeUpgrade) return notice('finish the active upgrade before starting another');
     if (!storageBoxCount) return notice('construct at least one wooden chest first');
     if (storageUpgradeMissing) return notice(`missing ${storageUpgradeMissing}`);
+    const costs = [{ key: 'ironPlate', amount: ironChestUpgradeCostFor(storageBoxCount), source: 'products' as const }];
     const job: QueueItem = {
       id: `upgrade-${Date.now()}`,
       action: 'upgrade',
@@ -1872,6 +1890,8 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
       seconds: storageUpgradeTotalSeconds,
       total: storageUpgradeTotalSeconds,
       machineCount: storageBoxCount,
+      costs,
+      reserved: costs.map((cost) => cost.amount),
     };
     setState((s) => ({
       ...s,
@@ -1893,6 +1913,8 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
       seconds: furnaceUpgradeTotalSeconds,
       total: furnaceUpgradeTotalSeconds,
       machineCount: furnaceCount,
+      costs: furnaceUpgradeCosts.map((cost) => ({ ...cost })),
+      reserved: furnaceUpgradeCosts.map((cost) => cost.amount),
     };
     setState((s) => {
       const raw = { ...s.raw };
@@ -2338,7 +2360,7 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
   </PageFrame>;
 }
 
-type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => void; saveNow: () => void; reset: () => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
+type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => void; cancelConstruction: (id: string) => void; saveNow: () => void; reset: () => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
 
 function PageFrame({ children }: { children: ReactNode }) { return <div className="mx-auto max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 md:px-8 md:pb-10">{children}</div>; }
 
@@ -2391,7 +2413,13 @@ function Game() {
     setState((s) => ({ ...s, gameComplete: true, research: unlockSpaceScienceAfterLaunch(s.research), researchNotifications: queueSpaceScienceNotification(s.researchNotifications) }));
     setEndgameModal(null);
   };
-  const props = { state, setState, enqueue, saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
+  const cancelConstruction = (id: string) => setState((s) => {
+    const item = s.queue.find((queueItem) => queueItem.id === id);
+    if (!item) return s;
+    const inventory = refundConstructionMaterials({ raw: s.raw, products: s.products }, item);
+    return { ...s, raw: inventory.raw, products: inventory.products, queue: s.queue.filter((queueItem) => queueItem.id !== id) };
+  });
+  const props = { state, setState, enqueue, cancelConstruction, saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
   const pageKey = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;

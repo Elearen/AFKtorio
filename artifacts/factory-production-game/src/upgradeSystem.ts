@@ -33,6 +33,8 @@ export type UpgradeQueueRecord = {
   seconds: number;
   total: number;
   machineCount?: number;
+  costs?: BuildMaterialCost[];
+  reserved?: number[];
 };
 
 export type UpgradeStartState = {
@@ -146,6 +148,8 @@ export const beginUpgrade = (state: UpgradeStartState, upgradeId: UpgradeKey, jo
     machineCount,
     seconds: totalSeconds,
     total: totalSeconds,
+    costs: totalCosts.map((cost) => ({ ...cost })),
+    reserved: totalCosts.map((cost) => cost.amount),
   };
   return {
     ok: true,

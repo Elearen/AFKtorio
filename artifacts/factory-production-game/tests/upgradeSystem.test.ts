@@ -84,6 +84,12 @@ test('production upgrade reserves the full cost and total time for every existin
   assert.deepEqual(result.state.products, { circuit: 14, gear: 10, steel: 6, ironPlate: 30 });
   assert.equal(result.job.machineCount, 2);
   assert.equal(result.job.total, 1);
+  assert.deepEqual(result.job.costs, [
+    { key: 'circuit', amount: 6, source: 'products' },
+    { key: 'gear', amount: 10, source: 'products' },
+    { key: 'steel', amount: 4, source: 'products' },
+  ]);
+  assert.deepEqual(result.job.reserved, [6, 10, 4]);
   assert.equal(result.state.queue.length, 1);
   assert.equal(result.state.queue[0].targetId, 'assembly-machine-2');
   assert.equal(result.state.machineVariants.assembly, 'assembling-machine-1');

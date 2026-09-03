@@ -20,3 +20,9 @@ Newly funded construction must not consume build time in the same simulation tic
 **Why:** A one-second storage build could otherwise be marked complete immediately when the last missing material arrived, making capacity increase before the request visibly finished.
 
 **How to apply:** Track which queue items were already active at simulation start, decrement only those items during the current tick, and apply completion effects only to them.
+
+Queue cancellation must refund each item’s recorded reservation directly to raw/products inventory, bypassing capacity so paid materials are never discarded; upgrades must record their full paid costs as reservations too.
+
+**Why:** Construction materials are removed before work completes, and a cancellation should restore exactly what was paid even when the destination storage is full.
+
+**How to apply:** Keep costs and reserved amounts on every materialized queue item, then remove the item and add only its reserved amounts back without routing through normal capacity-limited production.

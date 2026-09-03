@@ -5,6 +5,7 @@ import {
   constructionRequestReady,
   fulfillConstructionReservation,
   normalizeConstructionQueue,
+  refundConstructionMaterials,
   reserveConstructionMaterials,
   type ConstructionQueueItem,
 } from '../src/constructionSystem.js';
@@ -74,4 +75,26 @@ test('legacy partially funded queue entries load as waiting instead of active', 
 
   assert.equal(normalized.started, false);
   assert.deepEqual(normalized.reserved, [2]);
+});
+
+test('cancelling a queue item refunds paid and reserved materials without applying capacity', () => {
+  const refunded = refundConstructionMaterials({
+    raw: { stone: 179 },
+    products: { circuit: 180 },
+  }, {
+    action: 'assembler',
+    seconds: 8,
+    total: 10,
+    costs: [
+      { key: 'circuit', amount: 5, source: 'products' },
+      { key: 'stone', amount: 2, source: 'raw' },
+    ],
+    reserved: [5, 1],
+    started: true,
+  });
+
+  assert.deepEqual(refunded, {
+    raw: { stone: 180 },
+    products: { circuit: 185 },
+  });
 });

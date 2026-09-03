@@ -61,6 +61,23 @@ export const reserveConstructionMaterials = (
   return nextReserved;
 };
 
+export const refundConstructionMaterials = (
+  inventory: ConstructionInventory,
+  item: ConstructionQueueItem,
+): ConstructionInventory => {
+  const raw = { ...inventory.raw };
+  const products = { ...inventory.products };
+
+  item.costs?.forEach((cost, index) => {
+    const reserved = Math.min(cost.amount, Math.max(0, item.reserved?.[index] ?? 0));
+    if (reserved <= 0) return;
+    const target = cost.source === 'raw' ? raw : products;
+    target[cost.key] = (target[cost.key] ?? 0) + reserved;
+  });
+
+  return { raw, products };
+};
+
 export const activateReadyConstruction = (queue: ConstructionQueueItem[]) => {
   queue.forEach((item) => {
     if (item.action === 'upgrade' || item.started || !item.costs?.length || !constructionRequestReady(item)) return;
