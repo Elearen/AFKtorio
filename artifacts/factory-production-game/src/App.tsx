@@ -800,6 +800,11 @@ function simulate(previous: GameState, seconds: number): GameState {
   if (powerFlow.steamConsumed > 0) {
     liveConsumption.steam += powerFlow.steamConsumed;
   }
+  if (powerProductionFor(state) - electricPowerDraw(state) > 0
+    && unlockMilestone(state, 'turn-lights-on')
+    && !state.milestoneNotifications.includes('turn-lights-on')) {
+    state.milestoneNotifications.push('turn-lights-on');
+  }
   const operatingSeconds = burnerOperatingSeconds(state, seconds);
   if (fueledBurnerMinerCount(state)) {
     const coalConsumed = burnerMinerCoalRate(state) * operatingSeconds * speed;
@@ -2252,17 +2257,28 @@ function WelcomeModal({ onBegin, replay = false }: { onBegin: () => void; replay
 function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onDismiss: () => void }) {
   const isFirstLab = milestone === 'first-lab';
   const isTwentyOneLabs = milestone === 'twenty-one-labs';
-  const image = isFirstLab ? 'first-lab-milestone.jpg' : isTwentyOneLabs ? 'twenty-one-labs-milestone.jpg' : 'sixty-furnaces-milestone.jpg';
+  const isTurnLightsOn = milestone === 'turn-lights-on';
+  const image = isFirstLab
+    ? 'first-lab-milestone.jpg'
+    : isTwentyOneLabs
+      ? 'twenty-one-labs-milestone.jpg'
+      : isTurnLightsOn
+        ? 'turn-lights-on-milestone.png'
+        : 'sixty-furnaces-milestone.jpg';
   const imageAlt = isFirstLab
     ? 'Factory Planet laboratory and production machines beside a river'
     : isTwentyOneLabs
       ? 'Factory Planet with more than twenty laboratories connected by production lines'
-      : 'Factory Planet with a large industrial furnace and production network';
+      : isTurnLightsOn
+        ? 'Factory Planet boiler and steam engine generating electricity in a forest'
+        : 'Factory Planet with a large industrial furnace and production network';
   const message = isFirstLab
     ? 'You have constructed your first lab, well done. This is the first major step towards regaining the technology to travel off world.'
     : isTwentyOneLabs
       ? 'Over twenty labs! Your science production will be done in no time.'
-      : '60 furnaces! This is a burgeoning industrial empire.';
+      : isTurnLightsOn
+        ? 'Somehow you managed to put lightning into a bottle. Impressive. What else could go into a bottle?'
+        : '60 furnaces! This is a burgeoning industrial empire.';
   return <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="milestone-title" data-testid={`dialog-milestone-${milestone}`}>
       <div className="absolute inset-x-0 top-0 z-10 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />

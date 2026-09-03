@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { migrateMilestoneState } from '../src/milestoneSystem.js';
+import { migrateMilestoneState, milestoneOrder, milestoneTitles } from '../src/milestoneSystem.js';
+
+test('Turn the lights on is a replayable milestone with the requested settings label', () => {
+  assert.equal(milestoneTitles['turn-lights-on'], 'Turn the lights on');
+  assert.equal(milestoneOrder.includes('turn-lights-on'), true);
+});
 
 test('legacy saves surface welcome and earned milestones as unviewed', () => {
   const migrated = migrateMilestoneState({ labCount: 21, furnaceCount: 60 });

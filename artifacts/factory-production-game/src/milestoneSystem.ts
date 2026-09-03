@@ -1,12 +1,13 @@
-export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces';
+export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on';
 
-export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs'];
+export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on'];
 
 export const milestoneTitles: Record<MilestoneKey, string> = {
   'crash-landed': 'Crash Landed',
   'first-lab': 'Built a Lab',
   'sixty-furnaces': '60 Furnaces',
   'twenty-one-labs': '21 Labs',
+  'turn-lights-on': 'Turn the lights on',
 };
 
 const isMilestoneKey = (value: string): value is MilestoneKey => (
@@ -14,6 +15,7 @@ const isMilestoneKey = (value: string): value is MilestoneKey => (
   || value === 'first-lab'
   || value === 'twenty-one-labs'
   || value === 'sixty-furnaces'
+  || value === 'turn-lights-on'
 );
 
 const normalizeMilestoneKeys = (value: unknown) => Array.from(new Set(
