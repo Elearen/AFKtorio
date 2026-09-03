@@ -24,7 +24,7 @@ import {
 import { milestoneOrder, milestoneTitles, migrateMilestoneState, type MilestoneKey } from './milestoneSystem';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
-  Cog, MoveRight, Cpu, Factory as FactoryIcon, FlaskConical, Gauge, Hammer,
+  Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
   Info, Layers3, Lightbulb, LockKeyhole, Pickaxe, Plus, Power, Rocket,
   RotateCcw, Save, Settings2, ShieldAlert, Sparkles, Sun, Trash2,
   TrendingUp, TriangleAlert, Truck, Waves, X, Zap,
