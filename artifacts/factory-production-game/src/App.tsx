@@ -2263,7 +2263,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
     : isTwentyOneLabs
       ? 'twenty-one-labs-milestone.jpg'
       : isTurnLightsOn
-        ? 'turn-lights-on-milestone.png'
+        ? 'turn-lights-on-milestone.jpg'
         : 'sixty-furnaces-milestone.jpg';
   const imageAlt = isFirstLab
     ? 'Factory Planet laboratory and production machines beside a river'

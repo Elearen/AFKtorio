@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "E4--Y-yugSbrdJkKTf4I2"
+uri = "file://artifacts/factory-production-game/public/turn-lights-on-milestone.jpg"
+type = "image"
+title = "Turn the lights on milestone artwork"
+description = "High-quality 1122×1402 JPEG version of the latest milestone image, matching the existing milestone artwork format."
+logical_id = "0ca5a2c7-beeb-49ee-a7a7-d80e103e0909"
+content_hash = "sha256:3cb9bce8397d35c05b2dabef2169d2fd7da24d23e5c5601e6265f49a9c2b645d"
+size = 670157
+mtime_ms = 1788434521457
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/0ca5a2c7-beeb-49ee-a7a7-d80e103e0909/cdeedc83-57d1-4cec-bba4-4113d64ded47"
+storage_version_token = "1788434535254022"
+content_type = "image/jpeg"
