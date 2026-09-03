@@ -33,3 +33,33 @@ test('Uranium Processing unlocks after constructing the first uranium miner', ()
     count: 1,
   });
 });
+
+test('technology upgrade science costs use the correct pack types and scaled quantities', () => {
+  const physicalProjectileDamage3 = technologyCatalog.find((technology) => technology.name === 'physical-projectile-damage-3');
+
+  assert.ok(physicalProjectileDamage3);
+  assert.deepEqual(physicalProjectileDamage3.scienceCosts, [
+    { pack: 'automation-science-pack', amount: 1 },
+    { pack: 'logistic-science-pack', amount: 1 },
+    { pack: 'military-science-pack', amount: 1 },
+  ]);
+  assert.equal(physicalProjectileDamage3.count, 300);
+
+  const scaledFamilies = [
+    'physical-projectile-damage',
+    'weapon-shooting-speed',
+    'stronger-explosives',
+    'refined-flammables',
+    'laser-weapons-damage',
+  ];
+
+  for (const family of scaledFamilies) {
+    for (let level = 1; level <= 6; level += 1) {
+      const technology = technologyCatalog.find((entry) => entry.name === `${family}-${level}`);
+
+      assert.ok(technology, `missing ${family}-${level}`);
+      assert.equal(technology.count, level * 100, `${family}-${level} research count`);
+      assert.ok(technology.scienceCosts.every((cost) => cost.amount === 1), `${family}-${level} science amount`);
+    }
+  }
+});

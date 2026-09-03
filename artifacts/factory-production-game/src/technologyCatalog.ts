@@ -22,7 +22,7 @@ export type TechnologyDefinition = {
 
 // Normalized from wube/factorio-data/base/prototypes/technology.lua.
 // The source helper create_follower_upgrade is expanded into four concrete technologies.
-export const technologyCatalog: TechnologyDefinition[] = [
+const rawTechnologyCatalog: TechnologyDefinition[] = [
   {
     "name": "steam-power",
     "prerequisites": [],
@@ -6997,3 +6997,47 @@ export const technologyCatalog: TechnologyDefinition[] = [
     "upgrade": true
   }
 ];
+
+// Keep the normalized catalog aligned with the upstream per-level research
+// counts for upgrade families. Science pack amounts remain one per unit.
+const canonicalTechnologyCountOverrides: Record<string, number> = {
+  'physical-projectile-damage-2': 200,
+  'physical-projectile-damage-3': 300,
+  'physical-projectile-damage-4': 400,
+  'physical-projectile-damage-5': 500,
+  'physical-projectile-damage-6': 600,
+  'weapon-shooting-speed-2': 200,
+  'weapon-shooting-speed-3': 300,
+  'weapon-shooting-speed-4': 400,
+  'weapon-shooting-speed-5': 500,
+  'weapon-shooting-speed-6': 600,
+  'stronger-explosives-2': 200,
+  'stronger-explosives-3': 300,
+  'stronger-explosives-4': 400,
+  'stronger-explosives-5': 500,
+  'stronger-explosives-6': 600,
+  'refined-flammables-2': 200,
+  'refined-flammables-3': 300,
+  'refined-flammables-4': 400,
+  'refined-flammables-5': 500,
+  'refined-flammables-6': 600,
+  'laser-weapons-damage-2': 200,
+  'laser-weapons-damage-3': 300,
+  'laser-weapons-damage-4': 400,
+  'laser-weapons-damage-5': 500,
+  'laser-weapons-damage-6': 600,
+};
+
+const canonicalScienceCostOverrides: Record<string, TechnologyScienceCost[]> = {
+  'physical-projectile-damage-3': [
+    { pack: 'automation-science-pack', amount: 1 },
+    { pack: 'logistic-science-pack', amount: 1 },
+    { pack: 'military-science-pack', amount: 1 },
+  ],
+};
+
+export const technologyCatalog: TechnologyDefinition[] = rawTechnologyCatalog.map((technology) => ({
+  ...technology,
+  ...(canonicalTechnologyCountOverrides[technology.name] ? { count: canonicalTechnologyCountOverrides[technology.name] } : {}),
+  ...(canonicalScienceCostOverrides[technology.name] ? { scienceCosts: canonicalScienceCostOverrides[technology.name] } : {}),
+}));
