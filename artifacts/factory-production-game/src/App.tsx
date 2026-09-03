@@ -1276,7 +1276,7 @@ function TutorialSection({ state }: { state: GameState }) {
     </div>
     <button onClick={() => setExpanded((value) => !value)} className="button-base button-ghost mt-4 w-full !py-2" aria-expanded={expanded} data-testid="button-toggle-tutorial">
       <ChevronRight size={13} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
-      {expanded ? 'show fewer goals' : 'show first 4 incomplete goals'}
+      {expanded ? 'Show fewer' : 'Show more'}
     </button>
   </section>;
 }
