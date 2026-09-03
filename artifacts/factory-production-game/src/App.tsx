@@ -1590,7 +1590,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
              {locked ? <button onClick={() => notice(`${info.needs} research required`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-locked-mining-${key}`}><LockKeyhole size={13} /> requires {info.needs}</button> : <>{manualCollectionControl}{buildControl}</>}
           </div>
           <BuildProgress items={constructionItems} label={constructionLabel} />
-           {manualMiningJob && <ManualMiningProgress job={manualMiningJob} />}
+           {manualMiningJob && <ManualMiningProgress job={manualMiningJob} simulationSpeed={state.simulationSpeed} />}
         </section>;
       })}
     </div>
@@ -1700,7 +1700,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
          <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} />
           <div className="mt-4 flex gap-2">{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-${count ? 'build-more' : 'build'}-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> {count ? 'queued · build another' : 'queued'}</> : <><Hammer size={13} /> {count ? 'construct another' : 'construct'}</>}</button></div>
           {isBuilding && <BuildProgress items={constructionItems} label={`${buildingLabel} · ${prettyLabel(key)}`} />}
-          {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} />}
+          {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} simulationSpeed={state.simulationSpeed} />}
       </section>;
       })}
     </div>
