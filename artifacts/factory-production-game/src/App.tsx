@@ -41,6 +41,13 @@ type UnitStatus = 'running' | 'starved' | 'blocked';
 const defaultTechnologyResearchTime = 30;
 type SupplyStatusTone = 'teal' | 'amber' | 'red' | 'muted';
 type SupplyStatus = { tone: SupplyStatusTone; label: string; detail: string };
+const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs'];
+const milestoneTitles: Record<MilestoneKey, string> = {
+  'crash-landed': 'Crash Landed',
+  'first-lab': 'Built a Lab',
+  'sixty-furnaces': '60 Furnaces',
+  'twenty-one-labs': '21 Labs',
+};
 
 type Recipe = RecipeCatalogEntry;
 type QueueItem = {
@@ -743,6 +750,11 @@ const burnerOperatingSeconds = (state: GameState, seconds: number) => {
   const fuelRate = burnerMinerCoalRate(state) * state.simulationSpeed;
   return fuelRate > 0 ? Math.min(seconds, Math.max(0, state.raw.coal) / fuelRate) : seconds;
 };
+const unlockMilestone = (state: GameState, milestone: MilestoneKey) => {
+  if (state.unlockedMilestones.includes(milestone)) return false;
+  state.unlockedMilestones.push(milestone);
+  return true;
+};
 
 function simulate(previous: GameState, seconds: number): GameState {
   const liveProduction = emptyRateRecord();
@@ -754,7 +766,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes }, storageTanks: { ...previous.storageTanks },
     assemblers: { ...previous.assemblers }, oilProcessingAdvanced: previous.oilProcessingAdvanced, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
-    researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])], milestoneNotifications: [...(previous.milestoneNotifications ?? [])],
+    researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])], milestoneNotifications: [...(previous.milestoneNotifications ?? [])], unlockedMilestones: [...(previous.unlockedMilestones ?? [])],
     rateHistory: previous.rateHistory ?? [],
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null,
     queue: previous.queue.map((item) => ({ ...item, costs: item.costs?.map((cost) => ({ ...cost })), reserved: item.reserved ? [...item.reserved] : undefined })),
@@ -881,14 +893,20 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (item.action === 'uraniumMiner') { state.uraniumMiners += 1; recordProduction(state, 'uranium-miner', 1); }
      if (item.action === 'assembler' || item.action === 'furnace') {
        state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
-       if (item.action === 'furnace' && smeltingFurnaceCountFor(state) === 60 && !state.milestoneNotifications.includes('sixty-furnaces')) state.milestoneNotifications.push('sixty-furnaces');
+       if (item.action === 'furnace' && smeltingFurnaceCountFor(state) === 60) {
+         if (unlockMilestone(state, 'sixty-furnaces') && !state.milestoneNotifications.includes('sixty-furnaces')) state.milestoneNotifications.push('sixty-furnaces');
+       }
      }
     if (item.action === 'lab') {
       const isFirstLab = state.labs === 0;
       state.labs += 1;
       recordProduction(state, 'lab', 1, liveProduction);
-      if (isFirstLab && !state.milestoneNotifications.includes('first-lab')) state.milestoneNotifications.push('first-lab');
-      if (state.labs === 21 && !state.milestoneNotifications.includes('twenty-one-labs')) state.milestoneNotifications.push('twenty-one-labs');
+       if (isFirstLab) {
+         if (unlockMilestone(state, 'first-lab') && !state.milestoneNotifications.includes('first-lab')) state.milestoneNotifications.push('first-lab');
+       }
+       if (state.labs === 21) {
+         if (unlockMilestone(state, 'twenty-one-labs') && !state.milestoneNotifications.includes('twenty-one-labs')) state.milestoneNotifications.push('twenty-one-labs');
+       }
     }
     if (item.action === 'boiler') state.boilers += 1;
     if (item.action === 'steamEngine') state.steamEngines += 1;
@@ -968,6 +986,15 @@ function loadState() {
       savedTanks: parsed.storageTanks,
       boxCapacity: storageBoxType === 'iron' ? ironStorageBoxCapacity : storageBoxCapacity,
     });
+    const savedMilestoneKeys = Array.from(new Set((parsed.unlockedMilestones ?? []).map(String).filter((key): key is MilestoneKey => key === 'crash-landed' || key === 'first-lab' || key === 'twenty-one-labs' || key === 'sixty-furnaces')));
+    const savedFurnaceCount = Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => total + (parsed.assemblers?.[recipeKey] ?? 0), 0);
+    const migratedUnlockedMilestones = Array.from(new Set<MilestoneKey>([
+      ...savedMilestoneKeys,
+      ...(parsed.welcomeSeen !== false ? ['crash-landed' as MilestoneKey] : []),
+      ...(savedLabCount > 0 ? ['first-lab' as MilestoneKey] : []),
+      ...(savedLabCount >= 21 ? ['twenty-one-labs' as MilestoneKey] : []),
+      ...(savedFurnaceCount >= 60 ? ['sixty-furnaces' as MilestoneKey] : []),
+    ]));
     const state = {
       ...initialState,
       ...parsed,
@@ -1018,6 +1045,7 @@ function loadState() {
       autoResearch: orderedTechnologyCatalog.filter((technology) => (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
        researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
        milestoneNotifications: Array.from(new Set((parsed.milestoneNotifications ?? []).map(String).filter((key): key is MilestoneKey => key === 'first-lab' || key === 'twenty-one-labs' || key === 'sixty-furnaces'))),
+       unlockedMilestones: migratedUnlockedMilestones,
       lastSeen: parsed.lastSeen ?? Date.now(),
       rocketSiloBuilt: parsed.rocketSiloBuilt === true,
       rocketPartsBuilt: Math.min(ROCKET_PART_TARGET, Math.max(0, Number(parsed.rocketPartsBuilt) || 0)),
@@ -2174,9 +2202,9 @@ function TechnologyDetailModal({ item, state, toggleAutoResearch, onClose }: { i
   </div>;
 }
 
-function WelcomeModal({ onBegin }: { onBegin: () => void }) {
+function WelcomeModal({ onBegin, replay = false }: { onBegin: () => void; replay?: boolean }) {
   return <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
-    <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--primary)/.7)] bg-[linear-gradient(145deg,hsl(35_30%_18%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="welcome-title" data-testid="dialog-welcome">
+    <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--primary)/.7)] bg-[linear-gradient(145deg,hsl(35_30%_18%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="welcome-title" data-testid={replay ? 'dialog-milestone-crash-landed' : 'dialog-welcome'}>
       <div className="absolute inset-x-0 top-0 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />
       <div className="flex items-start gap-4 pt-1">
         <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-[hsl(var(--primary)/.5)] bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Rocket size={28} /></div>
@@ -2190,7 +2218,7 @@ function WelcomeModal({ onBegin }: { onBegin: () => void }) {
         <p>Your ship has crashed while travelling across the galaxy towards home. You are the only survivor. You have emergency supplies from your escape pod, but you must survive and construct a new ship to get off the planet and make it home.</p>
       </div>
       <div className="mt-6 rounded-xl border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]"><span className="font-bold text-[hsl(var(--primary))]">Mission brief:</span> Build your production network, unlock the science chain, and find a way off-world.</div>
-      <button onClick={onBegin} className="button-base button-primary mt-6 w-full !py-3 text-[12px]" data-testid="button-begin-game"><Rocket size={15} /> Begin production</button>
+      <button onClick={onBegin} className="button-base button-primary mt-6 w-full !py-3 text-[12px]" data-testid={replay ? 'button-dismiss-milestone-crash-landed' : 'button-begin-game'}><Rocket size={15} /> {replay ? 'Continue' : 'Begin production'}</button>
     </section>
   </div>;
 }
@@ -2280,8 +2308,9 @@ function LegacySettingsPage({ state, setState, saveNow, reset, notice }: PagePro
   return <PageFrame><Header eyebrow="Control room preferences" title="Settings" copy="Local controls for this browser instance. Nothing here changes the scope of the simulation." action={<Tag><Save size={11} /> local save</Tag>} /><div className="grid gap-5 lg:grid-cols-2"><section className="surface rounded-xl p-5"><SectionTitle>Local save controls</SectionTitle><div className="rounded-xl bg-[hsl(216_24%_10%/.7)] p-4"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><Save size={16} /></div><div><div className="text-[12px] font-bold">Browser save is active</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Production ticks and settings survive a reload.</div></div></div><div className="mt-4 flex gap-2"><button onClick={() => { saveNow(); notice('save committed now'); }} className="button-base button-primary" data-testid="button-save-now"><Save size={13} /> save now</button><button onClick={() => setConfirm(true)} className="button-base button-ghost text-[hsl(var(--destructive))]" data-testid="button-reset-save"><Trash2 size={13} /> reset progress</button></div></div>{confirm && <div className="mt-3 rounded-xl border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] p-4" data-testid="panel-reset-confirm"><div className="flex gap-2"><ShieldAlert size={16} className="text-[hsl(var(--destructive))]" /><div><div className="text-[12px] font-bold">Reset this factory?</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">This removes the local save and starts a new sector. This cannot be undone.</p></div></div><div className="mt-3 flex gap-2"><button onClick={() => { reset(); setConfirm(false); notice('new sector initialized'); }} className="button-base bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]" data-testid="button-confirm-reset">confirm reset</button><button onClick={() => setConfirm(false)} className="button-base button-ghost" data-testid="button-cancel-reset">cancel</button></div></div>}</section><section className="surface rounded-xl p-5"><SectionTitle>Simulation speed</SectionTitle><div className="grid grid-cols-3 gap-2">{[.5, 1, 2].map((speed) => <button onClick={() => setState((s) => ({ ...s, simulationSpeed: speed }))} className={`button-base py-3 ${state.simulationSpeed === speed ? 'button-primary' : 'button-ghost'}`} key={speed} data-testid={`button-speed-${speed}`}>{speed}x</button>)}</div><div className="mt-5 border-t border-[hsl(var(--border))] pt-4"><SectionTitle>Control legend</SectionTitle><div className="space-y-3 text-[11px] text-[hsl(var(--muted-foreground))]"><div className="flex items-center gap-2"><span className="status-dot status-running" /><span><strong className="text-[hsl(var(--foreground))]">Green</strong> means a unit is consuming and producing.</span></div><div className="flex items-center gap-2"><span className="status-dot status-starved" /><span><strong className="text-[hsl(var(--foreground))]">Yellow</strong> means an input is below recipe demand.</span></div><div className="flex items-center gap-2"><span className="status-dot status-blocked" /><span><strong className="text-[hsl(var(--foreground))]">Red</strong> means output or a control path is blocked.</span></div></div></div></section></div><section className="surface mt-5 rounded-xl p-5"><div className="flex items-start gap-3"><CircleHelp size={17} className="text-[hsl(var(--primary))]" /><div><div className="eyebrow">About this slice</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Production Game is a local, playable incremental factory. The resource art, production loop, and control-room language are original to this interface.</p></div></div></section></PageFrame>;
 }
 
-function SettingsPage({ state, setState, saveNow, reset, notice }: PageProps) {
+function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone }: PageProps) {
   const [confirm, setConfirm] = useState(false);
+  const unlockedMilestones = milestoneOrder.filter((milestone) => state.unlockedMilestones.includes(milestone));
   return <PageFrame>
     <Header eyebrow="Control room preferences" title="Settings" copy="Local controls for this browser instance. Nothing here changes the scope of the simulation." action={<Tag><Save size={11} /> local save</Tag>} />
     <div className="grid gap-5 lg:grid-cols-2">
@@ -2315,11 +2344,18 @@ function SettingsPage({ state, setState, saveNow, reset, notice }: PageProps) {
         <div className="mt-5 border-t border-[hsl(var(--border))] pt-4"><SectionTitle>Control legend</SectionTitle><div className="space-y-3 text-[11px] text-[hsl(var(--muted-foreground))]"><div className="flex items-center gap-2"><span className="status-dot status-running" /><span><strong className="text-[hsl(var(--foreground))]">Green</strong> means a unit is consuming and producing.</span></div><div className="flex items-center gap-2"><span className="status-dot status-starved" /><span><strong className="text-[hsl(var(--foreground))]">Yellow</strong> means an input is below recipe demand.</span></div><div className="flex items-center gap-2"><span className="status-dot status-blocked" /><span><strong className="text-[hsl(var(--foreground))]">Red</strong> means output or a control path is blocked.</span></div></div></div>
       </section>
     </div>
-    <section className="surface mt-5 rounded-xl p-5"><div className="flex items-start gap-3"><CircleHelp size={17} className="text-[hsl(var(--primary))]" /><div><div className="eyebrow">About this slice</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Production Game is a local, playable incremental factory. The resource art, production loop, and control-room language are original to this interface.</p></div></div></section>
+    <section className="surface mt-5 rounded-xl p-5" data-testid="section-unlocked-milestones">
+      <div className="flex items-start gap-3"><Sparkles size={17} className="text-[hsl(var(--primary))]" /><div><div className="eyebrow">Progress archive</div><SectionTitle>Unlocked Milestones</SectionTitle><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Replay milestones you have already achieved.</p></div></div>
+      {unlockedMilestones.length > 0 ? <div className="mt-4 space-y-2">{unlockedMilestones.map((milestone, index) => <button type="button" onClick={() => replayMilestone(milestone)} className="data-row flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:border-[hsl(var(--primary)/.5)]" key={milestone} data-testid={`button-replay-milestone-${milestone}`}>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[hsl(var(--secondary)/.4)] bg-[hsl(var(--secondary)/.1)] text-[hsl(var(--secondary))]"><Check size={14} /></span>
+        <span className="min-w-0 flex-1"><span className="eyebrow block">Milestone {index + 1}</span><span className="mt-1 block text-[12px] font-bold text-[hsl(var(--foreground))]">{milestoneTitles[milestone]}</span></span>
+        <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
+      </button>)}</div> : <div className="mt-4 rounded-lg border border-dashed border-[hsl(var(--border))] p-3 text-[10px] text-[hsl(var(--muted-foreground))]">No milestones unlocked yet.</div>}
+    </section>
   </PageFrame>;
 }
 
-type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => void; saveNow: () => void; reset: () => void; notice: (message: string) => void; away: number; recovered: number };
+type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => void; saveNow: () => void; reset: () => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number };
 
 function PageFrame({ children }: { children: ReactNode }) { return <div className="mx-auto max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 md:px-8 md:pb-10">{children}</div>; }
 
@@ -2330,6 +2366,7 @@ function Game() {
   const [recovered] = useState(initial.recovered);
   const [toast, setToast] = useState('');
   const [endgameModal, setEndgameModal] = useState<'rocket-ready' | 'game-complete' | null>(null);
+  const [replayMilestone, setReplayMilestone] = useState<MilestoneKey | null>(null);
   const [location] = useLocation();
   const notice = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 1800); };
   useEffect(() => { const timer = window.setInterval(() => setState((s) => simulate(s, 1)), 1000); return () => window.clearInterval(timer); }, []);
@@ -2340,7 +2377,7 @@ function Game() {
     else if (state.rocketPartsBuilt >= ROCKET_PART_TARGET && !state.rocketReadyAcknowledged) setEndgameModal('rocket-ready');
   }, [state.gameComplete, state.rocketLaunched, state.rocketPartsBuilt, state.rocketReadyAcknowledged]);
   const saveNow = () => localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, lastSeen: Date.now() }));
-  const reset = () => { localStorage.removeItem(SAVE_KEY); setEndgameModal(null); setState({ ...initialState, lastSeen: Date.now(), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] }); };
+  const reset = () => { localStorage.removeItem(SAVE_KEY); setEndgameModal(null); setReplayMilestone(null); setState({ ...initialState, lastSeen: Date.now(), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] }); };
   const enqueue = (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => setState((s) => {
     if (action === 'rocketSilo' && !canBuildRocketSilo(s.rocketSiloBuilt, s.queue.some((item) => item.action === 'rocketSilo'))) return s;
     if (action === 'rocketParts' && (!s.rocketSiloBuilt || s.rocketPartsBuilt >= ROCKET_PART_TARGET || s.queue.some((item) => item.action === 'rocketParts'))) return s;
@@ -2370,7 +2407,7 @@ function Game() {
     setState((s) => ({ ...s, gameComplete: true, research: unlockSpaceScienceAfterLaunch(s.research), researchNotifications: queueSpaceScienceNotification(s.researchNotifications) }));
     setEndgameModal(null);
   };
-  const props = { state, setState, enqueue, saveNow, reset, notice, away, recovered };
+  const props = { state, setState, enqueue, saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered };
   const pageKey = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;
@@ -2383,7 +2420,9 @@ function Game() {
   else if (pageKey === 'research') page = <ResearchPage {...props} />;
   else if (pageKey === 'settings') page = <SettingsPage {...props} />;
   else page = <FactoryPage {...props} />;
-  return <Shell state={state}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{!state.welcomeSeen && <WelcomeModal onBegin={() => setState((current) => ({ ...current, welcomeSeen: true }))} />}{state.milestoneNotifications.length > 0 && <MilestoneModal milestone={state.milestoneNotifications[0]} onDismiss={() => setState((current) => ({ ...current, milestoneNotifications: current.milestoneNotifications.slice(1) }))} />}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{endgameModal === 'game-complete' && <GameCompleteModal totalOutput={state.completionTotalOutput ?? state.totalOutput} stats={state.completionStats ?? state.produced} onClose={finishGame} />}</Shell>;
+  const replayingWelcome = replayMilestone === 'crash-landed';
+  const popupMilestone = replayMilestone && replayMilestone !== 'crash-landed' ? replayMilestone : state.milestoneNotifications[0] ?? null;
+  return <Shell state={state}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{(!state.welcomeSeen || replayingWelcome) && <WelcomeModal replay={state.welcomeSeen} onBegin={() => { if (replayingWelcome) setReplayMilestone(null); else setState((current) => ({ ...current, welcomeSeen: true, unlockedMilestones: current.unlockedMilestones.includes('crash-landed') ? current.unlockedMilestones : [...current.unlockedMilestones, 'crash-landed'] })); }} />}{popupMilestone && <MilestoneModal milestone={popupMilestone} onDismiss={() => { if (replayMilestone && replayMilestone !== 'crash-landed') setReplayMilestone(null); else setState((current) => ({ ...current, milestoneNotifications: current.milestoneNotifications.slice(1) })); }} />}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{endgameModal === 'game-complete' && <GameCompleteModal totalOutput={state.completionTotalOutput ?? state.totalOutput} stats={state.completionStats ?? state.produced} onClose={finishGame} />}</Shell>;
 }
 
 function App() { return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Game /></WouterRouter>; }
