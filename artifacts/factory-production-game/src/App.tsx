@@ -323,7 +323,10 @@ const unlockedProductKeys = (state: GameState) => new Set([
   ...rawKeys.filter((key) => rawProductIsUnlocked(key, state)),
   ...recipeCatalog.filter((recipe) => recipeIsUnlocked(recipe, state)).flatMap((recipe) => recipeOutputs(recipe).map((output) => output.key)),
 ]);
-const prettyLabel = (key: string) => key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const labelOverrides: Record<string, string> = {
+  'solid-fuel-from-petroleum-gas': 'Solid Fuel',
+};
+const prettyLabel = (key: string) => labelOverrides[key] ?? key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const baseMeta: Record<string, { label: string; short: string; color: string; category: string }> = {
   iron: { label: 'Iron ore', short: 'iron', color: '#bd7b45', category: 'Raw' }, copper: { label: 'Copper ore', short: 'copper', color: '#dc9361', category: 'Raw' },
   stone: { label: 'Stone', short: 'stone', color: '#9ba6a4', category: 'Raw' }, coal: { label: 'Coal', short: 'coal', color: '#929aaa', category: 'Fuel' },
