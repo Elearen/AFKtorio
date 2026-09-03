@@ -34,7 +34,7 @@ type ComponentKey = string;
 type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militaryPack' | 'productionPack' | 'utilityPack' | 'spacePack';
 type TrackedKey = string;
 type ResearchKey = string;
-type MilestoneKey = 'first-lab';
+type MilestoneKey = 'first-lab' | 'twenty-one-labs';
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
 type UnitStatus = 'running' | 'starved' | 'blocked';
@@ -884,6 +884,7 @@ function simulate(previous: GameState, seconds: number): GameState {
       state.labs += 1;
       recordProduction(state, 'lab', 1, liveProduction);
       if (isFirstLab && !state.milestoneNotifications.includes('first-lab')) state.milestoneNotifications.push('first-lab');
+      if (state.labs === 21 && !state.milestoneNotifications.includes('twenty-one-labs')) state.milestoneNotifications.push('twenty-one-labs');
     }
     if (item.action === 'boiler') state.boilers += 1;
     if (item.action === 'steamEngine') state.steamEngines += 1;
@@ -1012,7 +1013,7 @@ function loadState() {
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
       autoResearch: orderedTechnologyCatalog.filter((technology) => (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
        researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
-       milestoneNotifications: savedLabCount > 0 ? [] : Array.from(new Set((parsed.milestoneNotifications ?? []).map(String).filter((key): key is MilestoneKey => key === 'first-lab'))),
+       milestoneNotifications: Array.from(new Set((parsed.milestoneNotifications ?? []).map(String).filter((key): key is MilestoneKey => key === 'first-lab' || key === 'twenty-one-labs'))),
       lastSeen: parsed.lastSeen ?? Date.now(),
       rocketSiloBuilt: parsed.rocketSiloBuilt === true,
       rocketPartsBuilt: Math.min(ROCKET_PART_TARGET, Math.max(0, Number(parsed.rocketPartsBuilt) || 0)),
@@ -2191,22 +2192,29 @@ function WelcomeModal({ onBegin }: { onBegin: () => void }) {
 }
 
 function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onDismiss: () => void }) {
-  if (milestone !== 'first-lab') return null;
+  const isFirstLab = milestone === 'first-lab';
+  const image = isFirstLab ? 'first-lab-milestone.png' : 'twenty-one-labs-milestone.png';
+  const imageAlt = isFirstLab
+    ? 'Factory Planet laboratory and production machines beside a river'
+    : 'Factory Planet with more than twenty laboratories connected by production lines';
+  const message = isFirstLab
+    ? 'You have constructed your first lab, well done. This is the first major step towards regaining the technology to travel off world.'
+    : 'Over twenty labs! Your science production will be done in no time.';
   return <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
-    <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="first-lab-milestone-title" data-testid="dialog-milestone-first-lab">
+    <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="milestone-title" data-testid={`dialog-milestone-${milestone}`}>
       <div className="absolute inset-x-0 top-0 z-10 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />
       <div className="h-48 overflow-hidden border-b border-[hsl(var(--secondary)/.35)] bg-[hsl(216_25%_10%)] sm:h-56">
-        <img src={`${import.meta.env.BASE_URL}first-lab-milestone.png`} width={1122} height={1402} alt="Factory Planet laboratory and production machines beside a river" className="h-full w-full object-cover object-center" />
+        <img src={`${import.meta.env.BASE_URL}${image}`} width={1122} height={1402} alt={imageAlt} className="h-full w-full object-cover object-center" />
       </div>
       <div className="p-5 sm:p-7">
         <div className="flex items-start gap-4">
           <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-[hsl(var(--secondary)/.5)] bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><FlaskConical size={28} /></div>
           <div className="min-w-0">
             <div className="eyebrow text-[hsl(var(--secondary))]">Factory Planet · milestone</div>
-            <h2 id="first-lab-milestone-title" className="mt-2 text-3xl font-extrabold tracking-[-.04em]">Milestone Achieved</h2>
+            <h2 id="milestone-title" className="mt-2 text-3xl font-extrabold tracking-[-.04em]">Milestone Achieved</h2>
           </div>
         </div>
-        <p className="mt-6 text-[13px] leading-6 text-[hsl(var(--muted-foreground))]">You have constructed your first lab, well done. This is the first major step towards regaining the technology to travel off world.</p>
+        <p className="mt-6 text-[13px] leading-6 text-[hsl(var(--muted-foreground))]">{message}</p>
         <button onClick={onDismiss} className="button-base button-primary mt-6 w-full !py-3 text-[12px]" data-testid="button-dismiss-milestone"><Check size={15} /> Continue</button>
       </div>
     </section>
