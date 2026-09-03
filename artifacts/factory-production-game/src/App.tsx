@@ -1939,8 +1939,54 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
   const unlockedKeys = orderedTrackedKeys.filter((key) => unlockedProductKeys(state).has(key));
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
    const visibleKeys = unlockedKeys.filter((key) => scienceFilter === 'all' || trackedScienceChainFor(key, state) === scienceFilter);
+  const visibleMaterialKeys = visibleKeys.filter((key) => !isFluidKey(key));
+  const visibleFluidKeys = visibleKeys.filter((key) => isFluidKey(key));
+  const lowestMaterialCapacity = visibleMaterialKeys.length
+    ? Math.min(...visibleMaterialKeys.map((key) => storageCapacityFor(state, key)))
+    : 0;
+  const lowestFluidCapacity = visibleFluidKeys.length
+    ? Math.min(...visibleFluidKeys.map((key) => storageCapacityFor(state, key)))
+    : 0;
+  const lowestMaterialKeys = visibleMaterialKeys.filter((key) => storageCapacityFor(state, key) === lowestMaterialCapacity);
+  const lowestFluidKeys = visibleFluidKeys.filter((key) => storageCapacityFor(state, key) === lowestFluidCapacity);
+  const materialChestCost = state.storageBoxType === 'iron'
+    ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }]
+    : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
+  const bulkStorageCostLabel = (costs: BuildMaterialCost[], count: number) => costs
+    .map((cost) => `${fmt(cost.amount * count)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`)
+    .join(' + ');
   return <PageFrame>
     <Header eyebrow="Buffer control" title="Storage" copy={`${state.storageBoxType === 'iron' ? 'Item buffers use iron chests.' : 'Item buffers use wooden boxes.'} Fluids start with 100 units of base capacity, then expand with storage tanks after Fluid Handling research.`} action={<Tag><Box size={11} /> {visibleKeys.length} visible items</Tag>} />
+    <section className="surface mb-5 rounded-xl p-3 sm:p-4" data-testid="panel-bulk-storage-upgrades">
+      <div className="mb-3">
+        <div className="eyebrow">Bulk storage expansion</div>
+        <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Add one chest or tank to every currently visible item at the lowest storage level.</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <button
+          onClick={() => lowestMaterialKeys.forEach((key) => buildStorage(key))}
+          disabled={!lowestMaterialKeys.length || storageUpgradeInProgress}
+          className="button-base button-ghost flex min-h-[58px] flex-col items-start justify-center gap-1 !px-3 !py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
+          aria-label={`Upgrade materials to ${fmt(lowestMaterialCapacity + storageBoxCapacityFor(state))}`}
+          title={storageUpgradeInProgress ? 'Iron Chests upgrade in progress' : `Upgrade ${lowestMaterialKeys.length} material storages · cost ${bulkStorageCostLabel(materialChestCost, lowestMaterialKeys.length)}`}
+          data-testid="button-upgrade-lowest-material-storage"
+        >
+          <span className="flex items-center gap-2 text-[11px] font-bold"><TrendingUp size={13} /> Upgrade materials to {fmt(lowestMaterialCapacity + storageBoxCapacityFor(state))}</span>
+          <span className="text-[9px] text-[hsl(var(--muted-foreground))]">{lowestMaterialKeys.length} visible {materialChestCost[0].key === 'wood' ? 'wooden chest' : 'iron chest'}{lowestMaterialKeys.length === 1 ? '' : 's'} · cost {bulkStorageCostLabel(materialChestCost, lowestMaterialKeys.length)}</span>
+        </button>
+        {state.research.includes(FLUID_HANDLING_TECHNOLOGY) && <button
+          onClick={() => lowestFluidKeys.forEach((key) => buildStorage(key))}
+          disabled={!lowestFluidKeys.length}
+          className="button-base button-ghost flex min-h-[58px] flex-col items-start justify-center gap-1 !px-3 !py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
+          aria-label={`Upgrade fluids to ${fmt(lowestFluidCapacity + storageTankCapacity)}`}
+          title={`Upgrade ${lowestFluidKeys.length} fluid storages · cost ${bulkStorageCostLabel(storageTankBuildCost, lowestFluidKeys.length)}`}
+          data-testid="button-upgrade-lowest-fluid-storage"
+        >
+          <span className="flex items-center gap-2 text-[11px] font-bold"><TrendingUp size={13} /> Upgrade fluids to {fmt(lowestFluidCapacity + storageTankCapacity)}</span>
+          <span className="text-[9px] text-[hsl(var(--muted-foreground))]">{lowestFluidKeys.length} visible storage tank{lowestFluidKeys.length === 1 ? '' : 's'} · cost {bulkStorageCostLabel(storageTankBuildCost, lowestFluidKeys.length)}</span>
+        </button>}
+      </div>
+    </section>
     <section className="surface rounded-xl p-2.5 sm:p-3">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Science chain filter</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{unlockedKeys.length} unlocked · {unlockedKeys.filter((key) => trackedScienceChainFor(key, state) === 'Core').length} core / {unlockedKeys.filter((key) => trackedScienceChainFor(key, state) === 'Non-Core').length} non-core</div></div><select value={scienceFilter} onChange={(event) => setScienceFilter(event.target.value as RecipeScienceFilter)} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none" aria-label="Filter storage science chain" data-testid="select-storage-science-filter"><option value="all">All items</option><option value="Core">Core items</option><option value="Non-Core">Non-Core items</option></select></div>
       <div className="space-y-2">
@@ -2627,7 +2673,7 @@ function Game() {
     const reserved = requestCosts?.length ? reserveConstructionMaterials({ raw, products }, requestCosts) : undefined;
     const started = !requestCosts?.length || reserved?.every((amount, index) => amount >= requestCosts[index].amount - 0.000001);
     const item: QueueItem = {
-      id: `${action}-${Date.now()}`,
+      id: `${action}-${targetId ?? target}-${Date.now()}-${s.queue.length}`,
       action,
       target,
       targetId,
