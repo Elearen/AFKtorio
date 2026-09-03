@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   activateReadyConstruction,
   constructionRequestReady,
+  constructionCanBeFullyFunded,
   hasWaitingConstruction,
   fulfillConstructionReservation,
   normalizeConstructionQueue,
@@ -114,4 +115,15 @@ test('only one unaffordable construction can wait for a construction button', ()
   assert.equal(hasWaitingConstruction(queue, 'assembler', 'electronic-circuit'), true);
   assert.equal(hasWaitingConstruction(queue, 'assembler', 'copper-cable'), false);
   assert.equal(hasWaitingConstruction(queue, 'furnace', 'electronic-circuit'), false);
+});
+
+test('fully affordable follow-up constructions remain allowed', () => {
+  const inventory = {
+    raw: {},
+    products: { ironPlate: 5 },
+  };
+  const costs = [{ key: 'ironPlate', amount: 5, source: 'products' as const }];
+
+  assert.equal(constructionCanBeFullyFunded(inventory, costs), true);
+  assert.equal(constructionCanBeFullyFunded({ raw: {}, products: { ironPlate: 4 } }, costs), false);
 });

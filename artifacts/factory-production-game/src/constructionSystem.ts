@@ -29,6 +29,11 @@ const isBuildMaterialCost = (value: unknown): value is BuildMaterialCost => {
 export const constructionRequestReady = (item: ConstructionQueueItem) =>
   !item.costs?.length || item.costs.every((cost, index) => (item.reserved?.[index] ?? 0) >= cost.amount - EPSILON);
 
+export const constructionCanBeFullyFunded = (
+  inventory: ConstructionInventory,
+  costs: BuildMaterialCost[],
+) => costs.every((cost) => (inventory[cost.source][cost.key] ?? 0) >= cost.amount - EPSILON);
+
 export const hasWaitingConstruction = (
   queue: ConstructionQueueItem[],
   action: string,

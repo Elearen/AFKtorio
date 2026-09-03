@@ -6,7 +6,7 @@ import { technologyCatalog, type TechnologyDefinition } from './technologyCatalo
 import { technologyOrder } from './technologyOrder';
 import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
 import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
-import { activateReadyConstruction, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
+import { activateReadyConstruction, constructionCanBeFullyFunded, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import {
   OIL_PROCESSING_UPGRADE_ID, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
@@ -2406,10 +2406,11 @@ function Game() {
   const enqueue = (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => setState((s) => {
     if (action === 'rocketSilo' && !canBuildRocketSilo(s.rocketSiloBuilt, s.queue.some((item) => item.action === 'rocketSilo'))) return s;
     if (action === 'rocketParts' && (!s.rocketSiloBuilt || s.rocketPartsBuilt >= ROCKET_PART_TARGET || s.queue.some((item) => item.action === 'rocketParts'))) return s;
-    if (hasWaitingConstruction(s.queue, action, targetId)) return s;
+    const requestCosts = costs?.map((cost) => ({ ...cost }));
+    const affordable = !requestCosts?.length || constructionCanBeFullyFunded({ raw: s.raw, products: s.products }, requestCosts);
+    if (!affordable && hasWaitingConstruction(s.queue, action, targetId)) return s;
     const raw = { ...s.raw };
     const products = { ...s.products };
-    const requestCosts = costs?.map((cost) => ({ ...cost }));
     const reserved = requestCosts?.length ? reserveConstructionMaterials({ raw, products }, requestCosts) : undefined;
     const started = !requestCosts?.length || reserved?.every((amount, index) => amount >= requestCosts[index].amount - 0.000001);
     const item: QueueItem = {
