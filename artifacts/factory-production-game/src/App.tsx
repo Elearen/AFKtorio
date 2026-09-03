@@ -2313,6 +2313,34 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     const haystack = `${technology.name} ${technology.prerequisites.join(' ')} ${technology.effects.map((effect) => `${effect.type} ${effect.recipe ?? ''}`).join(' ')}`.toLowerCase();
     return status === filter && (!query.trim() || haystack.includes(query.trim().toLowerCase()));
   }), [filter, query, state.research]);
+  const selectableVisibleTechnologyNames = visibleTechnologies
+    .filter((technology) => !technology.researchTrigger)
+    .map((technology) => technology.name);
+  const allVisibleTechnologiesSelected = selectableVisibleTechnologyNames.length > 0
+    && selectableVisibleTechnologyNames.every((name) => (state.autoResearch ?? []).includes(name));
+  const toggleAllVisibleTechnologies = () => {
+    setState((s) => {
+      const visibleNames = visibleTechnologies
+        .filter((technology) => !technology.researchTrigger)
+        .map((technology) => technology.name);
+      if (!visibleNames.length) return s;
+      const selectedAuto = new Set(s.autoResearch ?? []);
+      const shouldSelectAll = !visibleNames.every((name) => selectedAuto.has(name));
+      visibleNames.forEach((name) => {
+        if (shouldSelectAll) selectedAuto.add(name);
+        else selectedAuto.delete(name);
+      });
+      const autoResearch = orderedTechnologyCatalog
+        .filter((technology) => selectedAuto.has(technology.name))
+        .map((technology) => technology.name);
+      return {
+        ...s,
+        autoResearch,
+        currentResearch: s.currentResearch ?? visibleNames[0],
+        researchSelected: true,
+      };
+    });
+  };
   const detailItem = detailsTechnology ? technologyMap[detailsTechnology] : undefined;
   const activeResearch = activeResearchFor(state);
   const activeResearchIsLabDriven = Boolean(activeResearch && !activeResearch.researchTrigger && activeResearch.scienceCosts.length);
@@ -2331,7 +2359,13 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     </section>
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search technologies, prerequisites, or effects" className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search technologies" data-testid="input-search-technologies" />
-      <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Technology filters">{(['completed', 'unlocked', 'locked'] as ResearchFilter[]).map((option) => <button onClick={() => setFilter(option)} className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${filter === option ? 'button-primary' : 'button-ghost'}`} aria-pressed={filter === option} key={option} data-testid={`button-filter-${option}`}>{option === 'locked' ? 'Available' : option} <span className="mono opacity-75">{technologyCounts[option]}</span></button>)}</div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Technology filters">{(['completed', 'unlocked', 'locked'] as ResearchFilter[]).map((option) => <button onClick={() => setFilter(option)} className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${filter === option ? 'button-primary' : 'button-ghost'}`} aria-pressed={filter === option} key={option} data-testid={`button-filter-${option}`}>{option === 'locked' ? 'Available' : option} <span className="mono opacity-75">{technologyCounts[option]}</span></button>)}</div>
+        <label className="flex cursor-pointer items-center gap-2 text-[10px] text-[hsl(var(--foreground))]">
+          <input type="checkbox" checked={allVisibleTechnologiesSelected} onChange={toggleAllVisibleTechnologies} disabled={!selectableVisibleTechnologyNames.length} className="h-4 w-4 accent-[hsl(var(--primary))] disabled:cursor-not-allowed disabled:opacity-45" aria-label="Select all visible researches" data-testid="checkbox-select-all-research" />
+          <span>Select all</span>
+        </label>
+      </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source names remain intact for save compatibility and dependency matching.</span><span className="mono">{(state.autoResearch ?? []).length} auto selected · {visibleTechnologies.length} visible</span></div>
     </section>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
