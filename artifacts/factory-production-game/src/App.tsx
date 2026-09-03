@@ -1242,7 +1242,7 @@ function tutorialGoalsFor(state: GameState): TutorialGoal[] {
     { id: 'build-lab', label: 'Build your first lab', complete: state.labs > 0 },
     { id: 'research-automation', label: 'Research automation', complete: state.research.includes('automation') },
     { id: 'automate-early-production', label: 'Automate production of gears and automation science packs', complete: (state.assemblers['iron-gear-wheel'] ?? 0) > 0 && (state.assemblers['automation-science-pack'] ?? 0) > 0 },
-    { id: 'unlock-logistics-science', label: 'Unlock logistics science', complete: state.research.includes('logistics-science-pack') },
+    { id: 'unlock-logistics-science', label: 'Unlock logistics science', complete: state.research.includes('logistics') },
     { id: 'unlock-military-science', label: 'Unlock military science', complete: state.research.includes('military-science-pack') },
     { id: 'unlock-chemical-science', label: 'Unlock chemical science', complete: state.research.includes('chemical-science-pack') },
     { id: 'unlock-production-science', label: 'Unlock production science', complete: state.research.includes('production-science-pack') },
@@ -1254,7 +1254,8 @@ function TutorialSection({ state }: { state: GameState }) {
   const [expanded, setExpanded] = useState(false);
   const goals = tutorialGoalsFor(state);
   const completedCount = goals.filter((goal) => goal.complete).length;
-  const visibleGoals = expanded ? goals : goals.slice(0, 4);
+  const numberedGoals = goals.map((goal, index) => ({ goal, index }));
+  const visibleGoals = expanded ? numberedGoals : numberedGoals.filter(({ goal }) => !goal.complete).slice(0, 4);
   return <section className="relative overflow-hidden rounded-xl border-[3px] border-transparent p-4 shadow-lg sm:p-5" style={{ background: 'linear-gradient(145deg, hsl(35 24% 16%), hsl(216 25% 12%)) padding-box, repeating-linear-gradient(135deg, #f5b52e 0 11px, #15181a 11px 22px) border-box' }} data-testid="panel-tutorial">
     <div className="flex items-start justify-between gap-3">
       <div>
@@ -1268,14 +1269,14 @@ function TutorialSection({ state }: { state: GameState }) {
       </div>
     </div>
     <div className="mt-4 grid gap-1.5">
-      {visibleGoals.map((goal, index) => <div key={goal.id} className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-[11px] transition-colors ${goal.complete ? 'border-[hsl(var(--secondary)/.28)] bg-[hsl(var(--secondary)/.07)] text-[hsl(var(--secondary))]' : 'border-[hsl(var(--border)/.8)] bg-[hsl(216_24%_10%/.55)] text-[hsl(var(--foreground))]'}`} data-testid={`tutorial-goal-${goal.id}`}>
+      {visibleGoals.map(({ goal, index }) => <div key={goal.id} className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-[11px] transition-colors ${goal.complete ? 'border-[hsl(var(--secondary)/.28)] bg-[hsl(var(--secondary)/.07)] text-[hsl(var(--secondary))]' : 'border-[hsl(var(--border)/.8)] bg-[hsl(216_24%_10%/.55)] text-[hsl(var(--foreground))]'}`} data-testid={`tutorial-goal-${goal.id}`}>
         <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${goal.complete ? 'border-[hsl(var(--secondary))] bg-[hsl(var(--secondary)/.16)]' : 'border-[hsl(var(--muted-foreground)/.7)]'}`}>{goal.complete && <Check size={10} />}</span>
         <span className={`leading-4 ${goal.complete ? 'font-semibold line-through' : ''}`}>{index + 1}. {goal.label}</span>
       </div>)}
     </div>
     <button onClick={() => setExpanded((value) => !value)} className="button-base button-ghost mt-4 w-full !py-2" aria-expanded={expanded} data-testid="button-toggle-tutorial">
       <ChevronRight size={13} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
-      {expanded ? 'show fewer goals' : `show all ${goals.length} goals`}
+      {expanded ? 'show fewer goals' : 'show first 4 incomplete goals'}
     </button>
   </section>;
 }
