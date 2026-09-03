@@ -524,9 +524,15 @@ const spendInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number
 const addTracked = (state: GameState, key: TrackedKey, amount: number, ignoreCapacity = false) => {
   const reserved = fulfillConstructionReservation(state.queue, key, amount, rawKeys.includes(key as RawKey) ? 'raw' : 'products');
   const available = amount - reserved;
-  if (available <= 0) return;
-  if (rawKeys.includes(key as RawKey)) state.raw[key as RawKey] = ignoreCapacity ? state.raw[key as RawKey] + available : Math.min(capFor(state, key), state.raw[key as RawKey] + available);
-  else state.products[key] = ignoreCapacity ? (state.products[key] ?? 0) + available : Math.min(capFor(state, key), (state.products[key] ?? 0) + available);
+  if (available <= 0) return reserved;
+  if (rawKeys.includes(key as RawKey)) {
+    const current = state.raw[key as RawKey];
+    state.raw[key as RawKey] = ignoreCapacity ? current + available : Math.min(capFor(state, key), current + available);
+    return reserved + state.raw[key as RawKey] - current;
+  }
+  const current = state.products[key] ?? 0;
+  state.products[key] = ignoreCapacity ? current + available : Math.min(capFor(state, key), current + available);
+  return reserved + state.products[key] - current;
 };
 const recordProduction = (state: GameState, key: TrackedKey, amount: number, production?: Record<TrackedKey, number>, manualProduction?: Record<TrackedKey, number>) => {
   state.produced[key] = (state.produced[key] ?? 0) + amount;
@@ -819,8 +825,9 @@ function simulate(previous: GameState, seconds: number): GameState {
       const outputRate = key === 'coal' && miningUsesStoredCoal(state) ? base - burnerMiningDrillCoalPerSecond : base;
     state.miningProgress[key] += count * outputRate * minerSeconds * speed * miningStorageThrottleFor(state, key);
     while (state.miningProgress[key] >= 1) {
-      if (state.raw[key] >= capFor(state, key)) { state.miningProgress[key] = 0; break; }
-      state.raw[key] += 1; state.miningProgress[key] -= 1; state.totalOutput += 1; recordProduction(state, key, 1, liveProduction);
+      const accepted = addTracked(state, key, 1);
+      if (accepted < 1 - 0.000001) { state.miningProgress[key] = 0; break; }
+      state.miningProgress[key] -= 1; state.totalOutput += 1; recordProduction(state, key, 1, liveProduction);
     }
   });
   componentKeys.forEach((key) => {

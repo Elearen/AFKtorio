@@ -26,3 +26,9 @@ Queue cancellation must refund each item’s recorded reservation directly to ra
 **Why:** Construction materials are removed before work completes, and a cancellation should restore exactly what was paid even when the destination storage is full.
 
 **How to apply:** Keep costs and reserved amounts on every materialized queue item, then remove the item and add only its reserved amounts back without routing through normal capacity-limited production.
+
+All produced materials, including mined raw resources, must pass through construction reservations before entering general storage or becoming available to downstream production.
+
+**Why:** A waiting construction can otherwise lose high-demand raw inputs to storage or automated production and remain stalled despite the factory producing the required material.
+
+**How to apply:** Route every production path through the shared reservation-first material intake; only unreserved output should be added to capacity-limited inventory.
