@@ -182,6 +182,11 @@ const electricMiningDrillBuildCost = upgradeMap['electric-mining-drill'].newMach
 const electricMiningDrillPowerKw = upgradeMap['electric-mining-drill'].newMachinePowerDraw;
 const electricMiningDrillProductionSpeed = upgradeMap['electric-mining-drill'].newMachineProductionSpeed;
 const waterPumpPerSecond = 1200;
+const waterPumpBuildSeconds = 3;
+const waterPumpBuildCost: BuildMaterialCost[] = [
+  { key: 'gear', amount: 2, source: 'products' },
+  { key: 'pipe', amount: 3, source: 'products' },
+];
 const pumpjackRecipe = recipeMap['pumpjack'];
 const fueledBurnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone'];
 const smeltingRecipeKeys = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
@@ -1082,6 +1087,19 @@ const iconFileFor: Record<string, string> = {
 function ResourceIcon({ item, size = 28 }: { item: TrackedKey; size?: number }) {
   return <img src={`${import.meta.env.BASE_URL}item-icons/${iconFileFor[item] ?? item}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
 }
+function MiningBuildingIcon({ resource, machineVariant, size = 17 }: { resource: RawKey; machineVariant: string; size?: number }) {
+  if (resource === 'water') return <ResourceIcon item="offshore-pump" size={size} />;
+  if (resource === 'uranium') {
+    const pipeSize = Math.max(8, Math.round(size * 0.58));
+    return <span className="relative inline-block shrink-0" style={{ width: size, height: size }} aria-hidden="true">
+      <ResourceIcon item="electric-mining-drill" size={size} />
+      <span className="absolute -bottom-1 -right-1 rounded-sm bg-[hsl(216_24%_10%)]"><ResourceIcon item="pipe" size={pipeSize} /></span>
+    </span>;
+  }
+  if (resource === 'crudeOil') return <ResourceIcon item="pumpjack" size={size} />;
+  if (burnerMinerKeys.includes(resource)) return <ResourceIcon item={machineVariant} size={size} />;
+  return <Pickaxe size={size} />;
+}
 function BrandLogo({ size = 36 }: { size?: number }) {
   return <img src={`${import.meta.env.BASE_URL}icon-192.png`} width={size} height={size} alt="Factory Planet logo" className="object-contain" />;
 }
@@ -1468,7 +1486,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
   };
   const build = (key: RawKey) => {
     if (key === 'wood') return notice('Wood can only be collected manually');
-    if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); enqueue('pump', 'Water pump', 40, undefined, [{ key: 'ironPlate', amount: 10, source: 'products' }, { key: 'gear', amount: 2, source: 'products' }]); return; }
+    if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); enqueue('pump', 'Water pump', waterPumpBuildSeconds, undefined, waterPumpBuildCost); return; }
     if (key === 'crudeOil') {
       if (!state.research.includes('oil-gathering')) return notice('Oil Gathering required');
       enqueue('pumpjack', 'Crude oil pumpjack', pumpjackRecipe.energyRequired, undefined, pumpjackBuildCost);
@@ -1518,12 +1536,12 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
                 <h2 className="truncate text-[13px] font-extrabold">{info.label}</h2>
-                <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                   {locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <Tag><span className="status-dot status-running" /> auto</Tag> : <Tag tone="amber">manual</Tag>}
-                  <div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${machineLabel} count`}>
-                    {isBurnerOre ? <ResourceIcon item={state.machineVariants.mining} size={17} /> : key === 'water' ? <Waves size={16} /> : key === 'crudeOil' ? <ResourceIcon item="pumpjack" size={17} /> : <Pickaxe size={16} />}
+                  {!manualOnly && <div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${machineLabel} count`}>
+                    <MiningBuildingIcon resource={key} machineVariant={state.machineVariants.mining} />
                     <span className="mono text-[13px]">{count}</span>
-                  </div>
+                  </div>}
                 </div>
               </div>
               <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{key === 'water' || key === 'crudeOil' ? 'Fluid collection' : 'Raw material'} · {machineLabel}</div>
@@ -1535,7 +1553,8 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="resource-chip"><ResourceIcon item={key} size={17} /><strong>{collectionLabel}</strong></span>
               <ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" />
-              <span className="resource-chip"><ResourceIcon item={key} size={17} /><strong>{machineLabel}</strong></span>
+              {!manualOnly && <span className="resource-chip"><MiningBuildingIcon resource={key} machineVariant={state.machineVariants.mining} /><strong>{machineLabel}</strong></span>}
+              {manualOnly && <span className="resource-chip"><strong>{machineLabel}</strong></span>}
             </div>
           </div>
           {usesFuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-mining-fuel-${key}`}>
