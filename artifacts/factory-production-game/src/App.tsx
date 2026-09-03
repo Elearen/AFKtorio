@@ -34,7 +34,7 @@ type ComponentKey = string;
 type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militaryPack' | 'productionPack' | 'utilityPack' | 'spacePack';
 type TrackedKey = string;
 type ResearchKey = string;
-type MilestoneKey = 'first-lab' | 'twenty-one-labs';
+type MilestoneKey = 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces';
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
 type UnitStatus = 'running' | 'starved' | 'blocked';
@@ -878,7 +878,10 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (item.action === 'pump') state.pumps += 1;
     if (item.action === 'pumpjack') { state.pumpjacks += 1; recordProduction(state, 'pumpjack', 1); }
     if (item.action === 'uraniumMiner') { state.uraniumMiners += 1; recordProduction(state, 'uranium-miner', 1); }
-     if (item.action === 'assembler' || item.action === 'furnace') state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
+     if (item.action === 'assembler' || item.action === 'furnace') {
+       state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
+       if (item.action === 'furnace' && smeltingFurnaceCountFor(state) === 60 && !state.milestoneNotifications.includes('sixty-furnaces')) state.milestoneNotifications.push('sixty-furnaces');
+     }
     if (item.action === 'lab') {
       const isFirstLab = state.labs === 0;
       state.labs += 1;
@@ -1013,7 +1016,7 @@ function loadState() {
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
       autoResearch: orderedTechnologyCatalog.filter((technology) => (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
        researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
-       milestoneNotifications: Array.from(new Set((parsed.milestoneNotifications ?? []).map(String).filter((key): key is MilestoneKey => key === 'first-lab' || key === 'twenty-one-labs'))),
+       milestoneNotifications: Array.from(new Set((parsed.milestoneNotifications ?? []).map(String).filter((key): key is MilestoneKey => key === 'first-lab' || key === 'twenty-one-labs' || key === 'sixty-furnaces'))),
       lastSeen: parsed.lastSeen ?? Date.now(),
       rocketSiloBuilt: parsed.rocketSiloBuilt === true,
       rocketPartsBuilt: Math.min(ROCKET_PART_TARGET, Math.max(0, Number(parsed.rocketPartsBuilt) || 0)),
@@ -2193,13 +2196,18 @@ function WelcomeModal({ onBegin }: { onBegin: () => void }) {
 
 function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onDismiss: () => void }) {
   const isFirstLab = milestone === 'first-lab';
-  const image = isFirstLab ? 'first-lab-milestone.png' : 'twenty-one-labs-milestone.png';
+  const isTwentyOneLabs = milestone === 'twenty-one-labs';
+  const image = isFirstLab ? 'first-lab-milestone.png' : isTwentyOneLabs ? 'twenty-one-labs-milestone.png' : 'sixty-furnaces-milestone.png';
   const imageAlt = isFirstLab
     ? 'Factory Planet laboratory and production machines beside a river'
-    : 'Factory Planet with more than twenty laboratories connected by production lines';
+    : isTwentyOneLabs
+      ? 'Factory Planet with more than twenty laboratories connected by production lines'
+      : 'Factory Planet with a large industrial furnace and production network';
   const message = isFirstLab
     ? 'You have constructed your first lab, well done. This is the first major step towards regaining the technology to travel off world.'
-    : 'Over twenty labs! Your science production will be done in no time.';
+    : isTwentyOneLabs
+      ? 'Over twenty labs! Your science production will be done in no time.'
+      : '60 furnaces! This is a burgeoning industrial empire.';
   return <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="milestone-title" data-testid={`dialog-milestone-${milestone}`}>
       <div className="absolute inset-x-0 top-0 z-10 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />
