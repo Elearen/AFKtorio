@@ -21,6 +21,7 @@ import {
   STORAGE_BOX_CAPACITY, STORAGE_IRON_BOX_CAPACITY, STORAGE_IRON_BOX_COST, STORAGE_IRON_BOX_UPGRADE_TIME, STORAGE_TANK_CAPACITY,
   type StorageBoxType,
 } from './storageSystem';
+import { milestoneOrder, milestoneTitles, migrateMilestoneState, type MilestoneKey } from './milestoneSystem';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, Factory as FactoryIcon, FlaskConical, Gauge, Hammer,
@@ -34,21 +35,12 @@ type ComponentKey = string;
 type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militaryPack' | 'productionPack' | 'utilityPack' | 'spacePack';
 type TrackedKey = string;
 type ResearchKey = string;
-type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces';
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
 type UnitStatus = 'running' | 'starved' | 'blocked';
 const defaultTechnologyResearchTime = 30;
 type SupplyStatusTone = 'teal' | 'amber' | 'red' | 'muted';
 type SupplyStatus = { tone: SupplyStatusTone; label: string; detail: string };
-const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs'];
-const milestoneTitles: Record<MilestoneKey, string> = {
-  'crash-landed': 'Crash Landed',
-  'first-lab': 'Built a Lab',
-  'sixty-furnaces': '60 Furnaces',
-  'twenty-one-labs': '21 Labs',
-};
-
 type Recipe = RecipeCatalogEntry;
 type QueueItem = {
   id: string;
@@ -968,8 +960,7 @@ function loadState() {
     const savedRateHistory = parsed.rateHistory ?? [];
     const hasRateSourceData = savedRateHistory.every((sample) => sample.manualProduction !== undefined);
     const migratedUpgradeState = migrateMachineUpgradeState({ machineVariants: parsed.machineVariants, queue: parsed.queue });
-    const savedLabCount = typeof parsed.labs === 'number' ? Math.max(0, parsed.labs) : initialState.labs;
-    const migratedLabCount = savedLabCount === 1 && !(Array.isArray(parsed.queue) && parsed.queue.some((item) => item.action === 'lab')) ? 0 : savedLabCount;
+    const savedLabCount = typeof parsed.labs === 'number' && Number.isFinite(parsed.labs) ? Math.max(0, Math.floor(parsed.labs)) : initialState.labs;
     const normalizedStorage = (() => {
       const storage = { ...initialState.storage, ...parsed.storage };
       if (parsed.storage?.researchPack !== undefined && parsed.storage?.productionPack === undefined) storage.productionPack = parsed.storage.researchPack;
@@ -986,15 +977,17 @@ function loadState() {
       savedTanks: parsed.storageTanks,
       boxCapacity: storageBoxType === 'iron' ? ironStorageBoxCapacity : storageBoxCapacity,
     });
-    const savedMilestoneKeys = Array.from(new Set((parsed.unlockedMilestones ?? []).map(String).filter((key): key is MilestoneKey => key === 'crash-landed' || key === 'first-lab' || key === 'twenty-one-labs' || key === 'sixty-furnaces')));
-    const savedFurnaceCount = Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => total + (parsed.assemblers?.[recipeKey] ?? 0), 0);
-    const migratedUnlockedMilestones = Array.from(new Set<MilestoneKey>([
-      ...savedMilestoneKeys,
-      ...(parsed.welcomeSeen !== false ? ['crash-landed' as MilestoneKey] : []),
-      ...(savedLabCount > 0 ? ['first-lab' as MilestoneKey] : []),
-      ...(savedLabCount >= 21 ? ['twenty-one-labs' as MilestoneKey] : []),
-      ...(savedFurnaceCount >= 60 ? ['sixty-furnaces' as MilestoneKey] : []),
-    ]));
+    const savedFurnaceCount = Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => {
+      const count = parsed.assemblers?.[recipeKey];
+      return total + (typeof count === 'number' && Number.isFinite(count) ? Math.max(0, count) : 0);
+    }, 0);
+    const migratedMilestones = migrateMilestoneState({
+      welcomeSeen: parsed.welcomeSeen,
+      unlockedMilestones: parsed.unlockedMilestones,
+      milestoneNotifications: parsed.milestoneNotifications,
+      labCount: savedLabCount,
+      furnaceCount: savedFurnaceCount,
+    });
     const state = {
       ...initialState,
       ...parsed,
@@ -1013,7 +1006,7 @@ function loadState() {
       oilProcessingAdvanced: parsed.oilProcessingAdvanced === true,
       miners: { ...initialState.miners, ...parsed.miners },
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
-      labs: migratedLabCount,
+       labs: savedLabCount,
       boilersEnabled: parsed.boilersEnabled !== false,
       miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
@@ -1044,8 +1037,8 @@ function loadState() {
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
       autoResearch: orderedTechnologyCatalog.filter((technology) => (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
        researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
-       milestoneNotifications: Array.from(new Set((parsed.milestoneNotifications ?? []).map(String).filter((key): key is MilestoneKey => key === 'first-lab' || key === 'twenty-one-labs' || key === 'sixty-furnaces'))),
-       unlockedMilestones: migratedUnlockedMilestones,
+        milestoneNotifications: migratedMilestones.milestoneNotifications,
+        unlockedMilestones: migratedMilestones.unlockedMilestones,
       lastSeen: parsed.lastSeen ?? Date.now(),
       rocketSiloBuilt: parsed.rocketSiloBuilt === true,
       rocketPartsBuilt: Math.min(ROCKET_PART_TARGET, Math.max(0, Number(parsed.rocketPartsBuilt) || 0)),
@@ -1055,7 +1048,7 @@ function loadState() {
       completionTotalOutput: typeof parsed.completionTotalOutput === 'number' ? Math.max(0, parsed.completionTotalOutput) : null,
       completionStats: parsed.completionStats && typeof parsed.completionStats === 'object' ? { ...parsed.completionStats } : null,
       tutorialVisible: parsed.tutorialVisible !== false,
-      welcomeSeen: parsed.welcomeSeen !== false,
+       welcomeSeen: migratedMilestones.welcomeSeen,
     } as GameState;
     delete (state as GameState & { upgrades?: unknown }).upgrades;
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));

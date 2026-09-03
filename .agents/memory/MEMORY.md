@@ -10,3 +10,4 @@
 - [Power generation model](power-generation-model.md) — boilers consume coal/water for virtual steam, engines convert it to power, and unlocked solar is zero-input.
 - [Storage chest tiers](storage-chest-tiers.md) — item-storage chest material is a global tier; fluid tanks remain independent and are never affected by chest upgrades.
 - [Furnace conversion](furnace-upgrade.md) — Steel Furnaces convert existing smelters globally; new construction follows the active furnace recipe.
+- [Milestone migration](milestone-migration.md) — missing milestone metadata means no notification was explicitly viewed; preserve progress and surface earned thresholds once.
