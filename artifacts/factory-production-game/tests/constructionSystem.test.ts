@@ -66,6 +66,46 @@ test('construction requests take produced output before storage and honor queue 
   assert.equal(fulfillConstructionReservation(queue, 'circuit', 1, 'products'), 0);
 });
 
+test('queued power constructions prioritize shared materials in FIFO order', () => {
+  const boiler: ConstructionQueueItem = {
+    action: 'boiler',
+    seconds: 0,
+    total: 8,
+    costs: [
+      { key: 'stone', amount: 5, source: 'raw' },
+      { key: 'pipe', amount: 4, source: 'products' },
+    ],
+    reserved: [5, 0],
+    started: false,
+  };
+  const steamEngine: ConstructionQueueItem = {
+    action: 'steamEngine',
+    seconds: 0,
+    total: 12,
+    costs: [
+      { key: 'gear', amount: 8, source: 'products' },
+      { key: 'pipe', amount: 5, source: 'products' },
+      { key: 'ironPlate', amount: 10, source: 'products' },
+    ],
+    reserved: [0, 0, 0],
+    started: false,
+  };
+  const queue = [boiler, steamEngine];
+
+  assert.equal(fulfillConstructionReservation(queue, 'pipe', 6, 'products'), 6);
+  assert.deepEqual(boiler.reserved, [5, 4]);
+  assert.deepEqual(steamEngine.reserved, [0, 2, 0]);
+  assert.equal(boiler.started, true);
+  assert.equal(steamEngine.started, false);
+
+  assert.equal(fulfillConstructionReservation(queue, 'pipe', 3, 'products'), 3);
+  assert.deepEqual(steamEngine.reserved, [0, 5, 0]);
+  assert.equal(steamEngine.started, false);
+  assert.equal(fulfillConstructionReservation(queue, 'gear', 8, 'products'), 8);
+  assert.equal(fulfillConstructionReservation(queue, 'ironPlate', 10, 'products'), 10);
+  assert.equal(steamEngine.started, true);
+});
+
 test('legacy partially funded queue entries load as waiting instead of active', () => {
   const [normalized] = normalizeConstructionQueue([{
     action: 'assembler',
