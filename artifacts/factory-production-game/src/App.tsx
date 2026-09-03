@@ -590,12 +590,13 @@ const recipeCycleRateFor = (state: GameState, recipe: Recipe) => cyclesPerMinute
   recipe.energyRequired,
   craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state, recipe), furnaceCraftingSpeedFor(state)),
 ) * (recipeAutoStartStopConditionFor(state, recipe).met ? 1 : 0);
-const miningBaseProductionRateFor = (state: GameState, key: RawKey) => {
-  const count = miningMachineCountFor(state, key);
+const miningOutputRateFor = (state: GameState, key: RawKey) => {
   const base = miningOutputPerSecondFor(key);
   const machineSpeedRatio = burnerMinerKeys.includes(key) ? miningMachineProductionSpeedFor(state) / burnerMiningDrillProductionSpeed : 1;
-  return count * base * 60 * state.simulationSpeed * machineSpeedRatio;
+  return base * machineSpeedRatio;
 };
+const miningBaseProductionRateFor = (state: GameState, key: RawKey) =>
+  miningMachineCountFor(state, key) * miningOutputRateFor(state, key) * 60 * state.simulationSpeed;
 const coalAvailableAfterBoilersFor = (state: GameState) => Math.max(0, state.raw.coal - boilerCoalUsageFor(state));
 const miningProductionRateFor = (state: GameState, key: RawKey) => {
   if (key === 'coal') return Math.max(0, miningBaseProductionRateFor(state, key) - (miningUsesStoredCoal(state) ? state.miners.coal * burnerMiningDrillCoalPerSecond * 60 * state.simulationSpeed : 0));
@@ -823,9 +824,8 @@ function simulate(previous: GameState, seconds: number): GameState {
   rawKeys.forEach((key) => {
     const count = miningMachineCountFor(state, key);
     if (!count) return;
-    const base = miningOutputPerSecondFor(key);
     const minerSeconds = fueledBurnerMinerKeys.includes(key) ? operatingSeconds : seconds;
-      const outputRate = key === 'coal' && miningUsesStoredCoal(state) ? base - burnerMiningDrillCoalPerSecond : base;
+      const outputRate = key === 'coal' && miningUsesStoredCoal(state) ? miningOutputRateFor(state, key) - burnerMiningDrillCoalPerSecond : miningOutputRateFor(state, key);
     state.miningProgress[key] += count * outputRate * minerSeconds * speed * miningStorageThrottleFor(state, key);
     while (state.miningProgress[key] >= 1) {
       const accepted = addTracked(state, key, 1);
