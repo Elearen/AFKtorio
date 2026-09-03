@@ -101,6 +101,7 @@ type GameState = {
   gameComplete: boolean;
   completionTotalOutput: number | null;
   completionStats: Record<string, number> | null;
+  tutorialVisible: boolean;
 };
 
 const SAVE_KEY = 'factory-production-game-save-v2';
@@ -370,7 +371,7 @@ const initialState: GameState = {
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace',
-  totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null,
+  totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, tutorialVisible: true,
 };
 
 const nav = [
@@ -1011,6 +1012,7 @@ function loadState() {
       gameComplete: parsed.gameComplete === true,
       completionTotalOutput: typeof parsed.completionTotalOutput === 'number' ? Math.max(0, parsed.completionTotalOutput) : null,
       completionStats: parsed.completionStats && typeof parsed.completionStats === 'object' ? { ...parsed.completionStats } : null,
+      tutorialVisible: parsed.tutorialVisible !== false,
     } as GameState;
     delete (state as GameState & { upgrades?: unknown }).upgrades;
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
@@ -1225,6 +1227,59 @@ function RocketEndgameCard({ state, enqueue, notice }: Pick<PageProps, 'state' |
   </article>;
 }
 
+type TutorialGoal = { id: string; label: string; complete: boolean };
+
+function tutorialGoalsFor(state: GameState): TutorialGoal[] {
+  const furnaceBuilt = Array.from(smeltingRecipeKeys).some((recipeKey) => (state.assemblers[recipeKey] ?? 0) > 0);
+  return [
+    { id: 'mine-iron', label: 'Mine your first iron', complete: (state.produced.iron ?? 0) > 0 },
+    { id: 'chop-tree', label: 'Chop down a tree', complete: (state.produced.wood ?? 0) > 0 },
+    { id: 'build-furnace', label: 'Build your first furnace', complete: furnaceBuilt },
+    { id: 'smelt-metal', label: 'Smelt your first metal (iron or copper)', complete: (state.produced.ironPlate ?? 0) > 0 || (state.produced.copperPlate ?? 0) > 0 },
+    { id: 'craft-gear', label: 'Craft your first iron gear', complete: (state.produced.gear ?? 0) > 0 },
+    { id: 'automate-mining', label: 'Automate mining for iron, copper, stone and coal', complete: (['iron', 'copper', 'stone', 'coal'] as RawKey[]).every((key) => state.miners[key] > 0) },
+    { id: 'produce-electricity', label: 'Turn the lights on (produce electricity)', complete: powerProductionFor(state) > 0 },
+    { id: 'build-lab', label: 'Build your first lab', complete: state.labs > 0 },
+    { id: 'research-automation', label: 'Research automation', complete: state.research.includes('automation') },
+    { id: 'automate-early-production', label: 'Automate production of gears and automation science packs', complete: (state.assemblers['iron-gear-wheel'] ?? 0) > 0 && (state.assemblers['automation-science-pack'] ?? 0) > 0 },
+    { id: 'unlock-logistics-science', label: 'Unlock logistics science', complete: state.research.includes('logistics-science-pack') },
+    { id: 'unlock-military-science', label: 'Unlock military science', complete: state.research.includes('military-science-pack') },
+    { id: 'unlock-chemical-science', label: 'Unlock chemical science', complete: state.research.includes('chemical-science-pack') },
+    { id: 'unlock-production-science', label: 'Unlock production science', complete: state.research.includes('production-science-pack') },
+    { id: 'unlock-rocket-silo', label: 'Unlock rocket silo to escape the planet', complete: state.research.includes('rocket-silo') },
+  ];
+}
+
+function TutorialSection({ state }: { state: GameState }) {
+  const [expanded, setExpanded] = useState(false);
+  const goals = tutorialGoalsFor(state);
+  const completedCount = goals.filter((goal) => goal.complete).length;
+  const visibleGoals = expanded ? goals : goals.slice(0, 4);
+  return <section className="relative overflow-hidden rounded-xl border-[3px] border-transparent p-4 shadow-lg sm:p-5" style={{ background: 'linear-gradient(145deg, hsl(35 24% 16%), hsl(216 25% 12%)) padding-box, repeating-linear-gradient(135deg, #f5b52e 0 11px, #15181a 11px 22px) border-box' }} data-testid="panel-tutorial">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <div className="eyebrow text-[hsl(var(--primary))]">Departure checklist</div>
+        <h2 className="mt-1 text-xl font-extrabold tracking-[-.03em]">Getting Started:</h2>
+        <p className="mt-1 max-w-2xl text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Build the first working loop, then scale the science chain to unlock your escape route.</p>
+      </div>
+      <div className="shrink-0 rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.08)] px-2.5 py-2 text-right">
+        <div className="mono text-[15px] font-bold text-[hsl(var(--primary))]">{completedCount}/{goals.length}</div>
+        <div className="eyebrow mt-0.5">complete</div>
+      </div>
+    </div>
+    <div className="mt-4 grid gap-1.5">
+      {visibleGoals.map((goal, index) => <div key={goal.id} className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-[11px] transition-colors ${goal.complete ? 'border-[hsl(var(--secondary)/.28)] bg-[hsl(var(--secondary)/.07)] text-[hsl(var(--secondary))]' : 'border-[hsl(var(--border)/.8)] bg-[hsl(216_24%_10%/.55)] text-[hsl(var(--foreground))]'}`} data-testid={`tutorial-goal-${goal.id}`}>
+        <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border ${goal.complete ? 'border-[hsl(var(--secondary))] bg-[hsl(var(--secondary)/.16)]' : 'border-[hsl(var(--muted-foreground)/.7)]'}`}>{goal.complete && <Check size={10} />}</span>
+        <span className={`leading-4 ${goal.complete ? 'font-semibold line-through' : ''}`}>{index + 1}. {goal.label}</span>
+      </div>)}
+    </div>
+    <button onClick={() => setExpanded((value) => !value)} className="button-base button-ghost mt-4 w-full !py-2" aria-expanded={expanded} data-testid="button-toggle-tutorial">
+      <ChevronRight size={13} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
+      {expanded ? 'show fewer goals' : `show all ${goals.length} goals`}
+    </button>
+  </section>;
+}
+
 function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
   const active = totalUnits(state);
   const powerProduction = powerProductionFor(state);
@@ -1303,6 +1358,7 @@ function FactoryPage({ state, setState, away, recovered, notice }: PageProps) {
   return <PageFrame>
     {away >= 60 && recovered > 0 && <div className="surface mb-5 flex flex-col gap-3 rounded-xl border-[hsl(var(--secondary)/.4)] bg-[linear-gradient(100deg,hsl(174_35%_17%/.8),hsl(216_25%_14%/.96))] p-4 sm:flex-row sm:items-center sm:justify-between enter" data-testid="status-offline-production"><div className="flex items-start gap-3"><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--secondary)/.14)] text-[hsl(var(--secondary))]"><RotateCcw size={18} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Network recovered</div><div className="mt-1 text-[13px] font-bold">{duration(away)} of offline production reconciled</div><div className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">The line added <span className="mono text-[hsl(var(--secondary))]">{fmt(recovered)} items</span> while the control room was closed.</div></div></div><button onClick={() => notice('offline report acknowledged')} className="button-base button-ghost shrink-0" data-testid="button-dismiss-offline">acknowledge <ArrowRight size={13} /></button></div>}
     <Header eyebrow="Live production network" title="Factory" copy="A dense readout of every operating group. Clear the first pressure point, then scale the network." action={<Tag><span className="status-dot status-running mini-pulse" /> line online · {state.simulationSpeed}x</Tag>} />
+    {state.tutorialVisible && <div className="mb-5"><TutorialSection state={state} /></div>}
     <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4 enter enter-delay-1">
       {[
         { label: 'Observed output', value: observedProduction.toFixed(1), suffix: historySeconds ? 'items / min' : 'awaiting sample', icon: TrendingUp, color: 'text-[hsl(var(--secondary))]' },
@@ -2135,9 +2191,48 @@ function GameCompleteModal({ totalOutput, stats, onClose }: { totalOutput: numbe
   </div>;
 }
 
-function SettingsPage({ state, setState, saveNow, reset, notice }: PageProps) {
+function LegacySettingsPage({ state, setState, saveNow, reset, notice }: PageProps) {
   const [confirm, setConfirm] = useState(false);
   return <PageFrame><Header eyebrow="Control room preferences" title="Settings" copy="Local controls for this browser instance. Nothing here changes the scope of the simulation." action={<Tag><Save size={11} /> local save</Tag>} /><div className="grid gap-5 lg:grid-cols-2"><section className="surface rounded-xl p-5"><SectionTitle>Local save controls</SectionTitle><div className="rounded-xl bg-[hsl(216_24%_10%/.7)] p-4"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><Save size={16} /></div><div><div className="text-[12px] font-bold">Browser save is active</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Production ticks and settings survive a reload.</div></div></div><div className="mt-4 flex gap-2"><button onClick={() => { saveNow(); notice('save committed now'); }} className="button-base button-primary" data-testid="button-save-now"><Save size={13} /> save now</button><button onClick={() => setConfirm(true)} className="button-base button-ghost text-[hsl(var(--destructive))]" data-testid="button-reset-save"><Trash2 size={13} /> reset progress</button></div></div>{confirm && <div className="mt-3 rounded-xl border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] p-4" data-testid="panel-reset-confirm"><div className="flex gap-2"><ShieldAlert size={16} className="text-[hsl(var(--destructive))]" /><div><div className="text-[12px] font-bold">Reset this factory?</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">This removes the local save and starts a new sector. This cannot be undone.</p></div></div><div className="mt-3 flex gap-2"><button onClick={() => { reset(); setConfirm(false); notice('new sector initialized'); }} className="button-base bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]" data-testid="button-confirm-reset">confirm reset</button><button onClick={() => setConfirm(false)} className="button-base button-ghost" data-testid="button-cancel-reset">cancel</button></div></div>}</section><section className="surface rounded-xl p-5"><SectionTitle>Simulation speed</SectionTitle><div className="grid grid-cols-3 gap-2">{[.5, 1, 2].map((speed) => <button onClick={() => setState((s) => ({ ...s, simulationSpeed: speed }))} className={`button-base py-3 ${state.simulationSpeed === speed ? 'button-primary' : 'button-ghost'}`} key={speed} data-testid={`button-speed-${speed}`}>{speed}x</button>)}</div><div className="mt-5 border-t border-[hsl(var(--border))] pt-4"><SectionTitle>Control legend</SectionTitle><div className="space-y-3 text-[11px] text-[hsl(var(--muted-foreground))]"><div className="flex items-center gap-2"><span className="status-dot status-running" /><span><strong className="text-[hsl(var(--foreground))]">Green</strong> means a unit is consuming and producing.</span></div><div className="flex items-center gap-2"><span className="status-dot status-starved" /><span><strong className="text-[hsl(var(--foreground))]">Yellow</strong> means an input is below recipe demand.</span></div><div className="flex items-center gap-2"><span className="status-dot status-blocked" /><span><strong className="text-[hsl(var(--foreground))]">Red</strong> means output or a control path is blocked.</span></div></div></div></section></div><section className="surface mt-5 rounded-xl p-5"><div className="flex items-start gap-3"><CircleHelp size={17} className="text-[hsl(var(--primary))]" /><div><div className="eyebrow">About this slice</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Production Game is a local, playable incremental factory. The resource art, production loop, and control-room language are original to this interface.</p></div></div></section></PageFrame>;
+}
+
+function SettingsPage({ state, setState, saveNow, reset, notice }: PageProps) {
+  const [confirm, setConfirm] = useState(false);
+  return <PageFrame>
+    <Header eyebrow="Control room preferences" title="Settings" copy="Local controls for this browser instance. Nothing here changes the scope of the simulation." action={<Tag><Save size={11} /> local save</Tag>} />
+    <div className="grid gap-5 lg:grid-cols-2">
+      <section className="surface rounded-xl p-5">
+        <SectionTitle>Local save controls</SectionTitle>
+        <div className="rounded-xl bg-[hsl(216_24%_10%/.7)] p-4">
+          <div className="flex items-center gap-3">
+            <div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><Save size={16} /></div>
+            <div><div className="text-[12px] font-bold">Browser save is active</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Production ticks and settings survive a reload.</div></div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button onClick={() => { saveNow(); notice('save committed now'); }} className="button-base button-primary" data-testid="button-save-now"><Save size={13} /> save now</button>
+            <button onClick={() => setConfirm(true)} className="button-base button-ghost text-[hsl(var(--destructive))]" data-testid="button-reset-save"><Trash2 size={13} /> reset progress</button>
+          </div>
+        </div>
+        {confirm && <div className="mt-3 rounded-xl border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] p-4" data-testid="panel-reset-confirm">
+          <div className="flex gap-2"><ShieldAlert size={16} className="text-[hsl(var(--destructive))]" /><div><div className="text-[12px] font-bold">Reset this factory?</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">This removes the local save and starts a new sector. This cannot be undone.</p></div></div>
+          <div className="mt-3 flex gap-2"><button onClick={() => { reset(); setConfirm(false); notice('new sector initialized'); }} className="button-base bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]" data-testid="button-confirm-reset">confirm reset</button><button onClick={() => setConfirm(false)} className="button-base button-ghost" data-testid="button-cancel-reset">cancel</button></div>
+        </div>}
+        <div className="mt-5 border-t border-[hsl(var(--border))] pt-4">
+          <SectionTitle>Tutorial display</SectionTitle>
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-[hsl(var(--primary)/.3)] bg-[hsl(var(--primary)/.06)] p-3 text-[11px]" data-testid="control-tutorial-visibility">
+            <span><span className="block font-bold">Show Getting Started tutorial</span><span className="mt-1 block text-[9px] text-[hsl(var(--muted-foreground))]">Display the tutorial checklist at the top of the Home screen.</span></span>
+            <input type="checkbox" checked={state.tutorialVisible} onChange={() => setState((s) => ({ ...s, tutorialVisible: !s.tutorialVisible }))} className="h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" aria-label="Show Getting Started tutorial" data-testid="checkbox-tutorial-visibility" />
+          </label>
+        </div>
+      </section>
+      <section className="surface rounded-xl p-5">
+        <SectionTitle>Simulation speed</SectionTitle>
+        <div className="grid grid-cols-3 gap-2">{[.5, 1, 2].map((speed) => <button onClick={() => setState((s) => ({ ...s, simulationSpeed: speed }))} className={`button-base py-3 ${state.simulationSpeed === speed ? 'button-primary' : 'button-ghost'}`} key={speed} data-testid={`button-speed-${speed}`}>{speed}x</button>)}</div>
+        <div className="mt-5 border-t border-[hsl(var(--border))] pt-4"><SectionTitle>Control legend</SectionTitle><div className="space-y-3 text-[11px] text-[hsl(var(--muted-foreground))]"><div className="flex items-center gap-2"><span className="status-dot status-running" /><span><strong className="text-[hsl(var(--foreground))]">Green</strong> means a unit is consuming and producing.</span></div><div className="flex items-center gap-2"><span className="status-dot status-starved" /><span><strong className="text-[hsl(var(--foreground))]">Yellow</strong> means an input is below recipe demand.</span></div><div className="flex items-center gap-2"><span className="status-dot status-blocked" /><span><strong className="text-[hsl(var(--foreground))]">Red</strong> means output or a control path is blocked.</span></div></div></div>
+      </section>
+    </div>
+    <section className="surface mt-5 rounded-xl p-5"><div className="flex items-start gap-3"><CircleHelp size={17} className="text-[hsl(var(--primary))]" /><div><div className="eyebrow">About this slice</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Production Game is a local, playable incremental factory. The resource art, production loop, and control-room language are original to this interface.</p></div></div></section>
+  </PageFrame>;
 }
 
 type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => void; saveNow: () => void; reset: () => void; notice: (message: string) => void; away: number; recovered: number };
