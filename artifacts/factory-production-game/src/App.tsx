@@ -34,6 +34,7 @@ type ComponentKey = string;
 type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militaryPack' | 'productionPack' | 'utilityPack' | 'spacePack';
 type TrackedKey = string;
 type ResearchKey = string;
+type MilestoneKey = 'first-lab';
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
 type UnitStatus = 'running' | 'starved' | 'blocked';
@@ -87,6 +88,7 @@ type GameState = {
   researchProgress: Record<ResearchKey, number>;
   autoResearch: ResearchKey[];
   researchNotifications: ResearchKey[];
+  milestoneNotifications: MilestoneKey[];
   produced: Record<string, number>;
   rateHistory: RateSample[];
   machineVariants: MachineVariants;
@@ -371,7 +373,7 @@ const initialState: GameState = {
   oilProcessingAdvanced: false,
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace',
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace',
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, tutorialVisible: true, welcomeSeen: false,
 };
 
@@ -751,7 +753,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes }, storageTanks: { ...previous.storageTanks },
     assemblers: { ...previous.assemblers }, oilProcessingAdvanced: previous.oilProcessingAdvanced, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
-    researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])],
+    researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])], milestoneNotifications: [...(previous.milestoneNotifications ?? [])],
     rateHistory: previous.rateHistory ?? [],
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null,
     queue: previous.queue.map((item) => ({ ...item, costs: item.costs?.map((cost) => ({ ...cost })), reserved: item.reserved ? [...item.reserved] : undefined })),
@@ -877,7 +879,12 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (item.action === 'pumpjack') { state.pumpjacks += 1; recordProduction(state, 'pumpjack', 1); }
     if (item.action === 'uraniumMiner') { state.uraniumMiners += 1; recordProduction(state, 'uranium-miner', 1); }
      if (item.action === 'assembler' || item.action === 'furnace') state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
-    if (item.action === 'lab') { state.labs += 1; recordProduction(state, 'lab', 1, liveProduction); }
+    if (item.action === 'lab') {
+      const isFirstLab = state.labs === 0;
+      state.labs += 1;
+      recordProduction(state, 'lab', 1, liveProduction);
+      if (isFirstLab && !state.milestoneNotifications.includes('first-lab')) state.milestoneNotifications.push('first-lab');
+    }
     if (item.action === 'boiler') state.boilers += 1;
     if (item.action === 'steamEngine') state.steamEngines += 1;
     if (item.action === 'solarPanel') state.solarPanels += 1;
@@ -1004,7 +1011,8 @@ function loadState() {
       researchSelected: parsed.researchSelected === true,
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
       autoResearch: orderedTechnologyCatalog.filter((technology) => (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
-      researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
+       researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
+       milestoneNotifications: savedLabCount > 0 ? [] : Array.from(new Set((parsed.milestoneNotifications ?? []).map(String).filter((key): key is MilestoneKey => key === 'first-lab'))),
       lastSeen: parsed.lastSeen ?? Date.now(),
       rocketSiloBuilt: parsed.rocketSiloBuilt === true,
       rocketPartsBuilt: Math.min(ROCKET_PART_TARGET, Math.max(0, Number(parsed.rocketPartsBuilt) || 0)),
@@ -2182,6 +2190,29 @@ function WelcomeModal({ onBegin }: { onBegin: () => void }) {
   </div>;
 }
 
+function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onDismiss: () => void }) {
+  if (milestone !== 'first-lab') return null;
+  return <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
+    <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="first-lab-milestone-title" data-testid="dialog-milestone-first-lab">
+      <div className="absolute inset-x-0 top-0 z-10 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />
+      <div className="h-48 overflow-hidden border-b border-[hsl(var(--secondary)/.35)] bg-[hsl(216_25%_10%)] sm:h-56">
+        <img src={`${import.meta.env.BASE_URL}first-lab-milestone.png`} width={1122} height={1402} alt="Factory Planet laboratory and production machines beside a river" className="h-full w-full object-cover object-center" />
+      </div>
+      <div className="p-5 sm:p-7">
+        <div className="flex items-start gap-4">
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-[hsl(var(--secondary)/.5)] bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><FlaskConical size={28} /></div>
+          <div className="min-w-0">
+            <div className="eyebrow text-[hsl(var(--secondary))]">Factory Planet · milestone</div>
+            <h2 id="first-lab-milestone-title" className="mt-2 text-3xl font-extrabold tracking-[-.04em]">Milestone Achieved</h2>
+          </div>
+        </div>
+        <p className="mt-6 text-[13px] leading-6 text-[hsl(var(--muted-foreground))]">You have constructed your first lab, well done. This is the first major step towards regaining the technology to travel off world.</p>
+        <button onClick={onDismiss} className="button-base button-primary mt-6 w-full !py-3 text-[12px]" data-testid="button-dismiss-milestone"><Check size={15} /> Continue</button>
+      </div>
+    </section>
+  </div>;
+}
+
 function ResearchCompletionModal({ state, setState }: Pick<PageProps, 'state' | 'setState'>) {
   const technology = technologyMap[state.researchNotifications[0]];
   if (!technology) return null;
@@ -2335,7 +2366,7 @@ function Game() {
   else if (pageKey === 'research') page = <ResearchPage {...props} />;
   else if (pageKey === 'settings') page = <SettingsPage {...props} />;
   else page = <FactoryPage {...props} />;
-  return <Shell state={state}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{!state.welcomeSeen && <WelcomeModal onBegin={() => setState((current) => ({ ...current, welcomeSeen: true }))} />}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{endgameModal === 'game-complete' && <GameCompleteModal totalOutput={state.completionTotalOutput ?? state.totalOutput} stats={state.completionStats ?? state.produced} onClose={finishGame} />}</Shell>;
+  return <Shell state={state}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{!state.welcomeSeen && <WelcomeModal onBegin={() => setState((current) => ({ ...current, welcomeSeen: true }))} />}{state.milestoneNotifications.length > 0 && <MilestoneModal milestone={state.milestoneNotifications[0]} onDismiss={() => setState((current) => ({ ...current, milestoneNotifications: current.milestoneNotifications.slice(1) }))} />}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{endgameModal === 'game-complete' && <GameCompleteModal totalOutput={state.completionTotalOutput ?? state.totalOutput} stats={state.completionStats ?? state.produced} onClose={finishGame} />}</Shell>;
 }
 
 function App() { return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Game /></WouterRouter>; }
