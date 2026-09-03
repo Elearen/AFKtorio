@@ -2386,9 +2386,9 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
     </div>
     <section className="surface mt-5 rounded-xl p-5" data-testid="section-unlocked-milestones">
       <div className="flex items-start gap-3"><Sparkles size={17} className="text-[hsl(var(--primary))]" /><div><div className="eyebrow">Progress archive</div><SectionTitle>Unlocked Milestones</SectionTitle><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Replay milestones you have already achieved.</p></div></div>
-      {unlockedMilestones.length > 0 ? <div className="mt-4 space-y-2">{unlockedMilestones.map((milestone, index) => <button type="button" onClick={() => replayMilestone(milestone)} className="data-row flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:border-[hsl(var(--primary)/.5)]" key={milestone} data-testid={`button-replay-milestone-${milestone}`}>
+      {unlockedMilestones.length > 0 ? <div className="mt-4 space-y-2">{unlockedMilestones.map((milestone) => <button type="button" onClick={() => replayMilestone(milestone)} className="data-row flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:border-[hsl(var(--primary)/.5)]" key={milestone} data-testid={`button-replay-milestone-${milestone}`}>
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[hsl(var(--secondary)/.4)] bg-[hsl(var(--secondary)/.1)] text-[hsl(var(--secondary))]"><Check size={14} /></span>
-        <span className="min-w-0 flex-1"><span className="eyebrow block">Milestone {index + 1}</span><span className="mt-1 block text-[12px] font-bold text-[hsl(var(--foreground))]">{milestoneTitles[milestone]}</span></span>
+        <span className="min-w-0 flex-1 text-[12px] font-bold text-[hsl(var(--foreground))]">{milestoneTitles[milestone]}</span>
         <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
       </button>)}</div> : <div className="mt-4 rounded-lg border border-dashed border-[hsl(var(--border))] p-3 text-[10px] text-[hsl(var(--muted-foreground))]">No milestones unlocked yet.</div>}
     </section>
