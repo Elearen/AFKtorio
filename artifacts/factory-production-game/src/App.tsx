@@ -44,7 +44,7 @@ type SupplyStatus = { tone: SupplyStatusTone; label: string; detail: string };
 type Recipe = RecipeCatalogEntry;
 type QueueItem = {
   id: string;
-  action: 'miner' | 'pump' | 'pumpjack' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'storage' | 'upgrade' | 'rocketSilo' | 'rocketParts';
+  action: 'miner' | 'pump' | 'pumpjack' | 'uraniumMiner' | 'assembler' | 'furnace' | 'lab' | 'boiler' | 'steamEngine' | 'solarPanel' | 'accumulator' | 'storage' | 'upgrade' | 'rocketSilo' | 'rocketParts';
   target: string;
   targetId?: string;
   seconds: number;
@@ -75,6 +75,7 @@ type GameState = {
   boilersEnabled: boolean;
   steamEngines: number;
   solarPanels: number;
+  accumulators: number;
   miningProgress: Record<RawKey, number>;
   assemblyProgress: Record<string, number>;
   labProgress: number;
@@ -212,6 +213,7 @@ const storageBoxBuildSeconds = 1;
 const manualMiningSeconds = 2.5;
 const boilerRecipe = recipeMap['boiler'];
 const steamEngineRecipe = recipeMap['steam-engine'];
+const accumulatorRecipe = recipeMap['accumulator'];
 const labRecipe = recipeMap['lab'];
 const labBaseResearchSpeed = 1;
 const technologyResearchTimeFor = (technology?: TechnologyDefinition) => Math.max(1, technology?.time ?? defaultTechnologyResearchTime);
@@ -223,7 +225,7 @@ const steamEnginePowerMw = 80;
 const solarPanelBasePowerKw = 60;
 const solarPanelEfficiencyBaseline = 0.5;
 const solarPanelAccumulatorRequirement = 21 / 25;
-const accumulatorCountFor = (state: GameState) => Math.max(0, state.products.accumulator ?? 0);
+const accumulatorCountFor = (state: GameState) => Math.max(0, state.accumulators);
 const requiredSolarAccumulatorsFor = (state: GameState) => Math.ceil(state.solarPanels * solarPanelAccumulatorRequirement);
 const solarPanelEfficiencyFor = (state: GameState) => {
   const required = requiredSolarAccumulatorsFor(state);
@@ -367,6 +369,7 @@ const rocketSiloBuildCost: BuildMaterialCost[] = recipeBuildCostsForRocket(rocke
 const rocketPartBuildCost: BuildMaterialCost[] = recipeBuildCostsForRocket(rocketPartRecipe);
 const rocketPartBatchCost: BuildMaterialCost[] = scaleRocketCosts(rocketPartBuildCost, ROCKET_PART_TARGET);
 const solarPanelBuildCost = recipeBuildCosts(solarPanelRecipe);
+const accumulatorBuildCost = recipeBuildCosts(accumulatorRecipe);
 const pumpjackBuildCost = recipeBuildCosts(pumpjackRecipe);
 const storageTankBuildCost = recipeBuildCosts(storageTankRecipe);
 const missingBuildMaterials = (state: GameState, costs: BuildMaterialCost[]) => costs
@@ -390,7 +393,7 @@ const initialState: GameState = {
   pumps: 0, pumpjacks: 0, uraniumMiners: 0,
   assemblers: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   oilProcessingAdvanced: false,
-  labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
+  labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace',
   totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, tutorialVisible: true, welcomeSeen: false,
@@ -482,7 +485,7 @@ const electricPowerRatioFor = (state: GameState, seconds = 1) => {
   return required > 0 ? Math.min(1, powerProductionFor(state, seconds) / required) : 1;
 };
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
-const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.pumpjacks + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels;
+const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.pumpjacks + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels + state.accumulators;
 const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade);
 const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
@@ -782,7 +785,7 @@ function simulate(previous: GameState, seconds: number): GameState {
   );
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes }, storageTanks: { ...previous.storageTanks },
-    assemblers: { ...previous.assemblers }, oilProcessingAdvanced: previous.oilProcessingAdvanced, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
+    assemblers: { ...previous.assemblers }, oilProcessingAdvanced: previous.oilProcessingAdvanced, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, accumulators: previous.accumulators, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
     researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])], milestoneNotifications: [...(previous.milestoneNotifications ?? [])], unlockedMilestones: [...(previous.unlockedMilestones ?? [])],
     rateHistory: previous.rateHistory ?? [],
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null,
@@ -934,6 +937,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     if (item.action === 'boiler') state.boilers += 1;
     if (item.action === 'steamEngine') state.steamEngines += 1;
     if (item.action === 'solarPanel') state.solarPanels += 1;
+    if (item.action === 'accumulator') state.accumulators += 1;
     if (item.action === 'rocketSilo') {
       state.rocketSiloBuilt = true;
       recordProduction(state, 'rocket-silo', 1, liveProduction);
@@ -992,6 +996,7 @@ function loadState() {
     const hasRateSourceData = savedRateHistory.every((sample) => sample.manualProduction !== undefined);
     const migratedUpgradeState = migrateMachineUpgradeState({ machineVariants: parsed.machineVariants, queue: parsed.queue });
     const savedLabCount = typeof parsed.labs === 'number' && Number.isFinite(parsed.labs) ? Math.max(0, Math.floor(parsed.labs)) : initialState.labs;
+    const savedAccumulatorCount = typeof parsed.accumulators === 'number' && Number.isFinite(parsed.accumulators) ? Math.max(0, Math.floor(parsed.accumulators)) : initialState.accumulators;
     const normalizedStorage = (() => {
       const storage = { ...initialState.storage, ...parsed.storage };
       if (parsed.storage?.researchPack !== undefined && parsed.storage?.productionPack === undefined) storage.productionPack = parsed.storage.researchPack;
@@ -1037,7 +1042,8 @@ function loadState() {
       oilProcessingAdvanced: parsed.oilProcessingAdvanced === true,
       miners: { ...initialState.miners, ...parsed.miners },
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
-       labs: savedLabCount,
+      labs: savedLabCount,
+      accumulators: savedAccumulatorCount,
       boilersEnabled: parsed.boilersEnabled !== false,
       miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
@@ -1813,6 +1819,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
 function PowerPage({ state, setState, enqueue, notice }: PageProps) {
   const steam = state.research.includes('steam-power');
   const solar = state.research.includes('solar-energy');
+  const accumulator = recipeIsUnlocked(accumulatorRecipe, state);
   const boilersEnabled = state.boilersEnabled;
   const draw = electricPowerDraw(state);
   const production = powerProductionFor(state);
@@ -1828,12 +1835,16 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
   const boilerConstructionItems = state.queue.filter((item) => item.action === 'boiler');
   const steamEngineConstructionItems = state.queue.filter((item) => item.action === 'steamEngine');
   const solarPanelConstructionItems = state.queue.filter((item) => item.action === 'solarPanel');
+  const accumulatorConstructionItems = state.queue.filter((item) => item.action === 'accumulator');
   const toggleBoilers = () => setState((s) => ({ ...s, boilersEnabled: !s.boilersEnabled }));
-  const buildPowerUnit = (unit: 'boiler' | 'steamEngine' | 'solarPanel') => {
+  const buildPowerUnit = (unit: 'boiler' | 'steamEngine' | 'solarPanel' | 'accumulator') => {
     const isSolarPanel = unit === 'solarPanel';
-    if (!(isSolarPanel ? solar : steam)) return notice(isSolarPanel ? 'Solar Energy required' : 'Steam Power required');
-    const costs = isSolarPanel ? solarPanelBuildCost : unit === 'boiler' ? boilerBuildCost : steamEngineBuildCost;
-    enqueue(unit, isSolarPanel ? 'Solar panel' : unit === 'boiler' ? 'Boiler' : 'Steam engine', isSolarPanel ? solarPanelRecipe.energyRequired : unit === 'boiler' ? boilerRecipe.energyRequired : steamEngineRecipe.energyRequired, undefined, costs);
+    const isAccumulator = unit === 'accumulator';
+    const unlocked = isSolarPanel ? solar : isAccumulator ? accumulator : steam;
+    if (!unlocked) return notice(isSolarPanel ? 'Solar Energy required' : isAccumulator ? 'Electric Energy Accumulators required' : 'Steam Power required');
+    const costs = isSolarPanel ? solarPanelBuildCost : isAccumulator ? accumulatorBuildCost : unit === 'boiler' ? boilerBuildCost : steamEngineBuildCost;
+    const recipe = isSolarPanel ? solarPanelRecipe : isAccumulator ? accumulatorRecipe : unit === 'boiler' ? boilerRecipe : steamEngineRecipe;
+    enqueue(unit, isSolarPanel ? 'Solar panel' : isAccumulator ? 'Accumulator' : unit === 'boiler' ? 'Boiler' : 'Steam engine', recipe.energyRequired, undefined, costs);
   };
   const constructionChips = (costs: BuildMaterialCost[], output: string) => <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Construction</div><div className="flex flex-wrap items-center gap-1.5">{costs.map(({ key, amount }, index) => <span className="contents" key={`${key}-${index}`}><span className="resource-chip"><ResourceIcon item={key} size={17} /><strong>{amount}</strong> {meta[key]?.short ?? prettyLabel(key)}</span>{index < costs.length - 1 && <span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">+</span>}</span>)}<ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--primary)/.4)' }}><ResourceIcon item={output} size={17} /><strong>1</strong> {prettyLabel(output)}</span></div></div>;
   const statusTag = (unlocked: boolean, count: number, queued: number) => unlocked ? count ? <Tag><span className="status-dot status-running" /> auto</Tag> : queued > 0 ? <Tag tone="amber"><Clock3 size={10} /> queued</Tag> : <Tag tone="amber">offline</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>;
@@ -1887,11 +1898,14 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
            <div className="mt-4 flex gap-2">{solar && state.solarPanels ? <><button onClick={() => notice(`solar panels are supplying ${solarPowerFor(state).toFixed(3)} MW net`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-solar"><Gauge size={13} /> inspect output</button><button onClick={() => buildPowerUnit('solarPanel')} className={`button-base flex-1 !py-2 ${solarPanelConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-solar-panel">{solarPanelConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('solarPanel')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-solar-panel">{solar ? <><Hammer size={13} /> construct solar panel</> : <><LockKeyhole size={13} /> requires Solar Energy</>}</button>}</div>
             <BuildProgress items={solarPanelConstructionItems} label="Solar panel" />
          </article>
-          <article className={`rounded-xl border p-3.5 sm:p-4 ${solar ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-accumulators">
-            <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="accumulator" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Accumulators</h2><div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Accumulator count"><ResourceIcon item="accumulator" size={17} /><span className="mono text-[13px]">{Number.isInteger(accumulatorCount) ? fmt(accumulatorCount) : accumulatorCount.toFixed(2)}</span></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Solar support · stored energy capacity · Accumulator</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={solar ? 'teal' : 'muted'}>{solar ? 'solar balancing' : 'research lock'}</Tag></div></div></div>
-            <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Solar panel / accumulator ratio</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><ResourceIcon item="solar-panel" size={17} /><strong>{state.solarPanels}</strong> solar panels</span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--secondary)/.4)' }}><ResourceIcon item="accumulator" size={17} /><strong>{Number.isInteger(accumulatorCount) ? fmt(accumulatorCount) : accumulatorCount.toFixed(2)}</strong> accumulators</span></div></div>
+           <article className={`rounded-xl border p-3.5 sm:p-4 ${accumulator ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-accumulators">
+             <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="accumulator" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Accumulators</h2><div className="flex items-center gap-2">{statusTag(accumulator, state.accumulators, accumulatorConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Constructed accumulator count"><ResourceIcon item="accumulator" size={17} /><span className="mono text-[13px]">{Number.isInteger(accumulatorCount) ? fmt(accumulatorCount) : accumulatorCount.toFixed(2)}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Solar support · stored energy capacity · Accumulator</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={accumulator ? 'teal' : 'muted'}>{accumulator ? 'solar balancing' : 'research lock'}</Tag>{accumulatorConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
+             <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Solar panel / accumulator ratio</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><ResourceIcon item="solar-panel" size={17} /><strong>{state.solarPanels}</strong> solar panels</span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--secondary)/.4)' }}><ResourceIcon item="accumulator" size={17} /><strong>{Number.isInteger(accumulatorCount) ? fmt(accumulatorCount) : accumulatorCount.toFixed(2)}</strong> constructed accumulators</span></div></div>
             <div className="mt-3 grid grid-cols-3 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Required at 100%</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{requiredAccumulators}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">accumulators</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Coverage</div><div className="mono mt-1 text-[12px] text-[hsl(var(--primary))]">{(accumulatorCoverage * 100).toFixed(0)}%</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">of required</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Solar efficiency</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{(solarEfficiency * 100).toFixed(0)}%</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">current output</div></div></div>
             <p className="mt-3 text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">100% efficiency requires <span className="mono">{requiredAccumulators}</span> accumulators: ceil(solar panels ÷ 25 × 21). Solar starts at 50% and rises with accumulator coverage.</p>
+             {constructionChips(accumulatorBuildCost, 'accumulator')}
+             <div className="mt-4 flex gap-2">{accumulator && state.accumulators ? <><button onClick={() => notice(`${accumulatorCount} accumulators cover ${requiredAccumulators ? `${(accumulatorCoverage * 100).toFixed(0)}%` : '0%'} of solar support`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-accumulator"><Gauge size={13} /> inspect balance</button><button onClick={() => buildPowerUnit('accumulator')} className={`button-base flex-1 !py-2 ${accumulatorConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-accumulator">{accumulatorConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('accumulator')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-accumulator">{accumulator ? <><Hammer size={13} /> construct accumulator</> : <><LockKeyhole size={13} /> requires Electric Energy Accumulators</>}</button>}</div>
+             <BuildProgress items={accumulatorConstructionItems} label="Accumulator" />
           </article>
       </div>
     </section>
