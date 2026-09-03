@@ -102,6 +102,7 @@ type GameState = {
   completionTotalOutput: number | null;
   completionStats: Record<string, number> | null;
   tutorialVisible: boolean;
+  welcomeSeen: boolean;
 };
 
 const SAVE_KEY = 'factory-production-game-save-v2';
@@ -371,7 +372,7 @@ const initialState: GameState = {
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace',
-  totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, tutorialVisible: true,
+  totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, tutorialVisible: true, welcomeSeen: false,
 };
 
 const nav = [
@@ -1013,6 +1014,7 @@ function loadState() {
       completionTotalOutput: typeof parsed.completionTotalOutput === 'number' ? Math.max(0, parsed.completionTotalOutput) : null,
       completionStats: parsed.completionStats && typeof parsed.completionStats === 'object' ? { ...parsed.completionStats } : null,
       tutorialVisible: parsed.tutorialVisible !== false,
+      welcomeSeen: parsed.welcomeSeen !== false,
     } as GameState;
     delete (state as GameState & { upgrades?: unknown }).upgrades;
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
@@ -2159,6 +2161,27 @@ function TechnologyDetailModal({ item, state, toggleAutoResearch, onClose }: { i
   </div>;
 }
 
+function WelcomeModal({ onBegin }: { onBegin: () => void }) {
+  return <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
+    <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--primary)/.7)] bg-[linear-gradient(145deg,hsl(35_30%_18%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="welcome-title" data-testid="dialog-welcome">
+      <div className="absolute inset-x-0 top-0 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />
+      <div className="flex items-start gap-4 pt-1">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-[hsl(var(--primary)/.5)] bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Rocket size={28} /></div>
+        <div className="min-w-0">
+          <div className="eyebrow text-[hsl(var(--primary))]">Factory Planet · emergency briefing</div>
+          <h1 id="welcome-title" className="mt-2 text-3xl font-extrabold tracking-[-.04em]">Welcome!</h1>
+        </div>
+      </div>
+      <div className="mt-6 space-y-4 text-[12px] leading-6 text-[hsl(var(--muted-foreground))]">
+        <p className="text-[15px] font-bold text-[hsl(var(--foreground))]">...to production hell.</p>
+        <p>Your ship has crashed while travelling across the galaxy towards home. You are the only survivor. You have emergency supplies from your escape pod, but you must survive and construct a new ship to get off the planet and make it home.</p>
+      </div>
+      <div className="mt-6 rounded-xl border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]"><span className="font-bold text-[hsl(var(--primary))]">Mission brief:</span> Build your production network, unlock the science chain, and find a way off-world.</div>
+      <button onClick={onBegin} className="button-base button-primary mt-6 w-full !py-3 text-[12px]" data-testid="button-begin-game"><Rocket size={15} /> Begin production</button>
+    </section>
+  </div>;
+}
+
 function ResearchCompletionModal({ state, setState }: Pick<PageProps, 'state' | 'setState'>) {
   const technology = technologyMap[state.researchNotifications[0]];
   if (!technology) return null;
@@ -2312,7 +2335,7 @@ function Game() {
   else if (pageKey === 'research') page = <ResearchPage {...props} />;
   else if (pageKey === 'settings') page = <SettingsPage {...props} />;
   else page = <FactoryPage {...props} />;
-  return <Shell state={state}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{endgameModal === 'game-complete' && <GameCompleteModal totalOutput={state.completionTotalOutput ?? state.totalOutput} stats={state.completionStats ?? state.produced} onClose={finishGame} />}</Shell>;
+  return <Shell state={state}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{!state.welcomeSeen && <WelcomeModal onBegin={() => setState((current) => ({ ...current, welcomeSeen: true }))} />}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{endgameModal === 'game-complete' && <GameCompleteModal totalOutput={state.completionTotalOutput ?? state.totalOutput} stats={state.completionStats ?? state.produced} onClose={finishGame} />}</Shell>;
 }
 
 function App() { return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Game /></WouterRouter>; }
