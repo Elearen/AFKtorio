@@ -1560,9 +1560,6 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
   const automationUnlocked = state.research.includes('automation');
   const currentFurnaceLabel = furnaceLabelFor(state);
-  const currentFurnaceBuildRecipe = furnaceBuildRecipeFor(state);
-  const currentFurnaceCosts = recipeBuildCosts(currentFurnaceBuildRecipe);
-  const currentFurnaceCoalPerItem = furnaceCoalPerItemFor(state, recipeMap['iron-plate']);
   const spaceScienceUnlocked = spaceScienceUnlockedFor(state);
   const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
   const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => !['pumpjack', 'rocket-silo', 'rocket-part'].includes(recipe.name) && recipeIsUnlocked(recipe, state)).filter((recipe) => {
@@ -1614,9 +1611,6 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
           <option value="Non-Core">Non-Core recipes</option>
         </select>
       </div>
-       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source data includes hidden and disabled definitions.</span><span className="mono">{visibleRecipes.length} visible · {recipeCatalog.filter((recipe) => recipeScienceChainFor(recipe, spaceScienceUnlocked) === 'Core').length} core / {recipeCatalog.filter((recipe) => recipeScienceChainFor(recipe, spaceScienceUnlocked) === 'Non-Core').length} non-core</span></div>
-       <div className="data-row mt-3 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item={state.furnaceVariant} size={18} /><span className="text-[10px] font-semibold">Additional builds · {currentFurnaceLabel}</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceCosts.map((cost) => `${amountLabel(cost.amount)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · {currentFurnaceBuildRecipe.energyRequired}s recipe build · speed {furnaceCraftingSpeedFor(state)} · {currentFurnaceCoalPerItem.toFixed(2)} coal/item</span></div>
-      <div className="data-row mt-2 flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-2"><ResourceIcon item={state.machineVariants.assembly} size={18} /><span className="text-[10px] font-semibold">{productionMachineLabelFor(state)}</span><span className="ml-auto text-right text-[9px] text-[hsl(var(--muted-foreground))]">{productionMachineBuildCostFor(state).map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · {productionMachineRecipeFor(state).energyRequired}s build · {assemblyMachineProductionSpeedFor(state).toFixed(2)} speed · {assemblyMachinePowerFor(state)} kW</span></div>
     </section>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {state.research.includes('rocket-silo') && !state.gameComplete && <RocketEndgameCard state={state} enqueue={enqueue} notice={notice} />}
