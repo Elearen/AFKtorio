@@ -1146,7 +1146,13 @@ function UpgradeCostChips({ costs }: { costs: BuildMaterialCost[] }) {
     </span>;
   })}</div>;
 }
-function UpgradeMetaGrid({ prerequisite, prerequisiteMet, machine, machineCount }: { prerequisite?: string; prerequisiteMet: boolean; machine: string; machineCount: number }) {
+function UpgradeTime({ seconds }: { seconds: number }) {
+  const label = seconds < 60 ? `${Number(seconds.toFixed(1))}s` : duration(seconds);
+  return <span className="inline-flex shrink-0 items-center gap-1 mono text-[10px] text-[hsl(var(--primary))]" title={`${duration(seconds)} time`}>
+    <Clock3 size={11} aria-hidden="true" />{label}
+  </span>;
+}
+function UpgradeMetaGrid({ prerequisite, prerequisiteMet, machine, machineIcon }: { prerequisite?: string; prerequisiteMet: boolean; machine: string; machineIcon: ReactNode }) {
   return <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
     <div className="data-row rounded-md p-2">
       <div className="eyebrow">Prerequisite</div>
@@ -1159,7 +1165,7 @@ function UpgradeMetaGrid({ prerequisite, prerequisiteMet, machine, machineCount 
       <div className="eyebrow">Relevant machine</div>
       <div className="mt-1 flex min-w-0 items-center justify-between gap-1.5 font-semibold">
         <span className="truncate">{machine}</span>
-        <span className="mono shrink-0 text-[hsl(var(--secondary))]">{machineCount}</span>
+        <span className="grid h-5 w-5 shrink-0 place-items-center rounded border border-[hsl(var(--secondary)/.35)] bg-[hsl(var(--secondary)/.1)]" title={machine} aria-label={`${machine} icon`}>{machineIcon}</span>
       </div>
     </div>
   </div>;
@@ -1175,16 +1181,19 @@ function UpgradeProgress({ count, label, seconds, total, testId }: { count: numb
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(progress)}% complete</span><span>{total.toFixed(1)}s total</span></div>
   </div>;
 }
-function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, costPerItem, totalCost, action }: {
+function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, costPerItem, totalCost, timePerMachine, totalTime, showCosts, action }: {
   testId: string;
   title: string;
   copy: string;
   iconPair: ReactNode;
-  flow: ReactNode;
+  flow?: ReactNode;
   progress?: ReactNode;
   meta: ReactNode;
   costPerItem: BuildMaterialCost[];
   totalCost: BuildMaterialCost[];
+  timePerMachine: number;
+  totalTime: number;
+  showCosts?: boolean;
   action?: ReactNode;
 }) {
   return <section className="surface rounded-xl p-3 sm:p-4" data-testid={testId}>
@@ -1195,13 +1204,13 @@ function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, cost
         <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{copy}</p>
       </div>
     </div>
-    <div className="mt-3">{flow}</div>
+    {flow && <div className="mt-3">{flow}</div>}
     {progress}
     {meta}
-    <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
-      <div className="data-row rounded-md p-2"><div className="eyebrow">Cost / item</div><div className="mt-1.5"><UpgradeCostChips costs={costPerItem} /></div></div>
-      <div className="data-row rounded-md p-2"><div className="eyebrow">Total cost</div><div className="mt-1.5"><UpgradeCostChips costs={totalCost} /></div></div>
-    </div>
+    {showCosts !== false && <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+      <div className="data-row rounded-md p-2"><div className="eyebrow">Cost / machine</div><div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={costPerItem} /><UpgradeTime seconds={timePerMachine} /></div></div>
+      <div className="data-row rounded-md p-2"><div className="eyebrow">Total cost</div><div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={totalCost} /><UpgradeTime seconds={totalTime} /></div></div>
+    </div>}
     {action}
   </section>;
 }
@@ -2092,12 +2101,15 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
           title={item.name}
           copy={item.copy}
           iconPair={<UpgradeIconPair from={<ResourceIcon item={fromMachine} size={26} />} to={<ResourceIcon item={item.newMachine} size={26} />} fromLabel={fromLabel} toLabel={item.newMachineLabel} />}
-          flow={<UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} />}
+          flow={!complete ? <UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} /> : undefined}
           progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId={`panel-upgrade-progress-${item.id}`} /> : undefined}
-          meta={<UpgradeMetaGrid prerequisite={item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={item.relevantMachine} machineCount={machineCount} />}
+          meta={<UpgradeMetaGrid prerequisite={item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? item.newMachine : fromMachine} size={17} />} />}
           costPerItem={item.upgradeCostPerMachine}
           totalCost={totalCosts}
-          action={<div className="mt-3"><button onClick={() => startUpgrade(item)} disabled={complete || !canStart} className={`button-base w-full !py-2 ${complete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid={`button-start-upgrade-${item.id}`}>{complete ? '✔️installed' : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : missing ? `need ${missing}` : !prerequisiteMet ? 'locked' : !machineCount ? 'build machines first' : 'start upgrade'}</>}</button></div>}
+          timePerMachine={item.upgradeTimePerMachine}
+          totalTime={queued && activeUpgrade ? activeUpgrade.total : item.upgradeTimePerMachine * machineCount}
+          showCosts={!complete}
+          action={<div className="mt-3"><button onClick={() => startUpgrade(item)} disabled={complete || !canStart} className={`button-base w-full !py-2 ${complete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid={`button-start-upgrade-${item.id}`}>{complete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : missing ? `need ${missing}` : !prerequisiteMet ? 'locked' : !machineCount ? 'build machines first' : 'start upgrade'}</>}</button></div>}
         />,
       };
     }),
@@ -2111,12 +2123,15 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
         title="Upgrade Basic Oil Processing to Advanced Oil Processing"
         copy="Replace every constructed Basic Oil Processing refinery with Advanced Oil Processing. The conversion is free and takes one second per refinery."
         iconPair={<UpgradeIconPair from={<UpgradeAssetIcon file="basic-oil-processing" size={28} />} to={<UpgradeAssetIcon file="advanced-oil-processing" size={28} />} fromLabel="Basic Oil Processing" toLabel="Advanced Oil Processing" />}
-        flow={<UpgradeFlow count={oilProcessingConversionCount} from="Basic Oil Processing" to="Advanced Oil Processing" />}
+        flow={!oilProcessingUpgradeComplete ? <UpgradeFlow count={oilProcessingConversionCount} from="Basic Oil Processing" to="Advanced Oil Processing" /> : undefined}
         progress={oilProcessingUpgradeQueued && activeUpgrade ? <UpgradeProgress count={oilProcessingConversionCount} label={oilProcessingConversionCount === 1 ? 'refinery' : 'refineries'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-advanced-oil-processing" /> : undefined}
-        meta={<UpgradeMetaGrid prerequisite="advanced-oil-processing" prerequisiteMet={oilProcessingPrerequisiteMet} machine="Oil Refinery" machineCount={oilProcessingMachineCount} />}
+        meta={<UpgradeMetaGrid prerequisite="advanced-oil-processing" prerequisiteMet={oilProcessingPrerequisiteMet} machine="Oil Refinery" machineIcon={<UpgradeAssetIcon file={oilProcessingUpgradeComplete ? 'advanced-oil-processing' : 'basic-oil-processing'} size={17} />} />}
         costPerItem={[]}
         totalCost={[]}
-        action={<div className="mt-3"><button onClick={startOilProcessingUpgrade} disabled={oilProcessingUpgradeComplete || !!activeUpgrade || !oilProcessingPrerequisiteMet || !basicOilMachineCount} className={`button-base w-full !py-2 ${oilProcessingUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-advanced-oil-processing">{oilProcessingUpgradeComplete ? '✔️installed' : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !oilProcessingPrerequisiteMet ? 'locked' : !basicOilMachineCount ? 'build refineries first' : 'start upgrade'}</>}</button></div>}
+        timePerMachine={oilProcessingUpgradeTimeFor(1)}
+        totalTime={oilProcessingUpgradeQueued && activeUpgrade ? activeUpgrade.total : oilProcessingUpgradeTotalSeconds}
+        showCosts={!oilProcessingUpgradeComplete}
+        action={<div className="mt-3"><button onClick={startOilProcessingUpgrade} disabled={oilProcessingUpgradeComplete || !!activeUpgrade || !oilProcessingPrerequisiteMet || !basicOilMachineCount} className={`button-base w-full !py-2 ${oilProcessingUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-advanced-oil-processing">{oilProcessingUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !oilProcessingPrerequisiteMet ? 'locked' : !basicOilMachineCount ? 'build refineries first' : 'start upgrade'}</>}</button></div>}
       />,
     },
     {
@@ -2129,12 +2144,15 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
         title="Upgrade all furnaces to Steel Furnaces"
         copy="Convert every constructed stone furnace together. Steel Furnaces run at twice the speed and use half the coal per item."
         iconPair={<UpgradeIconPair from={<ResourceIcon item="stone-furnace" size={26} />} to={<ResourceIcon item="steel-furnace" size={26} />} fromLabel="Stone Furnace" toLabel="Steel Furnace" />}
-        flow={<UpgradeFlow count={furnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} from="Stone Furnace" to="Steel Furnace" />}
+        flow={!furnaceUpgradeComplete ? <UpgradeFlow count={furnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} from="Stone Furnace" to="Steel Furnace" /> : undefined}
         progress={furnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'stone furnace' : 'stone furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-steel-furnaces" /> : undefined}
-        meta={<UpgradeMetaGrid prerequisiteMet={true} machine="Stone Furnace" machineCount={furnaceCount} />}
+        meta={<UpgradeMetaGrid prerequisiteMet={true} machine={furnaceUpgradeComplete ? 'Steel Furnace' : 'Stone Furnace'} machineIcon={<ResourceIcon item={furnaceUpgradeComplete ? 'steel-furnace' : 'stone-furnace'} size={17} />} />}
         costPerItem={furnaceUpgradeCostPerFurnace}
         totalCost={furnaceUpgradeCosts}
-        action={<div className="mt-3"><button onClick={startFurnaceUpgrade} disabled={furnaceUpgradeComplete || !!activeUpgrade || !furnaceCount || !!furnaceUpgradeMissing} className={`button-base w-full !py-2 ${furnaceUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-steel-furnaces">{furnaceUpgradeComplete ? '✔️installed' : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : furnaceUpgradeMissing ? `need ${furnaceUpgradeMissing}` : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</>}</button></div>}
+        timePerMachine={steelFurnaceRecipe.energyRequired}
+        totalTime={furnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : furnaceUpgradeTotalSeconds}
+        showCosts={!furnaceUpgradeComplete}
+        action={<div className="mt-3"><button onClick={startFurnaceUpgrade} disabled={furnaceUpgradeComplete || !!activeUpgrade || !furnaceCount || !!furnaceUpgradeMissing} className={`button-base w-full !py-2 ${furnaceUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-steel-furnaces">{furnaceUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : furnaceUpgradeMissing ? `need ${furnaceUpgradeMissing}` : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</>}</button></div>}
       />,
     },
     {
@@ -2147,12 +2165,15 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
         title="Upgrade storage to Iron Chests"
         copy="Replace every constructed wooden chest with an Iron Chest. Fluid storage tanks are not affected."
         iconPair={<UpgradeIconPair from={<ResourceIcon item="wooden-chest" size={26} />} to={<ResourceIcon item="iron-chest" size={26} />} fromLabel="Wooden Chest" toLabel="Iron Chest" />}
-        flow={<UpgradeFlow count={storageUpgradeQueued ? activeUpgrade?.machineCount ?? storageBoxCount : storageBoxCount} from="Wooden Chest" to="Iron Chest" />}
+        flow={!storageUpgradeComplete ? <UpgradeFlow count={storageUpgradeQueued ? activeUpgrade?.machineCount ?? storageBoxCount : storageBoxCount} from="Wooden Chest" to="Iron Chest" /> : undefined}
         progress={storageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'wooden chest' : 'wooden chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-iron-chests" /> : undefined}
-        meta={<UpgradeMetaGrid prerequisiteMet={true} machine="Wooden Chest" machineCount={storageBoxCount} />}
+        meta={<UpgradeMetaGrid prerequisiteMet={true} machine={storageUpgradeComplete ? 'Iron Chest' : 'Wooden Chest'} machineIcon={<ResourceIcon item={storageUpgradeComplete ? 'iron-chest' : 'wooden-chest'} size={17} />} />}
         costPerItem={[{ key: 'ironPlate', amount: ironChestUpgradeCostFor(1), source: 'products' }]}
         totalCost={storageUpgradeCosts}
-        action={<div className="mt-3"><button onClick={startStorageUpgrade} disabled={storageUpgradeComplete || !!activeUpgrade || !storageBoxCount || !!storageUpgradeMissing} className={`button-base w-full !py-2 ${storageUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-iron-chests">{storageUpgradeComplete ? '✔️installed' : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : storageUpgradeMissing ? `need ${storageUpgradeMissing}` : !storageBoxCount ? 'build chests first' : 'start upgrade'}</>}</button></div>}
+        timePerMachine={ironChestUpgradeTimeFor(1)}
+        totalTime={storageUpgradeQueued && activeUpgrade ? activeUpgrade.total : storageUpgradeTotalSeconds}
+        showCosts={!storageUpgradeComplete}
+        action={<div className="mt-3"><button onClick={startStorageUpgrade} disabled={storageUpgradeComplete || !!activeUpgrade || !storageBoxCount || !!storageUpgradeMissing} className={`button-base w-full !py-2 ${storageUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-iron-chests">{storageUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : storageUpgradeMissing ? `need ${storageUpgradeMissing}` : !storageBoxCount ? 'build chests first' : 'start upgrade'}</>}</button></div>}
       />,
     },
   ].sort((a, b) => a.availability - b.availability || a.category - b.category);
