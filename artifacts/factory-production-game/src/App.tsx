@@ -2219,7 +2219,7 @@ function WelcomeModal({ onBegin, replay = false }: { onBegin: () => void; replay
 function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onDismiss: () => void }) {
   const isFirstLab = milestone === 'first-lab';
   const isTwentyOneLabs = milestone === 'twenty-one-labs';
-  const image = isFirstLab ? 'first-lab-milestone.png' : isTwentyOneLabs ? 'twenty-one-labs-milestone.png' : 'sixty-furnaces-milestone.png';
+  const image = isFirstLab ? 'first-lab-milestone.jpg' : isTwentyOneLabs ? 'twenty-one-labs-milestone.jpg' : 'sixty-furnaces-milestone.jpg';
   const imageAlt = isFirstLab
     ? 'Factory Planet laboratory and production machines beside a river'
     : isTwentyOneLabs
@@ -2233,14 +2233,12 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   return <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="milestone-title" data-testid={`dialog-milestone-${milestone}`}>
       <div className="absolute inset-x-0 top-0 z-10 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />
-      <div className="h-48 overflow-hidden border-b border-[hsl(var(--secondary)/.35)] bg-[hsl(216_25%_10%)] sm:h-56">
-        <img src={`${import.meta.env.BASE_URL}${image}`} width={1122} height={1402} alt={imageAlt} className="h-full w-full object-cover object-center" />
+      <div className="border-b border-[hsl(var(--secondary)/.35)] bg-[hsl(216_25%_10%)]">
+        <img src={`${import.meta.env.BASE_URL}${image}`} width={1122} height={1402} alt={imageAlt} className="mx-auto block h-auto w-full object-contain" />
       </div>
       <div className="p-5 sm:p-7">
         <div className="flex items-start gap-4">
-          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-[hsl(var(--secondary)/.5)] bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><FlaskConical size={28} /></div>
           <div className="min-w-0">
-            <div className="eyebrow text-[hsl(var(--secondary))]">Factory Planet · milestone</div>
             <h2 id="milestone-title" className="mt-2 text-3xl font-extrabold tracking-[-.04em]">Milestone Achieved</h2>
           </div>
         </div>
