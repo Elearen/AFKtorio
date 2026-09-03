@@ -2199,6 +2199,9 @@ function WelcomeModal({ onBegin, replay = false }: { onBegin: () => void; replay
   return <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--primary)/.7)] bg-[linear-gradient(145deg,hsl(35_30%_18%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="welcome-title" data-testid={replay ? 'dialog-milestone-crash-landed' : 'dialog-welcome'}>
       <div className="absolute inset-x-0 top-0 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />
+      <div className="-mx-5 -mt-5 border-b border-[hsl(var(--primary)/.35)] bg-[hsl(216_25%_10%)] sm:-mx-7 sm:-mt-7">
+        <img src={`${import.meta.env.BASE_URL}welcome-crash-landed.jpg`} width={1122} height={1122} alt="A crashed spaceship burning in a mountain valley" className="mx-auto block h-auto w-full object-contain" />
+      </div>
       <div className="pt-1">
         <h1 id="welcome-title" className="text-3xl font-extrabold tracking-[-.04em]">Emergency Briefing</h1>
       </div>
