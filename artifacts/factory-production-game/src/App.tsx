@@ -842,8 +842,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     // Progress represents an in-flight cycle, not a queue of completed
     // cycles. Clamp legacy/starved backlog before advancing the line so a
     // machine cannot burst above its steady-state rate when inputs return.
-    const machineCraftingSpeed = craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state, recipe), furnaceCraftingSpeedFor(state));
-    const cycleRate = cyclesPerMinuteFor(count, speed, recipe.energyRequired, machineCraftingSpeed);
+    const cycleRate = recipeCycleRateFor(state, recipe);
     state.assemblyProgress[key] = Math.min(state.assemblyProgress[key] ?? 0, 0.999999)
       + cycleRate * seconds / 60 * machinePowerRatio * storageThrottle;
     const cycleBudget = cycleBudgetFor(cycleRate * machinePowerRatio * storageThrottle, seconds);
