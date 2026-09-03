@@ -1242,7 +1242,7 @@ function tutorialGoalsFor(state: GameState): TutorialGoal[] {
     { id: 'build-lab', label: 'Build your first lab', complete: state.labs > 0 },
     { id: 'research-automation', label: 'Research automation', complete: state.research.includes('automation') },
     { id: 'automate-early-production', label: 'Automate production of gears and automation science packs', complete: (state.assemblers['iron-gear-wheel'] ?? 0) > 0 && (state.assemblers['automation-science-pack'] ?? 0) > 0 },
-    { id: 'unlock-logistics-science', label: 'Unlock logistics science', complete: state.research.includes('logistics') },
+    { id: 'unlock-logistics-science', label: 'Unlock logistics science', complete: state.research.includes('logistic-science-pack') },
     { id: 'unlock-military-science', label: 'Unlock military science', complete: state.research.includes('military-science-pack') },
     { id: 'unlock-chemical-science', label: 'Unlock chemical science', complete: state.research.includes('chemical-science-pack') },
     { id: 'unlock-production-science', label: 'Unlock production science', complete: state.research.includes('production-science-pack') },
@@ -1259,9 +1259,8 @@ function TutorialSection({ state }: { state: GameState }) {
   return <section className="relative overflow-hidden rounded-xl border-[3px] border-transparent p-4 shadow-lg sm:p-5" style={{ background: 'linear-gradient(145deg, hsl(35 24% 16%), hsl(216 25% 12%)) padding-box, repeating-linear-gradient(135deg, #f5b52e 0 11px, #15181a 11px 22px) border-box' }} data-testid="panel-tutorial">
     <div className="flex items-start justify-between gap-3">
       <div>
-        <div className="eyebrow text-[hsl(var(--primary))]">Departure checklist</div>
         <h2 className="mt-1 text-xl font-extrabold tracking-[-.03em]">Getting Started:</h2>
-        <p className="mt-1 max-w-2xl text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Build the first working loop, then scale the science chain to unlock your escape route.</p>
+        <p className="mt-1 max-w-2xl text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Goals to help you progress.</p>
       </div>
       <div className="shrink-0 rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.08)] px-2.5 py-2 text-right">
         <div className="mono text-[15px] font-bold text-[hsl(var(--primary))]">{completedCount}/{goals.length}</div>
