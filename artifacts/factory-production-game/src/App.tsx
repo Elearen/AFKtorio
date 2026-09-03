@@ -1189,13 +1189,15 @@ function PowerMetrics({ production, peakProduction, productionUnit, consumption,
     ].map(metric)}
   </div>;
 }
+const visualProgressFor = (seconds: number, total: number, leadSeconds = 0) =>
+  Math.max(0, Math.min(100, (1 - Math.max(0, seconds - Math.max(0, leadSeconds)) / Math.max(0.0001, total)) * 100));
 function BuildProgress({ items, label }: { items: QueueItem[]; label: string }) {
   if (!items.length) return null;
   const active = items[0];
   const waitingForMaterials = active.started === false;
   const complete = waitingForMaterials
     ? Math.min(...(active.costs ?? []).map((cost, index) => (active.reserved?.[index] ?? 0) / Math.max(0.0001, cost.amount) * 100), 0)
-    : (1 - active.seconds / active.total) * 100;
+    : visualProgressFor(active.seconds, active.total, 1);
   const missing = waitingForMaterials
     ? (active.costs ?? []).map((cost, index) => {
       const amount = Math.max(0, cost.amount - (active.reserved?.[index] ?? 0));
@@ -1217,9 +1219,10 @@ function BuildProgress({ items, label }: { items: QueueItem[]; label: string }) 
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{waitingForMaterials ? `${Math.floor(Math.max(0, complete))}% funded` : `${Math.floor(Math.max(0, complete))}% complete`}</span><span>{waitingForMaterials ? `needs ${missing}` : 'building now'}</span></div>
   </div>;
 }
-function HandcraftProgress({ job, recipe }: { job: HandcraftJob; recipe: Recipe }) {
+function HandcraftProgress({ job, recipe, simulationSpeed }: { job: HandcraftJob; recipe: Recipe; simulationSpeed: number }) {
   const output = recipeOutputs(recipe)[0];
   const finishing = job.seconds <= 0;
+  const complete = visualProgressFor(job.seconds, job.total, simulationSpeed);
   return <div className="construction-panel mt-3 rounded-lg p-3" aria-live="polite" data-testid={`panel-handcraft-${job.recipeKey}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-2">
@@ -1231,12 +1234,12 @@ function HandcraftProgress({ job, recipe }: { job: HandcraftJob; recipe: Recipe 
       </div>
       <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{finishing ? 'finishing' : `${job.seconds.toFixed(2)}s`}</span>
     </div>
-    <div className="mt-2"><Progress value={(1 - job.seconds / job.total) * 100} tone="amber" /></div>
-    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{finishing ? 'output will be stored above capacity if needed' : `${Math.floor(Math.max(0, 1 - job.seconds / job.total) * 100)}% complete`}</span><span>one item at a time</span></div>
+    <div className="mt-2"><Progress value={complete} tone="amber" /></div>
+    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{finishing ? 'output will be stored above capacity if needed' : `${Math.floor(complete)}% complete`}</span><span>one item at a time</span></div>
   </div>;
 }
-function ManualMiningProgress({ job }: { job: ManualMiningJob }) {
-  const complete = Math.floor(Math.max(0, 1 - job.seconds / job.total) * 100);
+function ManualMiningProgress({ job, simulationSpeed }: { job: ManualMiningJob; simulationSpeed: number }) {
+  const complete = Math.floor(visualProgressFor(job.seconds, job.total, simulationSpeed));
   return <div className="construction-panel mt-3 rounded-lg p-3" aria-live="polite" data-testid={`panel-manual-mining-${job.resourceKey}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-2">
@@ -1440,9 +1443,9 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
   }, [circuitNetworkUnlocked]);
   const constructionQueue = <section className="surface mb-5 rounded-xl p-4 sm:p-5"><SectionTitle detail={`${constructionCount} queued`}>Construction queue</SectionTitle>{constructionCount ? <div className="space-y-2">{state.queue.map((item) => {
     const waitingForMaterials = item.started === false;
-    const progress = waitingForMaterials
+       const progress = waitingForMaterials
       ? Math.min(...(item.costs ?? []).map((cost, index) => (item.reserved?.[index] ?? 0) / Math.max(0.0001, cost.amount) * 100), 0)
-      : (1 - item.seconds / item.total) * 100;
+       : visualProgressFor(item.seconds, item.total, 1);
      return <div className="data-row flex items-center gap-3 rounded-lg p-2.5" key={item.id} data-testid={`row-factory-queue-${item.id}`}><div className="grid h-7 w-7 place-items-center rounded-md bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]">{item.action === 'upgrade' ? <TrendingUp size={14} /> : <Hammer size={14} />}</div><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-semibold">{item.target} <span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">· {waitingForMaterials ? 'materials requested' : item.action}</span></div><Progress value={progress} tone="amber" /></div><span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(item.seconds)}</span><button type="button" onClick={() => { cancelConstruction(item.id); notice(`${item.target} cancelled · materials refunded`); }} className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label={`Cancel ${item.target}`} title="Cancel construction and refund materials" data-testid={`button-cancel-queue-${item.id}`}><X size={12} /></button></div>;
   })}</div> : <div className="rounded-lg border border-dashed border-[hsl(var(--border))] p-4"><div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))]"><Clock3 size={14} /><span className="text-[11px]">Queue clear</span></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Nothing is under construction. Choose a build from a control tab when the network is ready.</p></div>}</section>;
   return <PageFrame>
