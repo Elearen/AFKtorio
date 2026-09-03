@@ -1958,32 +1958,49 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
   return <PageFrame>
     <Header eyebrow="Buffer control" title="Storage" copy={`${state.storageBoxType === 'iron' ? 'Item buffers use iron chests.' : 'Item buffers use wooden boxes.'} Fluids start with 100 units of base capacity, then expand with storage tanks after Fluid Handling research.`} action={<Tag><Box size={11} /> {visibleKeys.length} visible items</Tag>} />
     <section className="surface mb-5 rounded-xl p-3 sm:p-4" data-testid="panel-bulk-storage-upgrades">
-      <div className="mb-3">
-        <div className="eyebrow">Bulk storage expansion</div>
-        <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Add one chest or tank to every currently visible item at the lowest storage level.</p>
-      </div>
+      <div className="mb-3 eyebrow">Bulk storage expansion</div>
       <div className="grid gap-2 sm:grid-cols-2">
         <button
           onClick={() => lowestMaterialKeys.forEach((key) => buildStorage(key))}
           disabled={!lowestMaterialKeys.length || storageUpgradeInProgress}
-          className="button-base button-ghost flex min-h-[58px] flex-col items-start justify-center gap-1 !px-3 !py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
+          className="button-base button-ghost flex min-h-[44px] items-center !px-3 !py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
           aria-label={`Upgrade materials to ${fmt(lowestMaterialCapacity + storageBoxCapacityFor(state))}`}
           title={storageUpgradeInProgress ? 'Iron Chests upgrade in progress' : `Upgrade ${lowestMaterialKeys.length} material storages · cost ${bulkStorageCostLabel(materialChestCost, lowestMaterialKeys.length)}`}
           data-testid="button-upgrade-lowest-material-storage"
         >
-          <span className="flex items-center gap-2 text-[11px] font-bold"><TrendingUp size={13} /> Upgrade materials to {fmt(lowestMaterialCapacity + storageBoxCapacityFor(state))}</span>
-          <span className="text-[9px] text-[hsl(var(--muted-foreground))]">{lowestMaterialKeys.length} visible {materialChestCost[0].key === 'wood' ? 'wooden chest' : 'iron chest'}{lowestMaterialKeys.length === 1 ? '' : 's'} · cost {bulkStorageCostLabel(materialChestCost, lowestMaterialKeys.length)}</span>
+          <span className="flex w-full min-w-0 items-center justify-between gap-2 text-[11px] font-bold">
+            <span className="flex min-w-0 items-center gap-2"><TrendingUp size={13} className="shrink-0" /><span className="truncate">Upgrade materials to {fmt(lowestMaterialCapacity + storageBoxCapacityFor(state))}</span></span>
+            <span className="flex shrink-0 items-center gap-3">
+              <span className="flex items-center gap-1" title={`${lowestMaterialKeys.length} ${materialChestCost[0].key === 'wood' ? 'wooden' : 'iron'} chest${lowestMaterialKeys.length === 1 ? '' : 's'}`}>
+                <span className="mono text-[10px]">{lowestMaterialKeys.length}</span>
+                <ResourceIcon item={state.storageBoxType === 'iron' ? 'iron-chest' : 'wooden-chest'} size={17} />
+              </span>
+              <span className="flex items-center gap-2" title={`Total cost: ${bulkStorageCostLabel(materialChestCost, lowestMaterialKeys.length)}`}>
+                {materialChestCost.map((cost) => <span className="flex items-center gap-1" key={cost.key}><span className="mono text-[10px]">{fmt(cost.amount * lowestMaterialKeys.length)}</span><ResourceIcon item={cost.key} size={17} /></span>)}
+              </span>
+            </span>
+          </span>
         </button>
         {state.research.includes(FLUID_HANDLING_TECHNOLOGY) && <button
           onClick={() => lowestFluidKeys.forEach((key) => buildStorage(key))}
           disabled={!lowestFluidKeys.length}
-          className="button-base button-ghost flex min-h-[58px] flex-col items-start justify-center gap-1 !px-3 !py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
+          className="button-base button-ghost flex min-h-[44px] items-center !px-3 !py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
           aria-label={`Upgrade fluids to ${fmt(lowestFluidCapacity + storageTankCapacity)}`}
           title={`Upgrade ${lowestFluidKeys.length} fluid storages · cost ${bulkStorageCostLabel(storageTankBuildCost, lowestFluidKeys.length)}`}
           data-testid="button-upgrade-lowest-fluid-storage"
         >
-          <span className="flex items-center gap-2 text-[11px] font-bold"><TrendingUp size={13} /> Upgrade fluids to {fmt(lowestFluidCapacity + storageTankCapacity)}</span>
-          <span className="text-[9px] text-[hsl(var(--muted-foreground))]">{lowestFluidKeys.length} visible storage tank{lowestFluidKeys.length === 1 ? '' : 's'} · cost {bulkStorageCostLabel(storageTankBuildCost, lowestFluidKeys.length)}</span>
+          <span className="flex w-full min-w-0 items-center justify-between gap-2 text-[11px] font-bold">
+            <span className="flex min-w-0 items-center gap-2"><TrendingUp size={13} className="shrink-0" /><span className="truncate">Upgrade fluids to {fmt(lowestFluidCapacity + storageTankCapacity)}</span></span>
+            <span className="flex shrink-0 items-center gap-3">
+              <span className="flex items-center gap-1" title={`${lowestFluidKeys.length} storage tank${lowestFluidKeys.length === 1 ? '' : 's'}`}>
+                <span className="mono text-[10px]">{lowestFluidKeys.length}</span>
+                <ResourceIcon item="storage-tank" size={17} />
+              </span>
+              <span className="flex items-center gap-2" title={`Total cost: ${bulkStorageCostLabel(storageTankBuildCost, lowestFluidKeys.length)}`}>
+                {storageTankBuildCost.map((cost) => <span className="flex items-center gap-1" key={cost.key}><span className="mono text-[10px]">{fmt(cost.amount * lowestFluidKeys.length)}</span><ResourceIcon item={cost.key} size={17} /></span>)}
+              </span>
+            </span>
+          </span>
         </button>}
       </div>
     </section>
