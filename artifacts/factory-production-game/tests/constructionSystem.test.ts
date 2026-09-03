@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   activateReadyConstruction,
   constructionRequestReady,
+  hasWaitingConstruction,
   fulfillConstructionReservation,
   normalizeConstructionQueue,
   refundConstructionMaterials,
@@ -97,4 +98,20 @@ test('cancelling a queue item refunds paid and reserved materials without applyi
     raw: { stone: 180 },
     products: { circuit: 185 },
   });
+});
+
+test('only one unaffordable construction can wait for a construction button', () => {
+  const queue = [{
+    action: 'assembler',
+    targetId: 'electronic-circuit',
+    seconds: 0,
+    total: 3,
+    costs: [{ key: 'ironPlate', amount: 5, source: 'products' as const }],
+    reserved: [2],
+    started: false,
+  }];
+
+  assert.equal(hasWaitingConstruction(queue, 'assembler', 'electronic-circuit'), true);
+  assert.equal(hasWaitingConstruction(queue, 'assembler', 'copper-cable'), false);
+  assert.equal(hasWaitingConstruction(queue, 'furnace', 'electronic-circuit'), false);
 });

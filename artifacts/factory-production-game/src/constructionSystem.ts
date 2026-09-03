@@ -7,6 +7,7 @@ export type ConstructionInventory = {
 
 export type ConstructionQueueItem = {
   action: string;
+  targetId?: string;
   seconds: number;
   total: number;
   costs?: BuildMaterialCost[];
@@ -27,6 +28,17 @@ const isBuildMaterialCost = (value: unknown): value is BuildMaterialCost => {
 
 export const constructionRequestReady = (item: ConstructionQueueItem) =>
   !item.costs?.length || item.costs.every((cost, index) => (item.reserved?.[index] ?? 0) >= cost.amount - EPSILON);
+
+export const hasWaitingConstruction = (
+  queue: ConstructionQueueItem[],
+  action: string,
+  targetId?: string,
+) => queue.some((item) =>
+  item.action === action
+  && item.targetId === targetId
+  && Boolean(item.costs?.length)
+  && !constructionRequestReady(item)
+);
 
 export const normalizeConstructionQueue = <T extends ConstructionQueueItem>(queue: T[]) =>
   queue.map((item) => {
