@@ -28,3 +28,17 @@ mtime_ms = 1788510715069
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/935a714c-6cdb-4968-a632-0d07a2c2a347/b1cdb081-7222-4415-bcda-c495ccc908b6"
 storage_version_token = "1788510726404516"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "k53j0-t4492Ajx5B_sLFr"
+uri = "file://artifacts/factory-production-game/public/rocket-silo-milestone.jpg"
+type = "image"
+title = "Rocket Silo milestone artwork"
+description = "Converted JPG artwork used by the Rocket Silo milestone modal."
+logical_id = "a1818bd7-ddf7-4dee-826c-223fd387725e"
+content_hash = "sha256:6f370f1ac34dd7cfcd1cf66c1f148e5ebbabd9a8861c1946468ded9c89ec4f62"
+size = 530738
+mtime_ms = 1788513409790
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/a1818bd7-ddf7-4dee-826c-223fd387725e/28803fc9-8431-449c-81f5-8e6c1ee9ac1e"
+storage_version_token = "1788513423894633"
+content_type = "image/jpeg"

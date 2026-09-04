@@ -22,6 +22,21 @@ test('Spidertron is a replayable milestone and migrates completed research into 
   assert.equal(migrated.unlockedMilestones.includes('spidertron'), true);
 });
 
+test('Rocket Silo is ordered before Spidertron and migrates completed research into the archive', () => {
+  assert.equal(milestoneTitles['rocket-silo'], 'Rocket Silo');
+  assert.equal(milestoneOrder.indexOf('rocket-silo') < milestoneOrder.indexOf('spidertron'), true);
+  const migrated = migrateMilestoneState({
+    welcomeSeen: true,
+    unlockedMilestones: ['crash-landed'],
+    milestoneNotifications: [],
+    labCount: 0,
+    furnaceCount: 0,
+    rocketSiloResearched: true,
+  });
+  assert.deepEqual(migrated.milestoneNotifications, ['rocket-silo']);
+  assert.equal(migrated.unlockedMilestones.includes('rocket-silo'), true);
+});
+
 test('legacy saves surface welcome and earned milestones as unviewed', () => {
   const migrated = migrateMilestoneState({ labCount: 21, furnaceCount: 60 });
 

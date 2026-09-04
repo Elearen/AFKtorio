@@ -1,6 +1,6 @@
-export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'spidertron';
+export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'rocket-silo' | 'spidertron';
 
-export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on', 'spidertron'];
+export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on', 'rocket-silo', 'spidertron'];
 
 export const milestoneTitles: Record<MilestoneKey, string> = {
   'crash-landed': 'Crash Landed',
@@ -8,6 +8,7 @@ export const milestoneTitles: Record<MilestoneKey, string> = {
   'sixty-furnaces': '60 Furnaces',
   'twenty-one-labs': '21 Labs',
   'turn-lights-on': 'Turn the lights on',
+  'rocket-silo': 'Rocket Silo',
   spidertron: 'Spidertron',
 };
 
@@ -17,6 +18,7 @@ const isMilestoneKey = (value: string): value is MilestoneKey => (
   || value === 'twenty-one-labs'
   || value === 'sixty-furnaces'
   || value === 'turn-lights-on'
+  || value === 'rocket-silo'
   || value === 'spidertron'
 );
 
@@ -30,6 +32,7 @@ type MilestoneMigrationInput = {
   milestoneNotifications?: unknown;
   labCount: number;
   furnaceCount: number;
+  rocketSiloResearched?: boolean;
   spidertronResearched?: boolean;
 };
 
@@ -49,9 +52,10 @@ export function migrateMilestoneState(input: MilestoneMigrationInput): MigratedM
     ...(input.furnaceCount >= 60 ? ['sixty-furnaces' as MilestoneKey] : []),
     ...(input.labCount >= 21 ? ['twenty-one-labs' as MilestoneKey] : []),
   ];
-  const newlyEarnedMilestones: MilestoneKey[] = input.spidertronResearched && !savedMilestoneKeys.includes('spidertron')
-    ? ['spidertron']
-    : [];
+  const newlyEarnedMilestones: MilestoneKey[] = [
+    ...(input.rocketSiloResearched && !savedMilestoneKeys.includes('rocket-silo') ? ['rocket-silo' as MilestoneKey] : []),
+    ...(input.spidertronResearched && !savedMilestoneKeys.includes('spidertron') ? ['spidertron' as MilestoneKey] : []),
+  ];
   const welcomeSeen = input.welcomeSeen === true;
   const milestoneNotifications = hasMilestoneMetadata
     ? Array.from(new Set([...savedMilestoneNotifications, ...newlyEarnedMilestones]))

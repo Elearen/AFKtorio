@@ -585,8 +585,13 @@ const markResearchComplete = (state: GameState, technology: TechnologyDefinition
   if (state.research.includes(technology.name)) return;
   state.research.push(technology.name);
   if (!state.researchNotifications.includes(technology.name)) state.researchNotifications.push(technology.name);
-  if (technology.name === 'spidertron' && unlockMilestone(state, 'spidertron') && !state.milestoneNotifications.includes('spidertron')) {
-    state.milestoneNotifications.push('spidertron');
+  const researchMilestone = technology.name === 'rocket-silo'
+    ? 'rocket-silo'
+    : technology.name === 'spidertron'
+      ? 'spidertron'
+      : null;
+  if (researchMilestone && unlockMilestone(state, researchMilestone) && !state.milestoneNotifications.includes(researchMilestone)) {
+    state.milestoneNotifications.push(researchMilestone);
   }
 };
 const applyResearchTriggers = (state: GameState) => {
@@ -1039,6 +1044,7 @@ function loadState() {
       milestoneNotifications: parsed.milestoneNotifications,
       labCount: savedLabCount,
       furnaceCount: savedFurnaceCount,
+      rocketSiloResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'rocket-silo'),
       spidertronResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'spidertron'),
     });
     const state = {
@@ -2535,6 +2541,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   const isFirstLab = milestone === 'first-lab';
   const isTwentyOneLabs = milestone === 'twenty-one-labs';
   const isTurnLightsOn = milestone === 'turn-lights-on';
+  const isRocketSilo = milestone === 'rocket-silo';
   const isSpidertron = milestone === 'spidertron';
   const image = isFirstLab
     ? 'first-lab-milestone.jpg'
@@ -2542,6 +2549,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
       ? 'twenty-one-labs-milestone.jpg'
       : isTurnLightsOn
         ? 'turn-lights-on-milestone.jpg'
+        : isRocketSilo
+          ? 'rocket-silo-milestone.jpg'
         : isSpidertron
           ? 'spidertron-milestone.jpg'
           : 'sixty-furnaces-milestone.jpg';
@@ -2551,16 +2560,24 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
       ? 'Factory Planet with more than twenty laboratories connected by production lines'
       : isTurnLightsOn
         ? 'Factory Planet boiler and steam engine generating electricity in a forest'
+        : isRocketSilo
+          ? 'A completed rocket silo surrounded by factory production lines'
         : isSpidertron
           ? 'A giant spidertron standing over a factory planet forest'
           : 'Factory Planet with a large industrial furnace and production network';
-  const imageDimensions = isSpidertron ? { width: 1402, height: 1122 } : { width: 1122, height: 1402 };
+  const imageDimensions = isRocketSilo
+    ? { width: 1181, height: 1331 }
+    : isSpidertron
+      ? { width: 1402, height: 1122 }
+      : { width: 1122, height: 1402 };
   const message = isFirstLab
     ? 'You have constructed your first lab, well done. This is the first major step towards regaining the technology to travel off world.'
     : isTwentyOneLabs
       ? 'Over twenty labs! Your science production will be done in no time.'
       : isTurnLightsOn
         ? 'Somehow you managed to put lightning into a bottle. Impressive. What else could go into a bottle?'
+        : isRocketSilo
+          ? "It's finally time to go home."
         : isSpidertron
           ? 'What could you possibly need this for?'
           : '60 furnaces! This is a burgeoning industrial empire.';
