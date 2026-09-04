@@ -585,6 +585,9 @@ const markResearchComplete = (state: GameState, technology: TechnologyDefinition
   if (state.research.includes(technology.name)) return;
   state.research.push(technology.name);
   if (!state.researchNotifications.includes(technology.name)) state.researchNotifications.push(technology.name);
+  if (technology.name === 'spidertron' && unlockMilestone(state, 'spidertron') && !state.milestoneNotifications.includes('spidertron')) {
+    state.milestoneNotifications.push('spidertron');
+  }
 };
 const applyResearchTriggers = (state: GameState) => {
   let added = true;
@@ -1036,6 +1039,7 @@ function loadState() {
       milestoneNotifications: parsed.milestoneNotifications,
       labCount: savedLabCount,
       furnaceCount: savedFurnaceCount,
+      spidertronResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'spidertron'),
     });
     const state = {
       ...initialState,
@@ -2531,32 +2535,40 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   const isFirstLab = milestone === 'first-lab';
   const isTwentyOneLabs = milestone === 'twenty-one-labs';
   const isTurnLightsOn = milestone === 'turn-lights-on';
+  const isSpidertron = milestone === 'spidertron';
   const image = isFirstLab
     ? 'first-lab-milestone.jpg'
     : isTwentyOneLabs
       ? 'twenty-one-labs-milestone.jpg'
       : isTurnLightsOn
         ? 'turn-lights-on-milestone.jpg'
-        : 'sixty-furnaces-milestone.jpg';
+        : isSpidertron
+          ? 'spidertron-milestone.jpg'
+          : 'sixty-furnaces-milestone.jpg';
   const imageAlt = isFirstLab
     ? 'Factory Planet laboratory and production machines beside a river'
     : isTwentyOneLabs
       ? 'Factory Planet with more than twenty laboratories connected by production lines'
       : isTurnLightsOn
         ? 'Factory Planet boiler and steam engine generating electricity in a forest'
-        : 'Factory Planet with a large industrial furnace and production network';
+        : isSpidertron
+          ? 'A giant spidertron standing over a factory planet forest'
+          : 'Factory Planet with a large industrial furnace and production network';
+  const imageDimensions = isSpidertron ? { width: 1402, height: 1122 } : { width: 1122, height: 1402 };
   const message = isFirstLab
     ? 'You have constructed your first lab, well done. This is the first major step towards regaining the technology to travel off world.'
     : isTwentyOneLabs
       ? 'Over twenty labs! Your science production will be done in no time.'
       : isTurnLightsOn
         ? 'Somehow you managed to put lightning into a bottle. Impressive. What else could go into a bottle?'
-        : '60 furnaces! This is a burgeoning industrial empire.';
+        : isSpidertron
+          ? 'What could you possibly need this for?'
+          : '60 furnaces! This is a burgeoning industrial empire.';
   return <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="milestone-title" data-testid={`dialog-milestone-${milestone}`}>
       <div className="absolute inset-x-0 top-0 z-10 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />
       <div className="border-b border-[hsl(var(--secondary)/.35)] bg-[hsl(216_25%_10%)]">
-        <img src={`${import.meta.env.BASE_URL}${image}`} width={1122} height={1402} alt={imageAlt} className="mx-auto block h-auto w-full object-contain" />
+        <img src={`${import.meta.env.BASE_URL}${image}`} width={imageDimensions.width} height={imageDimensions.height} alt={imageAlt} className="mx-auto block h-auto w-full object-contain" />
       </div>
       <div className="p-5 sm:p-7">
         <div className="flex items-start gap-4">

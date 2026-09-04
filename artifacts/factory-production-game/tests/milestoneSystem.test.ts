@@ -7,6 +7,21 @@ test('Turn the lights on is a replayable milestone with the requested settings l
   assert.equal(milestoneOrder.includes('turn-lights-on'), true);
 });
 
+test('Spidertron is a replayable milestone and migrates completed research into the archive', () => {
+  assert.equal(milestoneTitles.spidertron, 'Spidertron');
+  assert.equal(milestoneOrder.includes('spidertron'), true);
+  const migrated = migrateMilestoneState({
+    welcomeSeen: true,
+    unlockedMilestones: ['crash-landed'],
+    milestoneNotifications: [],
+    labCount: 0,
+    furnaceCount: 0,
+    spidertronResearched: true,
+  });
+  assert.deepEqual(migrated.milestoneNotifications, ['spidertron']);
+  assert.equal(migrated.unlockedMilestones.includes('spidertron'), true);
+});
+
 test('legacy saves surface welcome and earned milestones as unviewed', () => {
   const migrated = migrateMilestoneState({ labCount: 21, furnaceCount: 60 });
 

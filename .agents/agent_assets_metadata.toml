@@ -14,3 +14,17 @@ mtime_ms = 1788434521457
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/0ca5a2c7-beeb-49ee-a7a7-d80e103e0909/cdeedc83-57d1-4cec-bba4-4113d64ded47"
 storage_version_token = "1788434535254022"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "eThjLUuLnXuZGgUmzydIl"
+uri = "file://artifacts/factory-production-game/public/spidertron-milestone.jpg"
+type = "image"
+title = "Spidertron milestone artwork"
+description = "Converted JPG artwork used by the Spidertron milestone modal."
+logical_id = "935a714c-6cdb-4968-a632-0d07a2c2a347"
+content_hash = "sha256:f8ae8adcb0b565193b324d7a190054a36162c8374892c916d5c8753fa93dc2c8"
+size = 449318
+mtime_ms = 1788510715069
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/935a714c-6cdb-4968-a632-0d07a2c2a347/b1cdb081-7222-4415-bcda-c495ccc908b6"
+storage_version_token = "1788510726404516"
+content_type = "image/jpeg"

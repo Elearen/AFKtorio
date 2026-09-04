@@ -1,6 +1,6 @@
-export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on';
+export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'spidertron';
 
-export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on'];
+export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on', 'spidertron'];
 
 export const milestoneTitles: Record<MilestoneKey, string> = {
   'crash-landed': 'Crash Landed',
@@ -8,6 +8,7 @@ export const milestoneTitles: Record<MilestoneKey, string> = {
   'sixty-furnaces': '60 Furnaces',
   'twenty-one-labs': '21 Labs',
   'turn-lights-on': 'Turn the lights on',
+  spidertron: 'Spidertron',
 };
 
 const isMilestoneKey = (value: string): value is MilestoneKey => (
@@ -16,6 +17,7 @@ const isMilestoneKey = (value: string): value is MilestoneKey => (
   || value === 'twenty-one-labs'
   || value === 'sixty-furnaces'
   || value === 'turn-lights-on'
+  || value === 'spidertron'
 );
 
 const normalizeMilestoneKeys = (value: unknown) => Array.from(new Set(
@@ -28,6 +30,7 @@ type MilestoneMigrationInput = {
   milestoneNotifications?: unknown;
   labCount: number;
   furnaceCount: number;
+  spidertronResearched?: boolean;
 };
 
 export type MigratedMilestoneState = {
@@ -46,14 +49,18 @@ export function migrateMilestoneState(input: MilestoneMigrationInput): MigratedM
     ...(input.furnaceCount >= 60 ? ['sixty-furnaces' as MilestoneKey] : []),
     ...(input.labCount >= 21 ? ['twenty-one-labs' as MilestoneKey] : []),
   ];
+  const newlyEarnedMilestones: MilestoneKey[] = input.spidertronResearched && !savedMilestoneKeys.includes('spidertron')
+    ? ['spidertron']
+    : [];
   const welcomeSeen = input.welcomeSeen === true;
   const milestoneNotifications = hasMilestoneMetadata
-    ? savedMilestoneNotifications
-    : earnedMilestones;
+    ? Array.from(new Set([...savedMilestoneNotifications, ...newlyEarnedMilestones]))
+    : [...earnedMilestones, ...newlyEarnedMilestones];
   const unlockedMilestones = Array.from(new Set<MilestoneKey>([
     ...savedMilestoneKeys,
     ...(welcomeSeen ? ['crash-landed' as MilestoneKey] : []),
     ...earnedMilestones,
+    ...newlyEarnedMilestones,
     ...milestoneNotifications,
   ]));
 
