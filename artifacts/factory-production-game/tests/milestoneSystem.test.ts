@@ -37,6 +37,21 @@ test('Rocket Silo is ordered before Spidertron and migrates completed research i
   assert.equal(migrated.unlockedMilestones.includes('rocket-silo'), true);
 });
 
+test('Game Complete is replayable without creating a second completion notification', () => {
+  assert.equal(milestoneTitles['game-complete'], 'Game Complete');
+  assert.equal(milestoneOrder.at(-1), 'game-complete');
+  const migrated = migrateMilestoneState({
+    welcomeSeen: true,
+    unlockedMilestones: ['crash-landed'],
+    milestoneNotifications: [],
+    labCount: 0,
+    furnaceCount: 0,
+    gameCompleted: true,
+  });
+  assert.deepEqual(migrated.milestoneNotifications, []);
+  assert.equal(migrated.unlockedMilestones.includes('game-complete'), true);
+});
+
 test('legacy saves surface welcome and earned milestones as unviewed', () => {
   const migrated = migrateMilestoneState({ labCount: 21, furnaceCount: 60 });
 

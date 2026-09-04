@@ -1,6 +1,6 @@
-export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'rocket-silo' | 'spidertron';
+export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'rocket-silo' | 'spidertron' | 'game-complete';
 
-export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on', 'rocket-silo', 'spidertron'];
+export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on', 'rocket-silo', 'spidertron', 'game-complete'];
 
 export const milestoneTitles: Record<MilestoneKey, string> = {
   'crash-landed': 'Crash Landed',
@@ -10,6 +10,7 @@ export const milestoneTitles: Record<MilestoneKey, string> = {
   'turn-lights-on': 'Turn the lights on',
   'rocket-silo': 'Rocket Silo',
   spidertron: 'Spidertron',
+  'game-complete': 'Game Complete',
 };
 
 const isMilestoneKey = (value: string): value is MilestoneKey => (
@@ -20,6 +21,7 @@ const isMilestoneKey = (value: string): value is MilestoneKey => (
   || value === 'turn-lights-on'
   || value === 'rocket-silo'
   || value === 'spidertron'
+  || value === 'game-complete'
 );
 
 const normalizeMilestoneKeys = (value: unknown) => Array.from(new Set(
@@ -34,6 +36,7 @@ type MilestoneMigrationInput = {
   furnaceCount: number;
   rocketSiloResearched?: boolean;
   spidertronResearched?: boolean;
+  gameCompleted?: boolean;
 };
 
 export type MigratedMilestoneState = {
@@ -56,6 +59,9 @@ export function migrateMilestoneState(input: MilestoneMigrationInput): MigratedM
     ...(input.rocketSiloResearched && !savedMilestoneKeys.includes('rocket-silo') ? ['rocket-silo' as MilestoneKey] : []),
     ...(input.spidertronResearched && !savedMilestoneKeys.includes('spidertron') ? ['spidertron' as MilestoneKey] : []),
   ];
+  const completedMilestones: MilestoneKey[] = input.gameCompleted && !savedMilestoneKeys.includes('game-complete')
+    ? ['game-complete']
+    : [];
   const welcomeSeen = input.welcomeSeen === true;
   const milestoneNotifications = hasMilestoneMetadata
     ? Array.from(new Set([...savedMilestoneNotifications, ...newlyEarnedMilestones]))
@@ -65,6 +71,7 @@ export function migrateMilestoneState(input: MilestoneMigrationInput): MigratedM
     ...(welcomeSeen ? ['crash-landed' as MilestoneKey] : []),
     ...earnedMilestones,
     ...newlyEarnedMilestones,
+    ...completedMilestones,
     ...milestoneNotifications,
   ]));
 
