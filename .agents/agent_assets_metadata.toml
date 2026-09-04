@@ -42,3 +42,17 @@ mtime_ms = 1788513409790
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/a1818bd7-ddf7-4dee-826c-223fd387725e/28803fc9-8431-449c-81f5-8e6c1ee9ac1e"
 storage_version_token = "1788513423894633"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "ZTwS371PamljXZA9Oa8HQ"
+uri = "file://artifacts/factory-production-game/public/win-screen-rocket-launch.jpg"
+type = "image"
+title = "Game complete win screen artwork"
+description = "Converted JPG artwork used by the Factory Planet game-complete screen and replayable milestone."
+logical_id = "17425fd7-c715-4cd8-8ab1-68799a3cab5a"
+content_hash = "sha256:603353b39b689682819445268034c812ff31ec444a53108d35082d99dec9306a"
+size = 340226
+mtime_ms = 1788513807906
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/17425fd7-c715-4cd8-8ab1-68799a3cab5a/77f9d293-0aa0-4ce7-8f30-28b3b75fbb9e"
+storage_version_token = "1788513823958165"
+content_type = "image/jpeg"

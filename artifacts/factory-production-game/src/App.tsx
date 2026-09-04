@@ -1046,6 +1046,7 @@ function loadState() {
       furnaceCount: savedFurnaceCount,
       rocketSiloResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'rocket-silo'),
       spidertronResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'spidertron'),
+      gameCompleted: parsed.gameComplete === true || parsed.rocketLaunched === true,
     });
     const state = {
       ...initialState,
@@ -2636,7 +2637,7 @@ function GameCompleteModal({ totalOutput, stats, onClose }: { totalOutput: numbe
     <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--secondary)/.75)] bg-[linear-gradient(145deg,hsl(174_28%_16%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="game-complete-title" data-testid="dialog-game-complete">
       <div className="flex items-center justify-between gap-3"><Tag><Check size={11} /> mission complete</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">SECTOR 07 · WON</span></div>
       <div className="mt-4 overflow-hidden rounded-xl border border-[hsl(var(--secondary)/.35)] bg-[radial-gradient(circle_at_50%_115%,hsl(35_48%_30%/.7),transparent_42%),linear-gradient(180deg,hsl(216_34%_12%),hsl(216_30%_8%))] p-4">
-       <div className="flex h-36 items-center justify-center overflow-hidden"><img src={`${import.meta.env.BASE_URL}win-screen-rocket-launch.png`} width={1536} height={1024} alt="Rocket launching over Factory Planet" className="h-full w-full object-cover object-center" /></div>
+       <div className="flex h-36 items-center justify-center overflow-hidden"><img src={`${import.meta.env.BASE_URL}win-screen-rocket-launch.jpg`} width={1122} height={1402} alt="Rocket launching over Factory Planet" className="h-full w-full object-cover object-center" /></div>
       </div>
       <div className="mt-5 text-center"><h2 id="game-complete-title" className="text-2xl font-extrabold">Game complete</h2><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Planet has reached orbit. Your production record is preserved below.</p></div>
       <div className="surface-soft mt-5 rounded-xl p-3" data-testid="panel-lifetime-production"><div className="eyebrow">Lifetime item production</div><div className="mono mt-1 text-2xl text-[hsl(var(--secondary))]">{fmt(totalOutput)}</div><div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-[hsl(var(--border))] pt-3 sm:grid-cols-4">{lifetimeStats.map(([key, amount]) => <div key={key} className="min-w-0"><div className="truncate text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key]?.label ?? prettyLabel(key)}</div><div className="mono text-[11px] text-[hsl(var(--foreground))]">{fmt(amount)}</div></div>)}</div></div>
@@ -2745,7 +2746,7 @@ function Game() {
     return { ...s, raw, products, queue: [...s.queue, item] };
   });
   const launchRocket = () => {
-    setState((s) => ({ ...s, rocketReadyAcknowledged: true, rocketLaunched: true, completionTotalOutput: s.totalOutput, completionStats: { ...s.produced } }));
+    setState((s) => ({ ...s, rocketReadyAcknowledged: true, rocketLaunched: true, completionTotalOutput: s.totalOutput, completionStats: { ...s.produced }, unlockedMilestones: s.unlockedMilestones.includes('game-complete') ? s.unlockedMilestones : [...s.unlockedMilestones, 'game-complete'] }));
     setEndgameModal('game-complete');
   };
   const finishGame = () => {
@@ -2772,8 +2773,9 @@ function Game() {
   else if (pageKey === 'settings') page = <SettingsPage {...props} />;
   else page = <FactoryPage {...props} />;
   const replayingWelcome = replayMilestone === 'crash-landed';
-  const popupMilestone = replayMilestone && replayMilestone !== 'crash-landed' ? replayMilestone : state.milestoneNotifications[0] ?? null;
-  return <Shell state={state}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{(!state.welcomeSeen || replayingWelcome) && <WelcomeModal replay={state.welcomeSeen} onBegin={() => { if (replayingWelcome) setReplayMilestone(null); else setState((current) => ({ ...current, welcomeSeen: true, unlockedMilestones: current.unlockedMilestones.includes('crash-landed') ? current.unlockedMilestones : [...current.unlockedMilestones, 'crash-landed'] })); }} />}{popupMilestone && <MilestoneModal milestone={popupMilestone} onDismiss={() => { if (replayMilestone && replayMilestone !== 'crash-landed') setReplayMilestone(null); else setState((current) => ({ ...current, milestoneNotifications: current.milestoneNotifications.slice(1) })); }} />}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{endgameModal === 'game-complete' && <GameCompleteModal totalOutput={state.completionTotalOutput ?? state.totalOutput} stats={state.completionStats ?? state.produced} onClose={finishGame} />}</Shell>;
+  const replayingGameComplete = replayMilestone === 'game-complete';
+  const popupMilestone = replayingGameComplete ? null : replayMilestone && replayMilestone !== 'crash-landed' ? replayMilestone : state.milestoneNotifications[0] ?? null;
+  return <Shell state={state}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{(!state.welcomeSeen || replayingWelcome) && <WelcomeModal replay={state.welcomeSeen} onBegin={() => { if (replayingWelcome) setReplayMilestone(null); else setState((current) => ({ ...current, welcomeSeen: true, unlockedMilestones: current.unlockedMilestones.includes('crash-landed') ? current.unlockedMilestones : [...current.unlockedMilestones, 'crash-landed'] })); }} />}{popupMilestone && <MilestoneModal milestone={popupMilestone} onDismiss={() => { if (replayMilestone && replayMilestone !== 'crash-landed') setReplayMilestone(null); else setState((current) => ({ ...current, milestoneNotifications: current.milestoneNotifications.slice(1) })); }} />}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{(endgameModal === 'game-complete' || replayingGameComplete) && <GameCompleteModal totalOutput={state.completionTotalOutput ?? state.totalOutput} stats={state.completionStats ?? state.produced} onClose={replayingGameComplete ? () => setReplayMilestone(null) : finishGame} />}</Shell>;
 }
 
 function App() { return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Game /></WouterRouter>; }
