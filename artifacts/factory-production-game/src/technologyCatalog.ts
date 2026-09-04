@@ -1,4 +1,4 @@
-export type TechnologyEffect = { type: string; recipe?: string; modifier?: number | boolean; ammoCategory?: string; target?: string; hidden?: boolean };
+export type TechnologyEffect = { type: string; recipe?: string; modifier?: number | boolean; ammoCategory?: string; target?: string; hidden?: boolean; description?: string };
 
 export type TechnologyScienceCost = { pack: string; amount: number };
 
@@ -3246,6 +3246,53 @@ const rawTechnologyCatalog: TechnologyDefinition[] = [
     "iconPath": "__base__/graphics/technology/space-science-pack.png",
     "upgrade": false,
     "essential": true
+  },
+  {
+    "name": "ai-powered-infinite-research",
+    "prerequisites": [
+      "space-science-pack"
+    ],
+    "scienceCosts": [
+      {
+        "pack": "automation-science-pack",
+        "amount": 999999999
+      },
+      {
+        "pack": "logistic-science-pack",
+        "amount": 999999999
+      },
+      {
+        "pack": "chemical-science-pack",
+        "amount": 999999999
+      },
+      {
+        "pack": "military-science-pack",
+        "amount": 999999999
+      },
+      {
+        "pack": "production-science-pack",
+        "amount": 999999999
+      },
+      {
+        "pack": "utility-science-pack",
+        "amount": 999999999
+      },
+      {
+        "pack": "space-science-pack",
+        "amount": 999999999
+      }
+    ],
+    "count": 1,
+    "time": 30,
+    "effects": [
+      {
+        "type": "custom",
+        "description": "Unlock the secrets of the universe"
+      }
+    ],
+    "iconPath": "__base__/graphics/technology/ai-powered-infinite-research.png",
+    "upgrade": false,
+    "essential": false
   },
   {
     "name": "military-3",

@@ -34,6 +34,26 @@ test('Uranium Processing unlocks after constructing the first uranium miner', ()
   });
 });
 
+test('AI-Powered Infinite Research requires every science pack after Space Science', () => {
+  const aiResearch = technologyCatalog.find((technology) => technology.name === 'ai-powered-infinite-research');
+
+  assert.ok(aiResearch);
+  assert.deepEqual(aiResearch.prerequisites, ['space-science-pack']);
+  assert.deepEqual(aiResearch.scienceCosts, [
+    { pack: 'automation-science-pack', amount: 999999999 },
+    { pack: 'logistic-science-pack', amount: 999999999 },
+    { pack: 'chemical-science-pack', amount: 999999999 },
+    { pack: 'military-science-pack', amount: 999999999 },
+    { pack: 'production-science-pack', amount: 999999999 },
+    { pack: 'utility-science-pack', amount: 999999999 },
+    { pack: 'space-science-pack', amount: 999999999 },
+  ]);
+  assert.deepEqual(aiResearch.effects, [
+    { type: 'custom', description: 'Unlock the secrets of the universe' },
+  ]);
+  assert.equal(aiResearch.iconPath, '__base__/graphics/technology/ai-powered-infinite-research.png');
+});
+
 test('technology upgrade science costs use the correct pack types and scaled quantities', () => {
   const physicalProjectileDamage3 = technologyCatalog.find((technology) => technology.name === 'physical-projectile-damage-3');
 
