@@ -22,6 +22,7 @@ import {
   type StorageBoxType,
 } from './storageSystem';
 import { milestoneOrder, milestoneTitles, migrateMilestoneState, type MilestoneKey } from './milestoneSystem';
+import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -169,7 +170,16 @@ const researchProgressPercentFor = (state: GameState, technology: TechnologyDefi
   return Math.min(100, Math.max(0, researchProgressFor(state, technology) / Math.max(1, total) * 100));
 };
 const researchRequirementLabel = (technology: TechnologyDefinition, cost: TechnologyDefinition['scienceCosts'][number]) => {
-  const quantity = technology.count ? cost.amount * technology.count : technology.countFormula ? `${cost.amount} × ${technology.countFormula}` : cost.amount;
+  const formulaResult = technology.countFormula
+    ? evaluateResearchCountFormula(technology.countFormula, technologyLevelFor(technology.name))
+    : null;
+  const quantity = technology.count
+    ? cost.amount * technology.count
+    : formulaResult !== null
+      ? cost.amount * formulaResult
+      : technology.countFormula
+        ? `${cost.amount} × ${technology.countFormula}`
+        : cost.amount;
   return `${meta[keyForSource(cost.pack)]?.label ?? prettyLabel(cost.pack)} · ${quantity}`;
 };
 const manualMiningKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood'];
