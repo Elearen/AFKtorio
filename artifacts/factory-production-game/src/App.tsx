@@ -601,6 +601,8 @@ const markResearchComplete = (state: GameState, technology: TechnologyDefinition
   if (!state.researchNotifications.includes(technology.name)) state.researchNotifications.push(technology.name);
   const researchMilestone = technology.name === 'rocket-silo'
     ? 'rocket-silo'
+    : technology.name === 'railway'
+      ? 'trains'
     : technology.name === 'spidertron'
       ? 'spidertron'
       : null;
@@ -1066,6 +1068,7 @@ function loadState() {
       labCount: savedLabCount,
       furnaceCount: savedFurnaceCount,
       rocketSiloResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'rocket-silo'),
+      railwayResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'railway'),
       spidertronResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'spidertron'),
       gameCompleted: parsed.gameComplete === true || parsed.rocketLaunched === true,
       spaceScienceProduced: typeof parsed.produced?.spacePack === 'number' ? parsed.produced.spacePack : 0,
@@ -2578,6 +2581,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   const isTwentyOneLabs = milestone === 'twenty-one-labs';
   const isTurnLightsOn = milestone === 'turn-lights-on';
   const isAdvancedOilProduction = milestone === 'advanced-oil-production';
+  const isTrains = milestone === 'trains';
   const isRocketSilo = milestone === 'rocket-silo';
   const isSpidertron = milestone === 'spidertron';
   const isSpaceScience = milestone === 'space-science';
@@ -2589,6 +2593,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? 'turn-lights-on-milestone.jpg'
         : isAdvancedOilProduction
           ? 'advanced-oil-production-milestone.jpg'
+        : isTrains
+          ? 'trains-milestone.jpg'
         : isRocketSilo
           ? 'rocket-silo-milestone.jpg'
         : isSpidertron
@@ -2604,6 +2610,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? 'Factory Planet boiler and steam engine generating electricity in a forest'
         : isAdvancedOilProduction
           ? 'An advanced oil refinery complex beside a river and mountain valley'
+        : isTrains
+          ? 'A freight train carrying ore past Factory Planet and its industrial complex'
         : isRocketSilo
           ? 'A completed rocket silo surrounded by factory production lines'
         : isSpidertron
@@ -2617,6 +2625,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
       ? { width: 1402, height: 1122 }
       : isSpaceScience
         ? { width: 1369, height: 1149 }
+       : isTrains
+         ? { width: 1536, height: 1024 }
       : isAdvancedOilProduction
         ? { width: 1536, height: 1024 }
       : { width: 1122, height: 1402 };
@@ -2628,6 +2638,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? 'With the power of electricity, everything can be automated.'
         : isAdvancedOilProduction
           ? 'You have now unleashed the full power of complex organic chemistry.'
+        : isTrains
+          ? 'Choo Choo motherfucker.'
         : isRocketSilo
           ? "It's finally time to go home."
         : isSpidertron

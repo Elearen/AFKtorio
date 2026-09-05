@@ -14,6 +14,7 @@ test('milestones use the requested archive order', () => {
     'first-lab',
     'sixty-furnaces',
     'twenty-one-labs',
+    'trains',
     'advanced-oil-production',
     'rocket-silo',
     'game-complete',
@@ -36,6 +37,22 @@ test('Advanced Oil Production is triggered by a completed oil conversion', () =>
   });
   assert.deepEqual(migrated.milestoneNotifications, ['advanced-oil-production']);
   assert.equal(migrated.unlockedMilestones.includes('advanced-oil-production'), true);
+});
+
+test('Trains is triggered when Railway is unlocked and migrates into the archive', () => {
+  assert.equal(milestoneTitles.trains, 'Trains');
+  assert.equal(milestoneOrder.indexOf('trains') > milestoneOrder.indexOf('twenty-one-labs'), true);
+  assert.equal(milestoneOrder.indexOf('trains') < milestoneOrder.indexOf('advanced-oil-production'), true);
+  const migrated = migrateMilestoneState({
+    welcomeSeen: true,
+    unlockedMilestones: ['crash-landed'],
+    milestoneNotifications: [],
+    labCount: 0,
+    furnaceCount: 0,
+    railwayResearched: true,
+  });
+  assert.deepEqual(migrated.milestoneNotifications, ['trains']);
+  assert.equal(migrated.unlockedMilestones.includes('trains'), true);
 });
 
 test('Spidertron is a replayable milestone and migrates completed research into the archive', () => {

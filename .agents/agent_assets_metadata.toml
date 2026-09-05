@@ -84,3 +84,17 @@ mtime_ms = 1788582394545
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/a0a64cb8-fba2-4870-8a24-3f42d5d151dd/cdcb3597-cd42-421a-bfa9-440b86558b1d"
 storage_version_token = "1788582426395713"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "ZR8mbP5889VUo7X14_zuy"
+uri = "file://artifacts/factory-production-game/public/trains-milestone.jpg"
+type = "image"
+title = "Trains milestone artwork"
+description = "The supplied Factory Planet train artwork converted to a 1536×1024 JPG for easy download."
+logical_id = "531d090c-372a-4e82-9d61-c42288c5ec02"
+content_hash = "sha256:3d9dbc357a856a9247604408819623c5bb0ea845f83ecec29889782743dc62fa"
+size = 500566
+mtime_ms = 1788589118807
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/531d090c-372a-4e82-9d61-c42288c5ec02/aaabcf2b-a2dd-47db-8f6f-9c0853543f70"
+storage_version_token = "1788589147196125"
+content_type = "image/jpeg"
