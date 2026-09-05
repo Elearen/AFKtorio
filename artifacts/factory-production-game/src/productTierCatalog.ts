@@ -304,10 +304,6 @@ export const tierProductCatalog: TierProduct[] = [
   },
   {
     "tier": 4,
-    "sourceName": "military-science-pack"
-  },
-  {
-    "tier": 4,
     "sourceName": "oil-refinery"
   },
   {
@@ -396,10 +392,6 @@ export const tierProductCatalog: TierProduct[] = [
   },
   {
     "tier": 5,
-    "sourceName": "flamethrower-ammo"
-  },
-  {
-    "tier": 5,
     "sourceName": "heavy-oil"
   },
   {
@@ -420,11 +412,19 @@ export const tierProductCatalog: TierProduct[] = [
   },
   {
     "tier": 5,
+    "sourceName": "military-science-pack"
+  },
+  {
+    "tier": 5,
     "sourceName": "petroleum-gas"
   },
   {
     "tier": 6,
     "sourceName": "fast-loader"
+  },
+  {
+    "tier": 6,
+    "sourceName": "flamethrower-ammo"
   },
   {
     "tier": 6,
