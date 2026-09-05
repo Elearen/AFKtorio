@@ -316,6 +316,7 @@ const coreTrackedKeys = new Set(recipeCatalog.filter((recipe) => recipe.scienceC
   ...(recipe.fuel ? [recipe.fuel] : []),
 ].map((material) => keyForSource(material.name))));
 coreTrackedKeys.add('wood');
+coreTrackedKeys.add('concrete');
 const deferredSpaceScienceTrackedKeys = new Set<TrackedKey>(['radar', 'solar-panel', 'accumulator']);
 const spaceScienceUnlockedFor = (state: GameState) => state.research.includes('space-science-pack');
 const trackedScienceChainFor = (key: TrackedKey, state: GameState): RecipeScienceChain =>

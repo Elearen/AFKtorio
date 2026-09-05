@@ -52,3 +52,12 @@ test('Coal Liquefaction is classified as Non-Core', () => {
   assert.equal(recipeScienceChainFor(coalLiquefaction, false), 'Non-Core');
   assert.equal(recipeScienceChainFor(coalLiquefaction, true), 'Non-Core');
 });
+
+test('Concrete is classified as a Core recipe', () => {
+  const concrete = recipeCatalog.find((recipe) => recipe.name === 'concrete');
+
+  assert.ok(concrete);
+  assert.equal(concrete.scienceChain, 'Core');
+  assert.equal(recipeScienceChainFor(concrete, false), 'Core');
+  assert.equal(recipeScienceChainFor(concrete, true), 'Core');
+});

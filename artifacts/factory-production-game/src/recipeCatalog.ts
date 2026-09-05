@@ -5719,6 +5719,7 @@ const coreScienceRecipeNames = new Set([
   'military-science-pack', 'production-science-pack', 'utility-science-pack', 'advanced-circuit',
   'processing-unit', 'electric-furnace', 'electric-engine-unit', 'flying-robot-frame',
   'battery', 'low-density-structure', 'satellite',
+  'concrete',
   'rocket-fuel', 'solid-fuel-from-light-oil', 'solid-fuel-from-petroleum-gas', 'solid-fuel-from-heavy-oil',
   'space-science-pack',
 ]);
