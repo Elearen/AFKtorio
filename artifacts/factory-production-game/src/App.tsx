@@ -402,12 +402,12 @@ const missingBuildMaterials = (state: GameState, costs: BuildMaterialCost[]) => 
   .join(' + ');
 const starterProducts: Record<string, number> = {
   ...Object.fromEntries(trackedKeys.map((key) => [key, 0])),
-  ironPlate: 28, copperPlate: 14, steel: 4, gear: 9, pipe: 4, circuit: 3, automationPack: 9, logisticsPack: 5, chemicalPack: 0, militaryPack: 0, productionPack: 0, utilityPack: 0, spacePack: 0,
+  ironPlate: 17, gear: 5,
 };
 
 const initialTimestamp = Date.now();
 const initialState: GameState = {
-  raw: { iron: 62, copper: 38, stone: 26, coal: 31, wood: 18, water: 0, uranium: 0, crudeOil: 0 },
+  raw: { iron: 0, copper: 0, stone: 10, coal: 0, wood: 0, water: 0, uranium: 0, crudeOil: 0 },
   products: starterProducts,
   storage: initialStorageState.storage as Record<TrackedKey, number>,
   storageBoxes: initialStorageState.storageBoxes as Record<TrackedKey, number>,
