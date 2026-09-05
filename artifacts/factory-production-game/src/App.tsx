@@ -24,6 +24,7 @@ import {
 import { milestoneOrder, milestoneTitles, migrateMilestoneState, type MilestoneKey } from './milestoneSystem';
 import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
 import { formatWinDuration, winMetricsFor, type WinMetrics } from './endgameMetrics';
+import { primaryOutputFor } from './productionOutput';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -1810,7 +1811,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       {visibleRecipes.map((recipe) => {
       const key = recipe.name;
       const outputs = recipeOutputs(recipe);
-      const primaryOutput = outputs[0];
+       const primaryOutput = primaryOutputFor(recipe.name, outputs);
       const count = state.assemblers[key] ?? 0;
       const productionRate = recipeProductionRateFor(state, recipe);
       const peakProductionRate = primaryOutput ? peakProductionRateFor(state, primaryOutput.key) : 0;
