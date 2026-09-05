@@ -5,7 +5,7 @@ import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
 import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
-import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
+import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, constructionCanBeFullyFunded, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import {
@@ -1775,6 +1775,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   const handcraft = (key: ComponentKey) => {
     const recipe = recipeMap[key];
+    if (isAutomatedOnlyRecipe(recipe)) return notice(`${prettyLabel(key)} is automated only — construct its ${productionBuildingFor(state, recipe)} instead`);
     if (state.handcraft) return notice(state.handcraft.recipeKey === key ? `already handcrafting ${prettyLabel(key)}` : `finish handcrafting ${prettyLabel(state.handcraft.recipeKey)} first`);
     const missing = missingBuildMaterials(state, recipeBuildCosts(recipe));
     if (missing) return notice(`need ${missing}`);
@@ -1839,12 +1840,15 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
       const isBuilding = constructionItems.length > 0;
       const handcraftJob = state.handcraft?.recipeKey === key ? state.handcraft : null;
       const handcraftBusy = Boolean(state.handcraft && !handcraftJob);
-       const handcraftControl = <button onClick={() => handcraft(key)} className={`button-base flex-1 !py-2 ${count ? 'button-ghost' : 'button-primary'}`} aria-label={`Handcraft ${prettyLabel(key)}`} title={handcraftJob ? `Handcrafting ${prettyLabel(key)}` : handcraftBusy ? 'Another item is being handcrafted' : `Handcraft ${prettyLabel(key)}`} data-testid={`button-handcraft-production-${key}`}>{handcraftJob ? <><Clock3 size={13} /> {handcraftJob.seconds.toFixed(2)}s</> : handcraftBusy ? <Clock3 size={13} /> : <><Plus size={13} />handcraft</>}</button>;
+      const automatedOnly = isAutomatedOnlyRecipe(recipe);
+      const handcraftControl = automatedOnly
+        ? <button disabled className="button-base flex-1 !py-2 button-ghost cursor-not-allowed opacity-70" aria-label={`${prettyLabel(key)} is automated only`} title={`Automated only — construct a ${buildingLabel} to produce ${prettyLabel(key)}`} data-testid={`button-handcraft-production-${key}`}><LockKeyhole size={13} />automated only</button>
+        : <button onClick={() => handcraft(key)} className={`button-base flex-1 !py-2 ${count ? 'button-ghost' : 'button-primary'}`} aria-label={`Handcraft ${prettyLabel(key)}`} title={handcraftJob ? `Handcrafting ${prettyLabel(key)}` : handcraftBusy ? 'Another item is being handcrafted' : `Handcraft ${prettyLabel(key)}`} data-testid={`button-handcraft-production-${key}`}>{handcraftJob ? <><Clock3 size={13} /> {handcraftJob.seconds.toFixed(2)}s</> : handcraftBusy ? <Clock3 size={13} /> : <><Plus size={13} />handcraft</>}</button>;
       return <section className="surface rounded-xl p-4" key={key} data-testid={`section-production-${key}`}>
         <div className="flex items-start gap-3">
           <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
           <div className="min-w-0 flex-1">
-             <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <Tag tone={autoCondition.met ? 'teal' : 'amber'}>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
+             <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <Tag tone={autoCondition.met ? 'teal' : 'amber'}>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</Tag> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
             <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle · {buildingLabel}</div>
              <div className="mt-1 flex flex-wrap gap-1"><Tag tone={recipeScienceChainFor(recipe, spaceScienceUnlocked) === 'Core' ? 'teal' : 'muted'}>{recipeScienceChainFor(recipe, spaceScienceUnlocked)}</Tag>{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
           </div>

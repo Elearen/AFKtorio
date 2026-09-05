@@ -1,3 +1,5 @@
+import type { RecipeCatalogEntry } from './recipeCatalog.js';
+
 export const assemblyMachineOneCraftingSpeed = 0.5;
 export const oilRefineryCraftingSpeed = 1;
 export const oilRefineryPowerKw = 420;
@@ -15,8 +17,16 @@ export const chemicalPlantRecipeNames = [
   'battery',
   'explosives',
 ] as const;
+const chemicalPlantRecipeNameSet = new Set<string>(chemicalPlantRecipeNames);
 export const stoneFurnaceCraftingSpeed = 1;
 export const steelFurnaceCraftingSpeed = 2;
+
+export const isAutomatedOnlyRecipe = (recipe: Pick<RecipeCatalogEntry, 'name' | 'category'>) =>
+  recipe.category === 'smelting'
+  || recipe.name === 'basic-oil-processing'
+  || recipe.name === 'advanced-oil-processing'
+  || chemicalPlantRecipeNameSet.has(recipe.name)
+  || recipe.name === 'space-science-pack';
 
 export const craftingSpeedFor = (
   isSmelting: boolean,
