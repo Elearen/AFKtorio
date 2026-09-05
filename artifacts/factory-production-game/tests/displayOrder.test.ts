@@ -27,10 +27,13 @@ test('production recipes keep the requested oil and chemistry sequence together'
     'sulfur',
     'sulfuric-acid',
     'plastic-bar',
-    'logistic-science-pack',
-    'military-science-pack',
   ]);
-  assert.deepEqual(recipes.slice(preferredRecipeOrder.length), ['iron-plate', 'coal-liquefaction']);
+  assert.deepEqual(recipes.slice(preferredRecipeOrder.length), [
+    'iron-plate',
+    'coal-liquefaction',
+    'military-science-pack',
+    'logistic-science-pack',
+  ]);
 });
 
 test('storage items keep the requested fluid and chemistry sequence together', () => {
