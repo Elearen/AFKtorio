@@ -43,3 +43,12 @@ test('Space Science technology lists both Space Science and Satellite recipe unl
   assert.equal(spaceScienceTechnology.effects.some((effect) => effect.type === 'unlock-recipe' && effect.recipe === 'space-science-pack'), true);
   assert.equal(spaceScienceTechnology.effects.some((effect) => effect.type === 'unlock-recipe' && effect.recipe === 'satellite'), true);
 });
+
+test('Coal Liquefaction is classified as Non-Core', () => {
+  const coalLiquefaction = recipeCatalog.find((recipe) => recipe.name === 'coal-liquefaction');
+
+  assert.ok(coalLiquefaction);
+  assert.equal(coalLiquefaction.scienceChain, 'Non-Core');
+  assert.equal(recipeScienceChainFor(coalLiquefaction, false), 'Non-Core');
+  assert.equal(recipeScienceChainFor(coalLiquefaction, true), 'Non-Core');
+});

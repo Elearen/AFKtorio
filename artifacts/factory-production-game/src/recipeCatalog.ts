@@ -5710,7 +5710,7 @@ const recipeCatalogSource: Omit<RecipeCatalogEntry, 'scienceChain'>[] = [
 // unlocks Space Science, even though they are ingredients in the satellite
 // recipe.
 const coreScienceRecipeNames = new Set([
-  'productivity-module', 'basic-oil-processing', 'advanced-oil-processing', 'coal-liquefaction',
+  'productivity-module', 'basic-oil-processing', 'advanced-oil-processing',
   'heavy-oil-cracking', 'light-oil-cracking', 'sulfuric-acid', 'plastic-bar', 'sulfur',
   'lubricant', 'iron-stick', 'iron-gear-wheel', 'electronic-circuit', 'transport-belt',
   'inserter', 'pipe', 'copper-cable', 'firearm-magazine', 'automation-science-pack',

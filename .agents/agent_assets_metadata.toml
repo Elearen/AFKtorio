@@ -70,3 +70,17 @@ mtime_ms = 1788581747202
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/7b91035e-c447-4be0-902e-262cae596bfe/21f6a1fe-a469-4c6a-a0dc-74dcbb490616"
 storage_version_token = "1788581800771598"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "E2d58gbblC809x2s4r4gN"
+uri = "file://artifacts/factory-production-game/public/advanced-oil-production-milestone.jpg"
+type = "image"
+title = "Advanced Oil Production milestone artwork"
+description = "Downloadable JPG artwork used by the new Advanced Oil Production milestone."
+logical_id = "a0a64cb8-fba2-4870-8a24-3f42d5d151dd"
+content_hash = "sha256:b4213802e63365ddc63181709481ea40974935e9f8190bff914e6071f838a770"
+size = 546653
+mtime_ms = 1788582394545
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/a0a64cb8-fba2-4870-8a24-3f42d5d151dd/cdcb3597-cd42-421a-bfa9-440b86558b1d"
+storage_version_token = "1788582426395713"
+content_type = "image/jpeg"

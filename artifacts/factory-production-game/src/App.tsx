@@ -1013,6 +1013,9 @@ function simulate(previous: GameState, seconds: number): GameState {
         state.assemblyProgress['basic-oil-processing'] = 0;
         state.assemblyProgress['advanced-oil-processing'] = 0;
         state.oilProcessingAdvanced = true;
+        if (unlockMilestone(state, 'advanced-oil-production') && !state.milestoneNotifications.includes('advanced-oil-production')) {
+          state.milestoneNotifications.push('advanced-oil-production');
+        }
       } else {
         state.machineVariants = applyUpgradeCompletion(state.machineVariants, upgradeId);
       }
@@ -1064,6 +1067,7 @@ function loadState() {
       spidertronResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'spidertron'),
       gameCompleted: parsed.gameComplete === true || parsed.rocketLaunched === true,
       spaceScienceProduced: typeof parsed.produced?.spacePack === 'number' ? parsed.produced.spacePack : 0,
+      advancedOilProductionCompleted: parsed.oilProcessingAdvanced === true,
     });
     const state = {
       ...initialState,
@@ -2567,6 +2571,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   const isFirstLab = milestone === 'first-lab';
   const isTwentyOneLabs = milestone === 'twenty-one-labs';
   const isTurnLightsOn = milestone === 'turn-lights-on';
+  const isAdvancedOilProduction = milestone === 'advanced-oil-production';
   const isRocketSilo = milestone === 'rocket-silo';
   const isSpidertron = milestone === 'spidertron';
   const isSpaceScience = milestone === 'space-science';
@@ -2576,6 +2581,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
       ? 'twenty-one-labs-milestone.jpg'
       : isTurnLightsOn
         ? 'turn-lights-on-milestone.jpg'
+        : isAdvancedOilProduction
+          ? 'advanced-oil-production-milestone.jpg'
         : isRocketSilo
           ? 'rocket-silo-milestone.jpg'
         : isSpidertron
@@ -2589,6 +2596,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
       ? 'Factory Planet with more than twenty laboratories connected by production lines'
       : isTurnLightsOn
         ? 'Factory Planet boiler and steam engine generating electricity in a forest'
+        : isAdvancedOilProduction
+          ? 'An advanced oil refinery complex beside a river and mountain valley'
         : isRocketSilo
           ? 'A completed rocket silo surrounded by factory production lines'
         : isSpidertron
@@ -2602,6 +2611,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
       ? { width: 1402, height: 1122 }
       : isSpaceScience
         ? { width: 1369, height: 1149 }
+      : isAdvancedOilProduction
+        ? { width: 1536, height: 1024 }
       : { width: 1122, height: 1402 };
   const message = isFirstLab
     ? 'You have constructed your first lab, well done. This is the first major step towards regaining the technology to travel off world.'
@@ -2609,6 +2620,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
       ? 'Over twenty labs! Your science production will be done in no time.'
       : isTurnLightsOn
         ? 'Somehow you managed to put lightning into a bottle. Impressive. What else could go into a bottle?'
+        : isAdvancedOilProduction
+          ? 'You have now unleashed the full power of complex organic chemistry.'
         : isRocketSilo
           ? "It's finally time to go home."
         : isSpidertron
@@ -2629,6 +2642,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
           </div>
         </div>
         <p className="mt-6 text-[13px] leading-6 text-[hsl(var(--muted-foreground))]">{message}</p>
+        {isAdvancedOilProduction && <p className="mt-3 rounded-lg border border-[hsl(var(--primary)/.3)] bg-[hsl(var(--primary)/.06)] px-3 py-2 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]"><span className="font-bold text-[hsl(var(--primary))]">Note:</span> Cracking plant balancing is fully automated.</p>}
         <button onClick={onDismiss} className="button-base button-primary mt-6 w-full !py-3 text-[12px]" data-testid="button-dismiss-milestone"><Check size={15} /> Continue</button>
       </div>
     </section>
