@@ -7,6 +7,8 @@ export const preferredRecipeOrder = [
   'sulfur',
   'sulfuric-acid',
   'plastic-bar',
+  'logistic-science-pack',
+  'military-science-pack',
 ] as const;
 
 export const preferredStorageOrder = [
@@ -17,6 +19,8 @@ export const preferredStorageOrder = [
   'sulfur',
   'sulfuric-acid',
   'plastic-bar',
+  'logistic-science-pack',
+  'military-science-pack',
 ] as const;
 
 export const prioritizeDisplayOrder = <T>(

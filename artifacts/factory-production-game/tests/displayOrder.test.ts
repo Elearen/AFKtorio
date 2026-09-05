@@ -14,6 +14,8 @@ test('production recipes keep the requested oil and chemistry sequence together'
     'advanced-oil-processing',
     'light-oil-cracking',
     'heavy-oil-cracking',
+    'military-science-pack',
+    'logistic-science-pack',
   ], (recipe) => recipe, preferredRecipeOrder);
 
   assert.deepEqual(recipes.slice(0, preferredRecipeOrder.length), [
@@ -25,6 +27,8 @@ test('production recipes keep the requested oil and chemistry sequence together'
     'sulfur',
     'sulfuric-acid',
     'plastic-bar',
+    'logistic-science-pack',
+    'military-science-pack',
   ]);
   assert.deepEqual(recipes.slice(preferredRecipeOrder.length), ['iron-plate', 'coal-liquefaction']);
 });
@@ -39,6 +43,8 @@ test('storage items keep the requested fluid and chemistry sequence together', (
     'sulfur',
     'light-oil',
     'lubricant',
+    'military-science-pack',
+    'logistic-science-pack',
   ], (item) => item, preferredStorageOrder);
 
   assert.deepEqual(items.slice(0, preferredStorageOrder.length), [
@@ -49,6 +55,8 @@ test('storage items keep the requested fluid and chemistry sequence together', (
     'sulfur',
     'sulfuric-acid',
     'plastic-bar',
+    'logistic-science-pack',
+    'military-science-pack',
   ]);
   assert.deepEqual(items.slice(preferredStorageOrder.length), ['iron']);
 });

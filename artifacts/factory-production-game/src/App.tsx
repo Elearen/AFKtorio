@@ -2026,13 +2026,13 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
           <span className="flex w-full min-w-0 items-center justify-between gap-2 text-[11px] font-bold">
             <span className="flex min-w-0 items-center gap-2"><TrendingUp size={13} className="shrink-0" /><span className="truncate">Upgrade materials to {fmt(lowestMaterialCapacity + storageBoxCapacityFor(state))}</span></span>
             <span className="flex shrink-0 items-center gap-3">
-              <span className="flex items-center gap-2" title={`Total cost: ${bulkStorageCostLabel(materialChestCost, lowestMaterialKeys.length)}`}>
-                {materialChestCost.map((cost) => <span className="flex items-center gap-1" key={cost.key}><span className="mono text-[10px]">{fmt(cost.amount * lowestMaterialKeys.length)}</span><ResourceIcon item={cost.key} size={17} /></span>)}
-              </span>
-              <ArrowRight size={14} className="shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
               <span className="flex items-center gap-1" title={`${lowestMaterialKeys.length} ${materialChestCost[0].key === 'wood' ? 'wooden' : 'iron'} chest${lowestMaterialKeys.length === 1 ? '' : 's'}`}>
                 <span className="mono text-[10px]">{lowestMaterialKeys.length}</span>
                 <ResourceIcon item={state.storageBoxType === 'iron' ? 'iron-chest' : 'wooden-chest'} size={17} />
+              </span>
+              <ArrowRight size={14} className="shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+              <span className="flex items-center gap-2" title={`Total cost: ${bulkStorageCostLabel(materialChestCost, lowestMaterialKeys.length)}`}>
+                {materialChestCost.map((cost) => <span className="flex items-center gap-1" key={cost.key}><span className="mono text-[10px]">{fmt(cost.amount * lowestMaterialKeys.length)}</span><ResourceIcon item={cost.key} size={17} /></span>)}
               </span>
             </span>
           </span>
@@ -2048,13 +2048,13 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
           <span className="flex w-full min-w-0 items-center justify-between gap-2 text-[11px] font-bold">
             <span className="flex min-w-0 items-center gap-2"><TrendingUp size={13} className="shrink-0" /><span className="truncate">Upgrade fluids to {fmt(lowestFluidCapacity + storageTankCapacity)}</span></span>
             <span className="flex shrink-0 items-center gap-3">
-              <span className="flex items-center gap-2" title={`Total cost: ${bulkStorageCostLabel(storageTankBuildCost, lowestFluidKeys.length)}`}>
-                {storageTankBuildCost.map((cost) => <span className="flex items-center gap-1" key={cost.key}><span className="mono text-[10px]">{fmt(cost.amount * lowestFluidKeys.length)}</span><ResourceIcon item={cost.key} size={17} /></span>)}
-              </span>
-              <ArrowRight size={14} className="shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
               <span className="flex items-center gap-1" title={`${lowestFluidKeys.length} storage tank${lowestFluidKeys.length === 1 ? '' : 's'}`}>
                 <span className="mono text-[10px]">{lowestFluidKeys.length}</span>
                 <ResourceIcon item="storage-tank" size={17} />
+              </span>
+              <ArrowRight size={14} className="shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+              <span className="flex items-center gap-2" title={`Total cost: ${bulkStorageCostLabel(storageTankBuildCost, lowestFluidKeys.length)}`}>
+                {storageTankBuildCost.map((cost) => <span className="flex items-center gap-1" key={cost.key}><span className="mono text-[10px]">{fmt(cost.amount * lowestFluidKeys.length)}</span><ResourceIcon item={cost.key} size={17} /></span>)}
               </span>
             </span>
           </span>
