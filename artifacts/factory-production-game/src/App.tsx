@@ -736,7 +736,7 @@ const recipeStorageThrottleFor = (state: GameState, recipe: Recipe, machinePower
   }, 1);
 };
 const recipeProductionRateFor = (state: GameState, recipe: Recipe) => {
-  const output = recipeOutputs(recipe)[0];
+  const output = primaryOutputFor(recipe.name, recipeOutputs(recipe));
   return output ? productionRateFor(state, output.key) : 0;
 };
 const recipeAutoStartStopConditionFor = (state: GameState, recipe: Recipe) => {
