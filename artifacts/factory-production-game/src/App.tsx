@@ -116,7 +116,6 @@ type GameState = {
 
 const SAVE_KEY = 'factory-production-game-save-v2';
 const rawKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood', 'water', 'crudeOil', 'uranium'];
-const scienceKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'chemicalPack', 'militaryPack', 'productionPack', 'utilityPack', 'spacePack'];
 const normalizedTechnologyCatalog = technologyCatalog.map((technology) => ({ ...technology, time: technology.time ?? defaultTechnologyResearchTime }));
 const technologyMap: Record<string, TechnologyDefinition> = Object.fromEntries(normalizedTechnologyCatalog.map((technology) => [technology.name, technology]));
 const legacyResearchAliases: Record<string, string> = { steamPower: 'steam-power', solarPower: 'solar-energy', nuclearPower: 'nuclear-power', steelProcessing: 'steel-processing' };
@@ -310,6 +309,12 @@ const tierOrderedRecipeCatalog = [...recipeCatalog].sort((a, b) => {
   return aTier - bTier;
 });
 const orderedRecipeCatalog = prioritizeDisplayOrder(tierOrderedRecipeCatalog, (recipe) => recipe.name, preferredRecipeOrder);
+const scienceKeyForRecipe = Object.fromEntries(
+  Object.entries(scienceRecipeKeys).map(([key, recipeName]) => [recipeName, key]),
+) as Record<string, ScienceKey>;
+const scienceKeys: ScienceKey[] = orderedRecipeCatalog
+  .map((recipe) => scienceKeyForRecipe[recipe.name])
+  .filter((key): key is ScienceKey => Boolean(key));
 const coreTrackedKeys = new Set(recipeCatalog.filter((recipe) => recipe.scienceChain === 'Core').flatMap((recipe) => [
   ...recipe.ingredients,
   ...recipe.results,
