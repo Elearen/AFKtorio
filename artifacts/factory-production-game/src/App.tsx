@@ -25,7 +25,7 @@ import { milestoneOrder, milestoneTitles, migrateMilestoneState, type MilestoneK
 import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
 import { formatWinDuration, winMetricsFor, type WinMetrics } from './endgameMetrics';
 import { primaryOutputFor } from './productionOutput';
-import { preferredRecipeOrder, preferredStorageOrder, prioritizeDisplayOrder } from './displayOrder';
+import { preferredRecipeOrder, prioritizeDisplayOrder } from './displayOrder';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -302,7 +302,7 @@ const emptyRateRecord = () => Object.fromEntries(trackedKeys.map((key) => [key, 
 const tierProductOrder = new Map(tierProductCatalog.map((product, index) => [keyForSource(product.sourceName), index]));
 const tierForProduct = (key: string) => tierProductOrder.get(key) ?? Number.MAX_SAFE_INTEGER;
 const tierOrderedTrackedKeys = [...trackedKeys].sort((a, b) => tierForProduct(a) - tierForProduct(b) || a.localeCompare(b));
-const orderedTrackedKeys = prioritizeDisplayOrder(tierOrderedTrackedKeys, (key) => key, preferredStorageOrder);
+const orderedTrackedKeys = tierOrderedTrackedKeys;
 const tierOrderedRecipeCatalog = [...recipeCatalog].sort((a, b) => {
   const aTier = Math.min(...recipeOutputs(a).map((output) => tierForProduct(output.key)), Number.MAX_SAFE_INTEGER);
   const bTier = Math.min(...recipeOutputs(b).map((output) => tierForProduct(output.key)), Number.MAX_SAFE_INTEGER);

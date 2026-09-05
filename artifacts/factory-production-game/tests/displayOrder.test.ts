@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { preferredRecipeOrder, preferredStorageOrder, prioritizeDisplayOrder } from '../src/displayOrder.js';
+import { preferredRecipeOrder, prioritizeDisplayOrder } from '../src/displayOrder.js';
 
 test('production recipes keep the requested oil and chemistry sequence together', () => {
   const recipes = prioritizeDisplayOrder([
@@ -34,32 +34,4 @@ test('production recipes keep the requested oil and chemistry sequence together'
     'military-science-pack',
     'logistic-science-pack',
   ]);
-});
-
-test('storage items keep the requested fluid and chemistry sequence together', () => {
-  const items = prioritizeDisplayOrder([
-    'iron',
-    'plastic-bar',
-    'heavy-oil',
-    'sulfuric-acid',
-    'petroleum-gas',
-    'sulfur',
-    'light-oil',
-    'lubricant',
-    'military-science-pack',
-    'logistic-science-pack',
-  ], (item) => item, preferredStorageOrder);
-
-  assert.deepEqual(items.slice(0, preferredStorageOrder.length), [
-    'petroleum-gas',
-    'light-oil',
-    'heavy-oil',
-    'lubricant',
-    'sulfur',
-    'sulfuric-acid',
-    'plastic-bar',
-    'logistic-science-pack',
-    'military-science-pack',
-  ]);
-  assert.deepEqual(items.slice(preferredStorageOrder.length), ['iron']);
 });

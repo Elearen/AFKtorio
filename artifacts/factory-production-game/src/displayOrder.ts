@@ -9,18 +9,6 @@ export const preferredRecipeOrder = [
   'plastic-bar',
 ] as const;
 
-export const preferredStorageOrder = [
-  'petroleum-gas',
-  'light-oil',
-  'heavy-oil',
-  'lubricant',
-  'sulfur',
-  'sulfuric-acid',
-  'plastic-bar',
-  'logistic-science-pack',
-  'military-science-pack',
-] as const;
-
 export const prioritizeDisplayOrder = <T>(
   items: T[],
   keyFor: (item: T) => string,
