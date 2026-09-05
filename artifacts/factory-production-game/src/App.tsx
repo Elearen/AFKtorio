@@ -2633,7 +2633,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         : isSpidertron
           ? 'What could you possibly need this for?'
          : isSpaceScience
-           ? 'You may have left the planet, but the factory has grown has a life of its own. Production continues on.'
+           ? 'You may have left the planet, but the factory has grown a life of its own. Production continues on.'
           : '60 furnaces! This is a burgeoning industrial empire.';
   return <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="milestone-title" data-testid={`dialog-milestone-${milestone}`}>
