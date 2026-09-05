@@ -23,6 +23,7 @@ export const steelFurnaceCraftingSpeed = 2;
 
 export const isAutomatedOnlyRecipe = (recipe: Pick<RecipeCatalogEntry, 'name' | 'category'>) =>
   recipe.category === 'smelting'
+  || recipe.category === 'crafting-with-fluid'
   || recipe.name === 'basic-oil-processing'
   || recipe.name === 'advanced-oil-processing'
   || chemicalPlantRecipeNameSet.has(recipe.name)

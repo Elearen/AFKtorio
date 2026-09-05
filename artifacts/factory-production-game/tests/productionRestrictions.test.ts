@@ -21,6 +21,15 @@ test('refinery, chemical plant, and rocket silo recipes are automated only', () 
     .forEach((name) => assert.equal(isAutomatedOnlyRecipe(recipe(name)), true, `${name} should be automated only`));
 });
 
+test('every crafting-with-fluid recipe is automated only', () => {
+  const fluidRecipes = recipeCatalog.filter((entry) => entry.category === 'crafting-with-fluid');
+
+  assert.ok(fluidRecipes.length > 0);
+  fluidRecipes.forEach((entry) => {
+    assert.equal(isAutomatedOnlyRecipe(entry), true, `${entry.name} should be automated only`);
+  });
+});
+
 test('assembler recipes remain handcraftable', () => {
   ['iron-gear-wheel', 'electronic-circuit', 'satellite'].forEach((name) => {
     assert.equal(isAutomatedOnlyRecipe(recipe(name)), false, `${name} should remain handcraftable`);
