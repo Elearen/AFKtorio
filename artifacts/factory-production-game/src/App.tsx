@@ -399,6 +399,7 @@ const starterProducts: Record<string, number> = {
   ironPlate: 28, copperPlate: 14, steel: 4, gear: 9, pipe: 4, circuit: 3, automationPack: 9, logisticsPack: 5, chemicalPack: 0, militaryPack: 0, productionPack: 0, utilityPack: 0, spacePack: 0,
 };
 
+const initialTimestamp = Date.now();
 const initialState: GameState = {
   raw: { iron: 62, copper: 38, stone: 26, coal: 31, wood: 18, water: 0, uranium: 0, crudeOil: 0 },
   products: starterProducts,
@@ -413,7 +414,7 @@ const initialState: GameState = {
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace',
-  totalOutput: 1642, lastSeen: Date.now(), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, tutorialVisible: true, welcomeSeen: false,
+  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, tutorialVisible: true, welcomeSeen: false,
 };
 
 const nav = [
@@ -803,6 +804,7 @@ const unlockMilestone = (state: GameState, milestone: MilestoneKey) => {
 };
 
 function simulate(previous: GameState, seconds: number): GameState {
+  const now = Date.now();
   const liveProduction = emptyRateRecord();
   const liveManualProduction = emptyRateRecord();
   const liveConsumption = emptyRateRecord();
@@ -816,7 +818,7 @@ function simulate(previous: GameState, seconds: number): GameState {
     rateHistory: previous.rateHistory ?? [],
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null,
     queue: previous.queue.map((item) => ({ ...item, costs: item.costs?.map((cost) => ({ ...cost })), reserved: item.reserved ? [...item.reserved] : undefined })),
-    research: [...previous.research], produced: { ...previous.produced }, lastSeen: Date.now(),
+    research: [...previous.research], produced: { ...previous.produced }, lastSeen: now,
   };
   const speed = state.simulationSpeed;
   const powerFlow = powerFlowFor(state, seconds);
@@ -974,6 +976,9 @@ function simulate(previous: GameState, seconds: number): GameState {
       if (producedParts > 0) {
         recordProduction(state, 'rocket-part', producedParts, liveProduction);
         state.totalOutput += producedParts;
+        if (constructed >= ROCKET_PART_TARGET && !state.winMetrics) {
+          state.winMetrics = winMetricsFor(now, state.totalOutput, state.produced);
+        }
       }
     }
     if (item.action === 'storage') {
@@ -1107,6 +1112,7 @@ function loadState() {
         milestoneNotifications: migratedMilestones.milestoneNotifications,
         unlockedMilestones: migratedMilestones.unlockedMilestones,
       lastSeen: parsed.lastSeen ?? Date.now(),
+       gameStartTimestamp: typeof parsed.gameStartTimestamp === 'number' && Number.isFinite(parsed.gameStartTimestamp) ? parsed.gameStartTimestamp : Date.now(),
       rocketSiloBuilt: parsed.rocketSiloBuilt === true,
       rocketPartsBuilt: Math.min(ROCKET_PART_TARGET, Math.max(0, Number(parsed.rocketPartsBuilt) || 0)),
       rocketReadyAcknowledged: parsed.rocketReadyAcknowledged === true,
@@ -1114,6 +1120,13 @@ function loadState() {
       gameComplete: parsed.gameComplete === true,
       completionTotalOutput: typeof parsed.completionTotalOutput === 'number' ? Math.max(0, parsed.completionTotalOutput) : null,
       completionStats: parsed.completionStats && typeof parsed.completionStats === 'object' ? { ...parsed.completionStats } : null,
+       winMetrics: parsed.winMetrics && typeof parsed.winMetrics === 'object' ? {
+         timestamp: Number((parsed.winMetrics as Partial<WinMetrics>).timestamp),
+         totalItemsProduced: Number((parsed.winMetrics as Partial<WinMetrics>).totalItemsProduced),
+         totalSciencePacksProduced: Number((parsed.winMetrics as Partial<WinMetrics>).totalSciencePacksProduced),
+         totalIronMined: Number((parsed.winMetrics as Partial<WinMetrics>).totalIronMined),
+         totalCopperMined: Number((parsed.winMetrics as Partial<WinMetrics>).totalCopperMined),
+       } : null,
       tutorialVisible: parsed.tutorialVisible !== false,
        welcomeSeen: migratedMilestones.welcomeSeen,
     } as GameState;
@@ -2724,7 +2737,15 @@ function Game() {
     else if (state.rocketPartsBuilt >= ROCKET_PART_TARGET && !state.rocketReadyAcknowledged) setEndgameModal('rocket-ready');
   }, [state.gameComplete, state.rocketLaunched, state.rocketPartsBuilt, state.rocketReadyAcknowledged]);
   const saveNow = () => localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, lastSeen: Date.now() }));
-  const reset = () => { localStorage.removeItem(SAVE_KEY); setEndgameModal(null); setReplayMilestone(null); setOfflineReportVisible(false); navigate('/'); setState({ ...initialState, lastSeen: Date.now(), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] }); };
+  const reset = () => {
+    const timestamp = Date.now();
+    localStorage.removeItem(SAVE_KEY);
+    setEndgameModal(null);
+    setReplayMilestone(null);
+    setOfflineReportVisible(false);
+    navigate('/');
+    setState({ ...initialState, lastSeen: timestamp, gameStartTimestamp: timestamp, storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] });
+  };
   const enqueue = (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => setState((s) => {
     if (action === 'rocketSilo' && !canBuildRocketSilo(s.rocketSiloBuilt, s.queue.some((item) => item.action === 'rocketSilo'))) return s;
     if (action === 'rocketParts' && (!s.rocketSiloBuilt || s.rocketPartsBuilt >= ROCKET_PART_TARGET || s.queue.some((item) => item.action === 'rocketParts'))) return s;
