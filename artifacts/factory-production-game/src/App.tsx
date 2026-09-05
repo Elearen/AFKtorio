@@ -23,7 +23,7 @@ import {
 } from './storageSystem';
 import { milestoneOrder, milestoneTitles, migrateMilestoneState, type MilestoneKey } from './milestoneSystem';
 import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
-import { winMetricsFor, type WinMetrics } from './endgameMetrics';
+import { formatWinDuration, winMetricsFor, type WinMetrics } from './endgameMetrics';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -2647,17 +2647,30 @@ function RocketReadyModal({ onLaunch }: { onLaunch: () => void }) {
   </div>;
 }
 
-function GameCompleteModal({ totalOutput, stats, onClose }: { totalOutput: number; stats: Record<string, number>; onClose: () => void }) {
-  const lifetimeStats = Object.entries(stats).filter(([, amount]) => amount > 0).sort(([, a], [, b]) => b - a).slice(0, 8);
-  return <div className="fixed inset-0 z-[75] grid place-items-center bg-[hsl(0_0%_0%/.82)] p-4 backdrop-blur-sm" role="presentation">
-    <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--secondary)/.75)] bg-[linear-gradient(145deg,hsl(174_28%_16%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="game-complete-title" data-testid="dialog-game-complete">
-      <div className="flex items-center justify-between gap-3"><Tag><Check size={11} /> mission complete</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">SECTOR 07 · WON</span></div>
-      <div className="mt-4 overflow-hidden rounded-xl border border-[hsl(var(--secondary)/.35)] bg-[radial-gradient(circle_at_50%_115%,hsl(35_48%_30%/.7),transparent_42%),linear-gradient(180deg,hsl(216_34%_12%),hsl(216_30%_8%))] p-4">
-       <div className="flex h-36 items-center justify-center overflow-hidden"><img src={`${import.meta.env.BASE_URL}win-screen-rocket-launch.jpg`} width={1122} height={1402} alt="Rocket launching over Factory Planet" className="h-full w-full object-cover object-center" /></div>
+function GameCompleteModal({ gameStartTimestamp, winMetrics, onClose }: { gameStartTimestamp: number; winMetrics: WinMetrics | null; onClose: () => void }) {
+  const stats = [
+    ['Time taken:', formatWinDuration(gameStartTimestamp, winMetrics?.timestamp ?? null)],
+    ['Total items produced:', winMetrics ? fmt(winMetrics.totalItemsProduced) : '—'],
+    ['Total science packs produced:', winMetrics ? fmt(winMetrics.totalSciencePacksProduced) : '—'],
+    ['Total iron and copper mined:', winMetrics ? `${fmt(winMetrics.totalIronMined)} iron · ${fmt(winMetrics.totalCopperMined)} copper` : '—'],
+  ];
+  return <div className="fixed inset-0 z-[75] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
+    <section className="surface relative my-2 w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--primary)/.7)] bg-[linear-gradient(145deg,hsl(35_30%_18%),hsl(216_25%_12%))] shadow-2xl sm:my-6" role="dialog" aria-modal="true" aria-labelledby="game-complete-title" data-testid="dialog-game-complete">
+      <div className="absolute inset-x-0 top-0 z-10 h-1.5 bg-[repeating-linear-gradient(135deg,#f5b52e_0_11px,#15181a_11px_22px)]" />
+      <div className="border-b border-[hsl(var(--primary)/.35)] bg-[hsl(216_25%_10%)]">
+        <img src={`${import.meta.env.BASE_URL}win-screen-rocket-launch.jpg`} width={1122} height={1402} alt="Rocket launching over Factory Planet" className="mx-auto block h-auto w-full object-contain" />
       </div>
-      <div className="mt-5 text-center"><h2 id="game-complete-title" className="text-2xl font-extrabold">Game complete</h2><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Planet has reached orbit. Your production record is preserved below.</p></div>
-      <div className="surface-soft mt-5 rounded-xl p-3" data-testid="panel-lifetime-production"><div className="eyebrow">Lifetime item production</div><div className="mono mt-1 text-2xl text-[hsl(var(--secondary))]">{fmt(totalOutput)}</div><div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-[hsl(var(--border))] pt-3 sm:grid-cols-4">{lifetimeStats.map(([key, amount]) => <div key={key} className="min-w-0"><div className="truncate text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key]?.label ?? prettyLabel(key)}</div><div className="mono text-[11px] text-[hsl(var(--foreground))]">{fmt(amount)}</div></div>)}</div></div>
-      <button onClick={onClose} className="button-base button-primary mt-5 w-full !py-3" data-testid="button-close-game-complete"><Check size={14} /> OK</button>
+      <div className="p-5 sm:p-7">
+        <h2 id="game-complete-title" className="mt-1 text-3xl font-extrabold tracking-[-.04em]">Game Complete!</h2>
+        <p className="mt-6 text-[13px] leading-6 text-[hsl(var(--muted-foreground))]">Your rocket has launched and you are finally on your way home. Well done.</p>
+        <div className="surface-soft mt-5 rounded-xl border border-[hsl(var(--primary)/.2)] px-3 py-2" data-testid="panel-lifetime-production">
+          {stats.map(([label, value], index) => <div className={`flex items-center justify-between gap-4 py-1.5 ${index > 0 ? 'border-t border-[hsl(var(--border))]' : ''}`} key={label}>
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{label}</span>
+            <span className="mono shrink-0 text-[12px] text-[hsl(var(--foreground))]">{value}</span>
+          </div>)}
+        </div>
+        <button onClick={onClose} className="button-base button-primary mt-5 w-full !py-3 text-[12px]" data-testid="button-close-game-complete"><Check size={15} /> OK</button>
+      </div>
     </section>
   </div>;
 }

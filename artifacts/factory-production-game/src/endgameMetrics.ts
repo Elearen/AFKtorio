@@ -27,3 +27,11 @@ export const winMetricsFor = (
   totalIronMined: produced.iron ?? 0,
   totalCopperMined: produced.copper ?? 0,
 });
+
+export const formatWinDuration = (startTimestamp: number, winTimestamp: number | null) => {
+  if (winTimestamp === null || !Number.isFinite(startTimestamp) || !Number.isFinite(winTimestamp)) return '--:--';
+  const totalMinutes = Math.max(0, Math.floor((winTimestamp - startTimestamp) / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
