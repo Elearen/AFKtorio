@@ -7,6 +7,22 @@ test('Turn the lights on is a replayable milestone with the requested settings l
   assert.equal(milestoneOrder.includes('turn-lights-on'), true);
 });
 
+test('Advanced Oil Production is triggered by a completed oil conversion', () => {
+  assert.equal(milestoneTitles['advanced-oil-production'], 'Advanced Oil Production');
+  assert.equal(milestoneOrder.indexOf('turn-lights-on') < milestoneOrder.indexOf('advanced-oil-production'), true);
+  assert.equal(milestoneOrder.indexOf('advanced-oil-production') < milestoneOrder.indexOf('rocket-silo'), true);
+  const migrated = migrateMilestoneState({
+    welcomeSeen: true,
+    unlockedMilestones: ['crash-landed'],
+    milestoneNotifications: [],
+    labCount: 0,
+    furnaceCount: 0,
+    advancedOilProductionCompleted: true,
+  });
+  assert.deepEqual(migrated.milestoneNotifications, ['advanced-oil-production']);
+  assert.equal(migrated.unlockedMilestones.includes('advanced-oil-production'), true);
+});
+
 test('Spidertron is a replayable milestone and migrates completed research into the archive', () => {
   assert.equal(milestoneTitles.spidertron, 'Spidertron');
   assert.equal(milestoneOrder.includes('spidertron'), true);

@@ -1,6 +1,6 @@
-export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'rocket-silo' | 'spidertron' | 'game-complete' | 'space-science';
+export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'advanced-oil-production' | 'rocket-silo' | 'spidertron' | 'game-complete' | 'space-science';
 
-export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on', 'rocket-silo', 'spidertron', 'game-complete', 'space-science'];
+export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on', 'advanced-oil-production', 'rocket-silo', 'spidertron', 'game-complete', 'space-science'];
 
 export const milestoneTitles: Record<MilestoneKey, string> = {
   'crash-landed': 'Crash Landed',
@@ -8,6 +8,7 @@ export const milestoneTitles: Record<MilestoneKey, string> = {
   'sixty-furnaces': '60 Furnaces',
   'twenty-one-labs': '21 Labs',
   'turn-lights-on': 'Turn the lights on',
+  'advanced-oil-production': 'Advanced Oil Production',
   'rocket-silo': 'Rocket Silo',
   spidertron: 'Spidertron',
   'game-complete': 'Game Complete',
@@ -20,6 +21,7 @@ const isMilestoneKey = (value: string): value is MilestoneKey => (
   || value === 'twenty-one-labs'
   || value === 'sixty-furnaces'
   || value === 'turn-lights-on'
+  || value === 'advanced-oil-production'
   || value === 'rocket-silo'
   || value === 'spidertron'
   || value === 'game-complete'
@@ -40,6 +42,7 @@ type MilestoneMigrationInput = {
   spidertronResearched?: boolean;
   gameCompleted?: boolean;
   spaceScienceProduced?: number;
+  advancedOilProductionCompleted?: boolean;
 };
 
 export type MigratedMilestoneState = {
@@ -62,6 +65,9 @@ export function migrateMilestoneState(input: MilestoneMigrationInput): MigratedM
     ...(input.rocketSiloResearched && !savedMilestoneKeys.includes('rocket-silo') ? ['rocket-silo' as MilestoneKey] : []),
     ...(input.spidertronResearched && !savedMilestoneKeys.includes('spidertron') ? ['spidertron' as MilestoneKey] : []),
   ];
+  const advancedOilMilestones: MilestoneKey[] = input.advancedOilProductionCompleted && !savedMilestoneKeys.includes('advanced-oil-production')
+    ? ['advanced-oil-production']
+    : [];
   const completedMilestones: MilestoneKey[] = input.gameCompleted && !savedMilestoneKeys.includes('game-complete')
     ? ['game-complete']
     : [];
@@ -70,13 +76,14 @@ export function migrateMilestoneState(input: MilestoneMigrationInput): MigratedM
     : [];
   const welcomeSeen = input.welcomeSeen === true;
   const milestoneNotifications = hasMilestoneMetadata
-    ? Array.from(new Set([...savedMilestoneNotifications, ...newlyEarnedMilestones, ...spaceScienceMilestones]))
-    : [...earnedMilestones, ...newlyEarnedMilestones, ...spaceScienceMilestones];
+    ? Array.from(new Set([...savedMilestoneNotifications, ...newlyEarnedMilestones, ...advancedOilMilestones, ...spaceScienceMilestones]))
+    : [...earnedMilestones, ...newlyEarnedMilestones, ...advancedOilMilestones, ...spaceScienceMilestones];
   const unlockedMilestones = Array.from(new Set<MilestoneKey>([
     ...savedMilestoneKeys,
     ...(welcomeSeen ? ['crash-landed' as MilestoneKey] : []),
     ...earnedMilestones,
     ...newlyEarnedMilestones,
+    ...advancedOilMilestones,
     ...completedMilestones,
     ...spaceScienceMilestones,
     ...milestoneNotifications,
