@@ -1,6 +1,6 @@
-export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'rocket-silo' | 'spidertron' | 'game-complete';
+export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'rocket-silo' | 'spidertron' | 'game-complete' | 'space-science';
 
-export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on', 'rocket-silo', 'spidertron', 'game-complete'];
+export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on', 'rocket-silo', 'spidertron', 'game-complete', 'space-science'];
 
 export const milestoneTitles: Record<MilestoneKey, string> = {
   'crash-landed': 'Crash Landed',
@@ -11,6 +11,7 @@ export const milestoneTitles: Record<MilestoneKey, string> = {
   'rocket-silo': 'Rocket Silo',
   spidertron: 'Spidertron',
   'game-complete': 'Game Complete',
+  'space-science': 'Space Science',
 };
 
 const isMilestoneKey = (value: string): value is MilestoneKey => (
@@ -22,6 +23,7 @@ const isMilestoneKey = (value: string): value is MilestoneKey => (
   || value === 'rocket-silo'
   || value === 'spidertron'
   || value === 'game-complete'
+  || value === 'space-science'
 );
 
 const normalizeMilestoneKeys = (value: unknown) => Array.from(new Set(
@@ -37,6 +39,7 @@ type MilestoneMigrationInput = {
   rocketSiloResearched?: boolean;
   spidertronResearched?: boolean;
   gameCompleted?: boolean;
+  spaceScienceProduced?: number;
 };
 
 export type MigratedMilestoneState = {
@@ -62,16 +65,20 @@ export function migrateMilestoneState(input: MilestoneMigrationInput): MigratedM
   const completedMilestones: MilestoneKey[] = input.gameCompleted && !savedMilestoneKeys.includes('game-complete')
     ? ['game-complete']
     : [];
+  const spaceScienceMilestones: MilestoneKey[] = input.spaceScienceProduced && input.spaceScienceProduced > 0 && !savedMilestoneKeys.includes('space-science')
+    ? ['space-science']
+    : [];
   const welcomeSeen = input.welcomeSeen === true;
   const milestoneNotifications = hasMilestoneMetadata
-    ? Array.from(new Set([...savedMilestoneNotifications, ...newlyEarnedMilestones]))
-    : [...earnedMilestones, ...newlyEarnedMilestones];
+    ? Array.from(new Set([...savedMilestoneNotifications, ...newlyEarnedMilestones, ...spaceScienceMilestones]))
+    : [...earnedMilestones, ...newlyEarnedMilestones, ...spaceScienceMilestones];
   const unlockedMilestones = Array.from(new Set<MilestoneKey>([
     ...savedMilestoneKeys,
     ...(welcomeSeen ? ['crash-landed' as MilestoneKey] : []),
     ...earnedMilestones,
     ...newlyEarnedMilestones,
     ...completedMilestones,
+    ...spaceScienceMilestones,
     ...milestoneNotifications,
   ]));
 

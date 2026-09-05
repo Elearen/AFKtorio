@@ -39,7 +39,7 @@ test('Rocket Silo is ordered before Spidertron and migrates completed research i
 
 test('Game Complete is replayable without creating a second completion notification', () => {
   assert.equal(milestoneTitles['game-complete'], 'Game Complete');
-  assert.equal(milestoneOrder.at(-1), 'game-complete');
+  assert.equal(milestoneOrder.indexOf('game-complete') < milestoneOrder.indexOf('space-science'), true);
   const migrated = migrateMilestoneState({
     welcomeSeen: true,
     unlockedMilestones: ['crash-landed'],
@@ -50,6 +50,21 @@ test('Game Complete is replayable without creating a second completion notificat
   });
   assert.deepEqual(migrated.milestoneNotifications, []);
   assert.equal(migrated.unlockedMilestones.includes('game-complete'), true);
+});
+
+test('Space Science is a replayable milestone triggered by the first produced pack', () => {
+  assert.equal(milestoneTitles['space-science'], 'Space Science');
+  assert.equal(milestoneOrder.at(-1), 'space-science');
+  const migrated = migrateMilestoneState({
+    welcomeSeen: true,
+    unlockedMilestones: ['crash-landed'],
+    milestoneNotifications: [],
+    labCount: 0,
+    furnaceCount: 0,
+    spaceScienceProduced: 1000,
+  });
+  assert.deepEqual(migrated.milestoneNotifications, ['space-science']);
+  assert.equal(migrated.unlockedMilestones.includes('space-science'), true);
 });
 
 test('legacy saves surface welcome and earned milestones as unviewed', () => {

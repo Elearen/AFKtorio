@@ -560,9 +560,13 @@ const addTracked = (state: GameState, key: TrackedKey, amount: number, ignoreCap
   return reserved + state.products[key] - current;
 };
 const recordProduction = (state: GameState, key: TrackedKey, amount: number, production?: Record<TrackedKey, number>, manualProduction?: Record<TrackedKey, number>) => {
+  const firstSpaceSciencePack = key === 'spacePack' && (state.produced[key] ?? 0) <= 0;
   state.produced[key] = (state.produced[key] ?? 0) + amount;
   if (production) production[key] = (production[key] ?? 0) + amount;
   if (manualProduction) manualProduction[key] = (manualProduction[key] ?? 0) + amount;
+  if (firstSpaceSciencePack && unlockMilestone(state, 'space-science') && !state.milestoneNotifications.includes('space-science')) {
+    state.milestoneNotifications.push('space-science');
+  }
 };
 const researchTriggerProgress = (state: GameState, technology: TechnologyDefinition) => {
   const trigger = technology.researchTrigger;
@@ -1059,6 +1063,7 @@ function loadState() {
       rocketSiloResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'rocket-silo'),
       spidertronResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'spidertron'),
       gameCompleted: parsed.gameComplete === true || parsed.rocketLaunched === true,
+      spaceScienceProduced: typeof parsed.produced?.spacePack === 'number' ? parsed.produced.spacePack : 0,
     });
     const state = {
       ...initialState,
@@ -2564,6 +2569,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   const isTurnLightsOn = milestone === 'turn-lights-on';
   const isRocketSilo = milestone === 'rocket-silo';
   const isSpidertron = milestone === 'spidertron';
+  const isSpaceScience = milestone === 'space-science';
   const image = isFirstLab
     ? 'first-lab-milestone.jpg'
     : isTwentyOneLabs
@@ -2574,6 +2580,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
           ? 'rocket-silo-milestone.jpg'
         : isSpidertron
           ? 'spidertron-milestone.jpg'
+         : isSpaceScience
+           ? 'space-science-milestone.jpg'
           : 'sixty-furnaces-milestone.jpg';
   const imageAlt = isFirstLab
     ? 'Factory Planet laboratory and production machines beside a river'
@@ -2585,11 +2593,15 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
           ? 'A completed rocket silo surrounded by factory production lines'
         : isSpidertron
           ? 'A giant spidertron standing over a factory planet forest'
+         : isSpaceScience
+           ? 'A satellite orbiting above Factory Planet and its atmosphere'
           : 'Factory Planet with a large industrial furnace and production network';
   const imageDimensions = isRocketSilo
     ? { width: 1181, height: 1331 }
     : isSpidertron
       ? { width: 1402, height: 1122 }
+      : isSpaceScience
+        ? { width: 1369, height: 1149 }
       : { width: 1122, height: 1402 };
   const message = isFirstLab
     ? 'You have constructed your first lab, well done. This is the first major step towards regaining the technology to travel off world.'
@@ -2601,6 +2613,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
           ? "It's finally time to go home."
         : isSpidertron
           ? 'What could you possibly need this for?'
+         : isSpaceScience
+           ? 'You may have left the planet, but the factory has grown has a life of its own. Production continues on.'
           : '60 furnaces! This is a burgeoning industrial empire.';
   return <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="milestone-title" data-testid={`dialog-milestone-${milestone}`}>
