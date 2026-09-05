@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { winMetricsFor } from '../src/endgameMetrics.js';
+import { formatWinDuration, winMetricsFor } from '../src/endgameMetrics.js';
 
 test('win metrics snapshot totals science packs and mined ores', () => {
   assert.deepEqual(winMetricsFor(123456, 9876, {
@@ -31,4 +31,10 @@ test('win metrics default missing production categories to zero', () => {
     totalIronMined: 0,
     totalCopperMined: 0,
   });
+});
+
+test('win duration is formatted as hours and minutes', () => {
+  assert.equal(formatWinDuration(0, (2 * 60 + 7) * 60000), '02:07');
+  assert.equal(formatWinDuration(0, 45 * 60000), '00:45');
+  assert.equal(formatWinDuration(1000, null), '--:--');
 });
