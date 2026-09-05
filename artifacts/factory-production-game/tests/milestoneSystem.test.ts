@@ -3,8 +3,23 @@ import assert from 'node:assert/strict';
 import { migrateMilestoneState, milestoneOrder, milestoneTitles } from '../src/milestoneSystem.js';
 
 test('Turn the lights on is a replayable milestone with the requested settings label', () => {
-  assert.equal(milestoneTitles['turn-lights-on'], 'Turn the lights on');
+  assert.equal(milestoneTitles['turn-lights-on'], 'Power Production');
   assert.equal(milestoneOrder.includes('turn-lights-on'), true);
+});
+
+test('milestones use the requested archive order', () => {
+  assert.deepEqual(milestoneOrder, [
+    'crash-landed',
+    'turn-lights-on',
+    'first-lab',
+    'sixty-furnaces',
+    'twenty-one-labs',
+    'advanced-oil-production',
+    'rocket-silo',
+    'game-complete',
+    'spidertron',
+    'space-science',
+  ]);
 });
 
 test('Advanced Oil Production is triggered by a completed oil conversion', () => {

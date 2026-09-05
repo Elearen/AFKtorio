@@ -1,13 +1,13 @@
 export type MilestoneKey = 'crash-landed' | 'first-lab' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'advanced-oil-production' | 'rocket-silo' | 'spidertron' | 'game-complete' | 'space-science';
 
-export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'turn-lights-on', 'advanced-oil-production', 'rocket-silo', 'spidertron', 'game-complete', 'space-science'];
+export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'turn-lights-on', 'first-lab', 'sixty-furnaces', 'twenty-one-labs', 'advanced-oil-production', 'rocket-silo', 'game-complete', 'spidertron', 'space-science'];
 
 export const milestoneTitles: Record<MilestoneKey, string> = {
   'crash-landed': 'Crash Landed',
   'first-lab': 'Built a Lab',
   'sixty-furnaces': '60 Furnaces',
   'twenty-one-labs': '21 Labs',
-  'turn-lights-on': 'Turn the lights on',
+  'turn-lights-on': 'Power Production',
   'advanced-oil-production': 'Advanced Oil Production',
   'rocket-silo': 'Rocket Silo',
   spidertron: 'Spidertron',

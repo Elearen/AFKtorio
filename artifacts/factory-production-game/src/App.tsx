@@ -2625,7 +2625,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
     : isTwentyOneLabs
       ? 'Over twenty labs! Your science production will be done in no time.'
       : isTurnLightsOn
-        ? 'Somehow you managed to put lightning into a bottle. Impressive. What else could go into a bottle?'
+        ? 'With the power of electricity, everything can be automated.'
         : isAdvancedOilProduction
           ? 'You have now unleashed the full power of complex organic chemistry.'
         : isRocketSilo
