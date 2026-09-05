@@ -23,6 +23,7 @@ import {
 } from './storageSystem';
 import { milestoneOrder, milestoneTitles, migrateMilestoneState, type MilestoneKey } from './milestoneSystem';
 import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
+import { winMetricsFor, type WinMetrics } from './endgameMetrics';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -97,6 +98,7 @@ type GameState = {
   furnaceVariant: 'stone-furnace' | 'steel-furnace';
   totalOutput: number;
   lastSeen: number;
+  gameStartTimestamp: number;
   simulationSpeed: number;
   rocketSiloBuilt: boolean;
   rocketPartsBuilt: number;
@@ -105,6 +107,7 @@ type GameState = {
   gameComplete: boolean;
   completionTotalOutput: number | null;
   completionStats: Record<string, number> | null;
+  winMetrics: WinMetrics | null;
   tutorialVisible: boolean;
   welcomeSeen: boolean;
 };
