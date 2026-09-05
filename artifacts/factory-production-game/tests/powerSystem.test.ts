@@ -29,6 +29,16 @@ test('boiler runs at full rate when coal and water are available', () => {
   assert.equal(result.powerGeneratedMw, 80);
 });
 
+test('disabling boilers removes their coal demand and consumption', () => {
+  const result = flow({ boilersEnabled: false });
+
+  assert.equal(result.boilerCoalDemand, 0);
+  assert.equal(result.boilerCoalConsumed, 0);
+  assert.equal(result.boilerWaterDemand, 0);
+  assert.equal(result.steamProduced, 0);
+  assert.equal(result.powerGeneratedMw, 0);
+});
+
 test('boiler steam scales to the limiting coal or water input', () => {
   const coalLimited = flow({ coal: 0.05 });
   const waterLimited = flow({ water: 0.25 });
