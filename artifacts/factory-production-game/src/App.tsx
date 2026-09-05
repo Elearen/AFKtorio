@@ -25,7 +25,7 @@ import { milestoneOrder, milestoneTitles, migrateMilestoneState, type MilestoneK
 import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
 import { formatWinDuration, winMetricsFor, type WinMetrics } from './endgameMetrics';
 import { primaryOutputFor } from './productionOutput';
-import { preferredRecipeOrder, prioritizeDisplayOrder } from './displayOrder';
+import { prioritizeDisplayOrder } from './displayOrder';
 import {
   Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -303,12 +303,10 @@ const tierProductOrder = new Map(tierProductCatalog.map((product, index) => [key
 const tierForProduct = (key: string) => tierProductOrder.get(key) ?? Number.MAX_SAFE_INTEGER;
 const tierOrderedTrackedKeys = [...trackedKeys].sort((a, b) => tierForProduct(a) - tierForProduct(b) || a.localeCompare(b));
 const orderedTrackedKeys = tierOrderedTrackedKeys;
-const tierOrderedRecipeCatalog = [...recipeCatalog].sort((a, b) => {
-  const aTier = Math.min(...recipeOutputs(a).map((output) => tierForProduct(output.key)), Number.MAX_SAFE_INTEGER);
-  const bTier = Math.min(...recipeOutputs(b).map((output) => tierForProduct(output.key)), Number.MAX_SAFE_INTEGER);
-  return aTier - bTier;
-});
-const orderedRecipeCatalog = prioritizeDisplayOrder(tierOrderedRecipeCatalog, (recipe) => recipe.name, preferredRecipeOrder);
+const recipeProductKeysForDisplay = (recipe: Recipe) => recipeOutputs(recipe)
+  .map((output) => output.key)
+  .sort((a, b) => tierForProduct(a) - tierForProduct(b));
+const orderedRecipeCatalog = prioritizeDisplayOrder(recipeCatalog, recipeProductKeysForDisplay, orderedTrackedKeys);
 const scienceKeyForRecipe = Object.fromEntries(
   Object.entries(scienceRecipeKeys).map(([key, recipeName]) => [recipeName, key]),
 ) as Record<string, ScienceKey>;
