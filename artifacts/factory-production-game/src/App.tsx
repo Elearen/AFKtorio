@@ -18,7 +18,7 @@ import {
   FLUID_HANDLING_TECHNOLOGY, FLUID_STORAGE_BASE_CAPACITY, migrateStorageState,
   storageCapacityFor as calculateStorageCapacityFor, storageContainerCountFor as calculateStorageContainerCountFor,
   ironChestUpgradeCostFor, ironChestUpgradeTimeFor, itemStorageBoxCountFor,
-  STORAGE_BOX_CAPACITY, STORAGE_IRON_BOX_CAPACITY, STORAGE_IRON_BOX_COST, STORAGE_IRON_BOX_UPGRADE_TIME, STORAGE_STEEL_BOX_COST, STORAGE_STEEL_BOX_UPGRADE_TIME, STORAGE_TANK_CAPACITY,
+  STORAGE_BOX_CAPACITY, STORAGE_IRON_BOX_CAPACITY, STORAGE_IRON_BOX_COST, STORAGE_IRON_BOX_UPGRADE_TIME, STORAGE_STEEL_BOX_CAPACITY, STORAGE_STEEL_BOX_COST, STORAGE_STEEL_BOX_UPGRADE_TIME, STORAGE_TANK_CAPACITY,
   steelChestUpgradeCostFor, steelChestUpgradeTimeFor,
   type StorageBoxType,
 } from './storageSystem';
@@ -227,6 +227,7 @@ const assemblyMachineThreeProductionSpeed = upgradeMap['assembly-machine-3'].new
 const labPowerKw = 7000;
 const storageBoxCapacity = STORAGE_BOX_CAPACITY;
 const ironStorageBoxCapacity = STORAGE_IRON_BOX_CAPACITY;
+const steelStorageBoxCapacity = STORAGE_STEEL_BOX_CAPACITY;
 const fluidStorageBaseCapacity = FLUID_STORAGE_BASE_CAPACITY;
 const storageTankCapacity = STORAGE_TANK_CAPACITY;
 const storageBoxWoodCost = 2;
@@ -457,7 +458,11 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
 const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
 const duration = (n: number) => `${Math.floor(n / 60)}m ${String(Math.max(0, Math.floor(n % 60))).padStart(2, '0')}s`;
 const containerCountFor = (state: GameState, key: TrackedKey) => calculateStorageContainerCountFor(key, fluidKeys, state.storageBoxes, state.storageTanks);
-const storageBoxCapacityFor = (state: GameState) => state.storageBoxType === 'wooden' ? storageBoxCapacity : ironStorageBoxCapacity;
+const storageBoxCapacityFor = (state: GameState) => state.storageBoxType === 'wooden'
+  ? storageBoxCapacity
+  : state.storageBoxType === 'steel'
+    ? steelStorageBoxCapacity
+    : ironStorageBoxCapacity;
 const storageBoxCountFor = (state: GameState) => itemStorageBoxCountFor(
   trackedKeys.filter((key) => unlockedProductKeys(state).has(key)),
   fluidKeys,
