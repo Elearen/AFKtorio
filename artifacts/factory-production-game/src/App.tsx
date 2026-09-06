@@ -9,7 +9,7 @@ import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPl
 import { activateReadyConstruction, constructionCanBeFullyFunded, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import {
-  OIL_PROCESSING_UPGRADE_ID, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, machineCountForUpgrade as upgradeMachineCountFor,
+  OIL_PROCESSING_UPGRADE_ID, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
   migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeMap,
   type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
@@ -75,6 +75,7 @@ type GameState = {
   assemblers: Record<string, number>;
   oilProcessingAdvanced: boolean;
   labs: number;
+  labSpeedLevel: number;
   boilers: number;
   boilersEnabled: boolean;
   steamEngines: number;
@@ -233,7 +234,7 @@ const boilerRecipe = recipeMap['boiler'];
 const steamEngineRecipe = recipeMap['steam-engine'];
 const accumulatorRecipe = recipeMap['accumulator'];
 const labRecipe = recipeMap['lab'];
-const labBaseResearchSpeed = 1;
+const labResearchSpeedFor = (state: GameState) => labSpeedForLevel(state.labSpeedLevel);
 const technologyResearchTimeFor = (technology?: TechnologyDefinition) => Math.max(1, technology?.time ?? defaultTechnologyResearchTime);
 const boilerSteamPerSecond = 30;
 const boilerCoalPerSecond = 0.1;
@@ -426,7 +427,7 @@ const initialState: GameState = {
   oilProcessingAdvanced: false,
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace',
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0,
   totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, tutorialVisible: true, welcomeSeen: false,
 };
 
@@ -533,7 +534,7 @@ const electricPowerRatioFor = (state: GameState, seconds = 1) => {
 };
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
 const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.pumpjacks + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels + state.accumulators;
-const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade);
+const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade, state.labs);
 const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
 const miningMachineCountFor = (state: GameState, key: RawKey) => key === 'wood' ? 0 : key === 'water' ? state.pumps : key === 'crudeOil' ? state.pumpjacks : key === 'uranium' ? state.uraniumMiners : state.miners[key];
@@ -820,7 +821,7 @@ const furnaceCoalUsageFor = (state: GameState, recipe: Recipe, peak = false) => 
   const outputRate = peak ? recipeCycleRateFor(state, recipe) * output.amount : recipeProductionRateFor(state, recipe);
   return outputRate * furnaceCoalPerItemFor(state, recipe);
 };
-const scienceLabRateFor = (state: GameState, technology?: TechnologyDefinition, applyPowerRatio = true) => state.labs * labBaseResearchSpeed * 60 * state.simulationSpeed / technologyResearchTimeFor(technology) * (applyPowerRatio ? electricPowerRatioFor(state) : 1);
+const scienceLabRateFor = (state: GameState, technology?: TechnologyDefinition, applyPowerRatio = true) => state.labs * labResearchSpeedFor(state) * 60 * state.simulationSpeed / technologyResearchTimeFor(technology) * (applyPowerRatio ? electricPowerRatioFor(state) : 1);
 const activeResearchTimeRemainingFor = (state: GameState, technology?: TechnologyDefinition) => {
   if (!technology || technology.researchTrigger || !technology.scienceCosts.length) return null;
   const currentScienceConsumption = technology.scienceCosts.reduce((total, cost) => total + demandRateFor(state, keyForSource(cost.pack)), 0);
@@ -1065,6 +1066,8 @@ function simulate(previous: GameState, seconds: number): GameState {
         if (unlockMilestone(state, 'advanced-oil-production') && !state.milestoneNotifications.includes('advanced-oil-production')) {
           state.milestoneNotifications.push('advanced-oil-production');
         }
+      } else if (upgradeMap[upgradeId as keyof typeof upgradeMap]?.labSpeedLevel !== undefined) {
+        state.labSpeedLevel = applyLabSpeedUpgradeCompletion(state.labSpeedLevel, upgradeId);
       } else {
         state.machineVariants = applyUpgradeCompletion(state.machineVariants, upgradeId);
       }
@@ -1162,6 +1165,7 @@ function loadState() {
         return { ...sample, production, consumption };
       }) : [],
       machineVariants: migratedUpgradeState.machineVariants,
+      labSpeedLevel: migratedUpgradeState.labSpeedLevel,
       queue: normalizeConstructionQueue(migratedUpgradeState.queue.map((item) => {
         const costs = legacyUpgradeCostsFor(item as QueueItem);
         return costs ? { ...item, costs, reserved: costs.map((cost) => cost.amount) } : item;
@@ -2186,11 +2190,16 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
       research: state.research,
       machineVariants: state.machineVariants,
       machineCounts: { assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) },
+      labCount: state.labs,
+      labSpeedLevel: state.labSpeedLevel,
       queue: state.queue,
     }, upgrade.id, jobId);
     if (!result.ok) return notice(result.message);
     setState((s) => ({ ...s, raw: result.state.raw, products: result.state.products, queue: result.state.queue as QueueItem[] }));
-    notice(`${upgrade.name} started for ${result.job.machineCount} machine${result.job.machineCount === 1 ? '' : 's'}`);
+    const unitLabel = upgrade.labSpeedLevel !== undefined
+      ? `lab${result.job.machineCount === 1 ? '' : 's'}`
+      : `machine${result.job.machineCount === 1 ? '' : 's'}`;
+    notice(`${upgrade.name} started for ${result.job.machineCount} ${unitLabel}`);
   };
   const startStorageUpgrade = () => {
     if (storageUpgradeComplete) return notice('Iron Chests is already installed');
@@ -2263,31 +2272,47 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     'steel-furnaces': 2,
     'assembly-machine-2': 3,
     'assembly-machine-3': 4,
-    [OIL_PROCESSING_UPGRADE_ID]: 5,
+    'research-speed-1': 5,
+    'research-speed-2': 6,
+    'research-speed-3': 7,
+    'research-speed-4': 8,
+    'research-speed-5': 9,
+    'research-speed-6': 10,
+    [OIL_PROCESSING_UPGRADE_ID]: 11,
   };
   const upgradeAvailabilityRank = (complete: boolean, prerequisiteMet: boolean) => complete ? 2 : prerequisiteMet ? 0 : 1;
   const sortedUpgradeCards = [
     ...upgradeData.map((item) => {
       const machineCount = machineCountForUpgrade(state, item);
-      const complete = state.machineVariants[item.machineGroup] === item.newMachine;
+      const isLabSpeedUpgrade = item.labSpeedLevel !== undefined;
+      const complete = isLabSpeedUpgrade
+        ? state.labSpeedLevel >= (item.labSpeedLevel ?? 0)
+        : state.machineVariants[item.machineGroup] === item.newMachine;
       const prerequisiteUpgradeMet = !item.prerequisiteUpgrade
-        || state.machineVariants[item.machineGroup] === upgradeMap[item.prerequisiteUpgrade].newMachine;
+        || (isLabSpeedUpgrade
+          ? state.labSpeedLevel >= (upgradeMap[item.prerequisiteUpgrade].labSpeedLevel ?? 0)
+          : state.machineVariants[item.machineGroup] === upgradeMap[item.prerequisiteUpgrade].newMachine);
       const prerequisiteMet = state.research.includes(item.prerequisiteTechnology) && prerequisiteUpgradeMet;
       const queued = activeUpgrade?.targetId === item.id;
       const totalCosts = scaledBuildCosts(item.upgradeCostPerMachine, machineCount);
       const missing = complete || !machineCount ? '' : missingBuildMaterials(state, totalCosts);
       const conversionCount = activeUpgrade?.machineCount ?? machineCount;
       const canStart = !complete && !activeUpgrade && prerequisiteMet && machineCount > 0 && !missing;
-      const fromMachine = item.id === 'assembly-machine-2'
+      const fromMachine = isLabSpeedUpgrade
+        ? 'lab'
+        : item.id === 'assembly-machine-2'
         ? 'assembling-machine-1'
         : item.id === 'assembly-machine-3'
           ? 'assembling-machine-2'
           : 'burner-mining-drill';
-      const fromLabel = item.id === 'assembly-machine-2'
+      const fromLabel = isLabSpeedUpgrade
+        ? 'Science Lab'
+        : item.id === 'assembly-machine-2'
         ? 'Assembly Machine 1'
         : item.id === 'assembly-machine-3'
           ? 'Assembly Machine 2'
           : 'Burner Mining Drill';
+      const toMachine = isLabSpeedUpgrade ? 'lab' : item.newMachine;
       return {
         id: item.id,
         availability: upgradeAvailabilityRank(complete, prerequisiteMet),
@@ -2297,10 +2322,10 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
           testId={`card-upgrade-${item.id}`}
           title={item.name}
           copy={item.copy}
-          iconPair={<UpgradeIconPair from={<ResourceIcon item={fromMachine} size={26} />} to={<ResourceIcon item={item.newMachine} size={26} />} fromLabel={fromLabel} toLabel={item.newMachineLabel} />}
+          iconPair={<UpgradeIconPair from={<ResourceIcon item={fromMachine} size={26} />} to={<ResourceIcon item={toMachine} size={26} />} fromLabel={fromLabel} toLabel={item.newMachineLabel} />}
           flow={!complete ? <UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} /> : undefined}
           progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId={`panel-upgrade-progress-${item.id}`} /> : undefined}
-           meta={<UpgradeMetaGrid prerequisite={item.prerequisiteUpgrade ? `${item.prerequisiteTechnology} + ${upgradeMap[item.prerequisiteUpgrade].name}` : item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? item.newMachine : fromMachine} size={17} />} />}
+           meta={<UpgradeMetaGrid prerequisite={item.prerequisiteUpgrade ? `${item.prerequisiteTechnology} + ${upgradeMap[item.prerequisiteUpgrade].name}` : item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? toMachine : fromMachine} size={17} />} />}
           costPerItem={item.upgradeCostPerMachine}
           totalCost={totalCosts}
           timePerMachine={item.upgradeTimePerMachine}
@@ -2375,7 +2400,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     },
   ].sort((a, b) => a.availability - b.availability || a.category - b.category);
   return <PageFrame>
-     <Header eyebrow="Machine + storage conversion" title="Upgrades" copy="Convert machines, furnaces, oil processing, or item-storage chests in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 6 upgrades</Tag>} />
+     <Header eyebrow="Machine + lab upgrades" title="Upgrades" copy="Convert machines, improve lab speed, or upgrade storage and oil processing in one timed job. Material costs are reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 12 upgrades</Tag>} />
     <section className="surface mb-5 rounded-xl border-[hsl(var(--primary)/.25)] bg-[linear-gradient(100deg,hsl(34_28%_16%/.82),hsl(216_25%_14%/.96))] p-4 sm:p-5">
       <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">How conversion works</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Costs are calculated from the current number of relevant machines, deducted immediately, and all matching machines change variant together when the timer completes. Construction elsewhere in the factory can continue.</p></div></div>
     </section>
@@ -2603,7 +2628,7 @@ function TechnologyDetailModal({ item, state, toggleAutoResearch, onClose }: { i
     <section className="surface mx-auto my-2 max-h-[calc(100dvh-1rem)] w-full max-w-[560px] overflow-y-auto rounded-2xl p-5 shadow-2xl sm:my-6 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="technology-detail-title" data-testid="dialog-technology-detail">
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="eyebrow">Technology detail</div><h2 id="technology-detail-title" className="mt-2 text-xl font-extrabold">{prettyLabel(item.name)}</h2></div><div className="flex shrink-0 items-center gap-2"><Tag tone={item.upgrade ? 'amber' : 'teal'}>{item.upgrade ? 'upgrade' : 'technology'}</Tag><button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] text-[hsl(var(--muted-foreground))] transition-colors hover:border-[hsl(var(--primary)/.55)] hover:text-[hsl(var(--primary))]" aria-label="Close technology details" data-testid="button-close-technology-detail"><X size={15} /></button></div></div>
       <div className="mt-2 flex flex-wrap gap-1">{item.essential && <Tag>essential</Tag>}{item.maxLevel && <Tag tone="muted">{prettyLabel(item.maxLevel)} levels</Tag>}{item.researchTrigger && <Tag tone="muted">triggered</Tag>}</div>
-      <div className="mt-5 border-y border-[hsl(var(--border))] py-4"><div className="flex items-center justify-between gap-3 text-[10px]"><span className="eyebrow">Research progress</span><span className={`mono ${selectedDone ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--primary))]'}`}>{selectedDone ? 'complete' : selectedTriggerProgress ? `${fmt(selectedProgress)} / ${fmt(selectedTriggerProgress.required)}` : `${fmt(selectedProgress)} / ${item.countFormula ?? fmt(selectedTotal)} units`}</span></div><div className="mt-2"><Progress value={selectedDone ? 100 : selectedProgressPercent} tone={selectedDone ? 'teal' : 'amber'} /></div><div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">{item.researchTrigger ? 'Production triggers complete this technology when its requirement is met.' : `Labs advance one unit every ${item.time ?? 5}s at 1x speed.`}</div></div>
+       <div className="mt-5 border-y border-[hsl(var(--border))] py-4"><div className="flex items-center justify-between gap-3 text-[10px]"><span className="eyebrow">Research progress</span><span className={`mono ${selectedDone ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--primary))]'}`}>{selectedDone ? 'complete' : selectedTriggerProgress ? `${fmt(selectedProgress)} / ${fmt(selectedTriggerProgress.required)}` : `${fmt(selectedProgress)} / ${item.countFormula ?? fmt(selectedTotal)} units`}</span></div><div className="mt-2"><Progress value={selectedDone ? 100 : selectedProgressPercent} tone={selectedDone ? 'teal' : 'amber'} /></div><div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">{item.researchTrigger ? 'Production triggers complete this technology when its requirement is met.' : `Labs advance one unit every ${item.time ?? 5}s at ${labResearchSpeedFor(state)}x speed.`}</div></div>
       <div className="mt-5 border-y border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Prerequisites</div>{item.prerequisites.length ? <div className="flex flex-wrap gap-1.5">{item.prerequisites.map((prerequisite) => <span className={`resource-chip ${state.research.includes(prerequisite) ? 'border-[hsl(var(--secondary)/.55)]' : ''}`} key={prerequisite}><span className={`status-dot ${state.research.includes(prerequisite) ? 'status-running' : 'status-starved'}`} />{prettyLabel(prerequisite)}</span>)}</div> : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No prerequisites · available at the start.</div>}</div>
       {item.researchTrigger ? <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-2">Unlock trigger</div><div className="text-[11px]">{researchTriggerLabel(item.researchTrigger)}</div>{selectedTriggerProgress ? <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">Starting inventory does not count toward this trigger.</div> : <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">This trigger type is not represented by a quantity counter in the current simulator.</div>}</div> : <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Science requirements</div><div className="space-y-2">{item.scienceCosts.length ? item.scienceCosts.map((cost) => { const costKey = keyForSource(cost.pack); const have = quantityFor(state, costKey); return <div className="flex items-center justify-between gap-3 text-[11px]" key={cost.pack}><span className="flex min-w-0 items-center gap-2"><ResourceIcon item={costKey} size={20} />{meta[costKey].label} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per unit</span></span><span className={`mono shrink-0 ${have >= cost.amount ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{fmt(have)} / {cost.amount}</span></div>; }) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No science packs required.</div>}</div><div className="mt-3 text-[10px] text-[hsl(var(--muted-foreground))]">Total requirement: <span className="break-words mono">{item.scienceCosts.length ? item.scienceCosts.map((cost) => researchRequirementLabel(item, cost)).join(' · ') : 'none'}</span></div></div>}
       <div className="py-4"><div className="eyebrow mb-3">Effects</div><div className="space-y-2">{item.effects.length ? item.effects.map((effect, index) => <div className="data-row rounded-lg px-3 py-2 text-[10px]" key={`${effect.type}-${index}`}><span className="font-semibold">{effect.description ?? (effect.recipe ? `Unlock ${prettyLabel(effect.recipe)}` : prettyLabel(effect.type))}</span>{effect.target && <span className="text-[hsl(var(--muted-foreground))]"> · {prettyLabel(effect.target)}</span>}{effect.modifier !== undefined && <span className="mono float-right text-[hsl(var(--secondary))]">{typeof effect.modifier === 'number' && effect.modifier > 0 ? '+' : ''}{String(effect.modifier)}</span>}</div>) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No listed effects.</div>}</div></div>

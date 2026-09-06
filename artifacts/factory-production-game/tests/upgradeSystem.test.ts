@@ -2,12 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyUpgradeCompletion,
+  applyLabSpeedUpgradeCompletion,
   applyOilProcessingUpgradeCompletion,
   bufferedActualRateFor,
   beginUpgrade,
   migrateMachineUpgradeState,
   oilCrackingConditionMet,
   oilProcessingUpgradeTimeFor,
+  labSpeedForLevel,
   upgradeMap,
   type UpgradeStartState,
 } from '../src/upgradeSystem.js';
@@ -73,6 +75,21 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   assert.equal(productionThree.prerequisiteTechnology, 'automation-3');
   assert.equal(productionThree.prerequisiteUpgrade, 'assembly-machine-2');
 
+  const expectedLabSpeeds = [1.2, 1.5, 1.9, 2.4, 2.9, 3.5];
+  expectedLabSpeeds.forEach((speed, index) => {
+    const level = index + 1;
+    const upgrade = upgradeMap[`research-speed-${level}` as keyof typeof upgradeMap];
+    assert.equal(upgrade.name, `Research Speed Upgrade ${level}`);
+    assert.equal(upgrade.prerequisiteTechnology, `research-speed-${level}`);
+    assert.equal(upgrade.prerequisiteUpgrade, level === 1 ? undefined : `research-speed-${level - 1}`);
+    assert.deepEqual(upgrade.upgradeCostPerMachine, []);
+    assert.equal(upgrade.upgradeTimePerMachine, 1);
+    assert.equal(upgrade.labSpeedLevel, level);
+    assert.equal(upgrade.newMachineProductionSpeed, speed);
+  });
+  assert.equal(labSpeedForLevel(0), 1);
+  assert.equal(labSpeedForLevel(6), 3.5);
+
   const mining = upgradeMap['electric-mining-drill'];
   assert.deepEqual(mining.upgradeCostPerMachine, [
     { key: 'circuit', amount: 3, source: 'products' },
@@ -131,6 +148,21 @@ test('Assembly Machine 3 upgrade reserves four speed modules per Assembly Machin
   assert.equal(result.state.machineVariants.assembly, 'assembling-machine-2');
 });
 
+test('Research Speed upgrades are free and take one second per constructed lab', () => {
+  const result = beginUpgrade(baseState({
+    research: ['research-speed-1'],
+    labCount: 4,
+  }), 'research-speed-1', 'upgrade-research-speed-1');
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.job.machineCount, 4);
+  assert.equal(result.job.total, 4);
+  assert.deepEqual(result.job.costs, []);
+  assert.deepEqual(result.job.reserved, []);
+  assert.equal(result.state.labSpeedLevel, undefined);
+});
+
 test('electric mining upgrade reserves its full cost and scales time by miner count', () => {
   const result = beginUpgrade(baseState({
     research: ['electric-mining-drill'],
@@ -162,6 +194,10 @@ test('upgrade start rejects missing prerequisites, machines, materials, and comp
     machineCounts: { assembly: 1, mining: 0 },
     products: { circuit: 20, gear: 20, steel: 10, ironPlate: 30, 'speed-module': 4 },
   }), 'assembly-machine-3', 'e')), 'prerequisite-upgrade');
+  assert.equal(failureReason(beginUpgrade(baseState({
+    research: ['research-speed-2'],
+    labCount: 1,
+  }), 'research-speed-2', 'f')), 'prerequisite-upgrade');
 });
 
 test('completion switches all machines in the upgraded group and leaves other groups intact', () => {
@@ -175,6 +211,10 @@ test('completion switches all machines in the upgraded group and leaves other gr
 
   const afterMining = applyUpgradeCompletion(afterAssemblyThree, 'electric-mining-drill');
   assert.deepEqual(afterMining, { assembly: 'assembling-machine-3', mining: 'electric-mining-drill' });
+
+  assert.equal(applyLabSpeedUpgradeCompletion(0, 'research-speed-1'), 1);
+  assert.equal(applyLabSpeedUpgradeCompletion(1, 'research-speed-2'), 2);
+  assert.equal(applyLabSpeedUpgradeCompletion(6, 'research-speed-1'), 6);
 });
 
 test('oil processing conversion is free-time and moves basic machines to advanced', () => {
@@ -240,6 +280,17 @@ test('save migration preserves Assembly Machine 3 state and jobs', () => {
 
   assert.deepEqual(migrated.machineVariants, { assembly: 'assembling-machine-3', mining: 'burner-mining-drill' });
   assert.equal(migrated.queue[0].targetId, 'assembly-machine-3');
+});
+
+test('save migration preserves completed Research Speed level and queued lab upgrade', () => {
+  const migrated = migrateMachineUpgradeState({
+    labSpeedLevel: 3,
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
+    queue: [{ id: 'research-speed-4', action: 'upgrade', target: 'Research Speed Upgrade 4', targetId: 'research-speed-4', machineCount: 5, seconds: 2, total: 5 }],
+  });
+
+  assert.equal(migrated.labSpeedLevel, 3);
+  assert.equal(migrated.queue[0].targetId, 'research-speed-4');
 });
 
 test('full storage reports zero mining output when there is no downstream demand', () => {

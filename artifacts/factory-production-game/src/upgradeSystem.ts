@@ -1,5 +1,14 @@
 export type MachineGroup = 'assembly' | 'mining';
-export type UpgradeKey = 'assembly-machine-2' | 'assembly-machine-3' | 'electric-mining-drill';
+export type UpgradeKey =
+  | 'assembly-machine-2'
+  | 'assembly-machine-3'
+  | 'electric-mining-drill'
+  | 'research-speed-1'
+  | 'research-speed-2'
+  | 'research-speed-3'
+  | 'research-speed-4'
+  | 'research-speed-5'
+  | 'research-speed-6';
 export const OIL_PROCESSING_UPGRADE_ID = 'advanced-oil-processing';
 export const oilProcessingUpgradeTimeFor = (machineCount: number) => Math.max(0, machineCount);
 export const oilCrackingConditionMet = (recipeId: string, inventory: Record<string, number>) => recipeId === 'heavy-oil-cracking'
@@ -17,6 +26,7 @@ export type UpgradeDefinition = {
   relevantMachine: string;
   machineGroup: MachineGroup;
   prerequisiteUpgrade?: UpgradeKey;
+  labSpeedLevel?: number;
   upgradeCostPerMachine: BuildMaterialCost[];
   upgradeTimePerMachine: number;
   newMachine: string;
@@ -44,6 +54,8 @@ export type UpgradeStartState = {
   research: string[];
   machineVariants: MachineVariants;
   machineCounts: Record<MachineGroup, number>;
+  labCount?: number;
+  labSpeedLevel?: number;
   queue: UpgradeQueueRecord[];
 };
 
@@ -52,6 +64,8 @@ export type UpgradeStartResult =
   | { ok: true; state: UpgradeStartState; upgrade: UpgradeDefinition; totalCosts: BuildMaterialCost[]; job: UpgradeQueueRecord };
 
 const products = (costs: Array<[string, number]>): BuildMaterialCost[] => costs.map(([key, amount]) => ({ key, amount, source: 'products' }));
+export const labSpeeds = [1, 1.2, 1.5, 1.9, 2.4, 2.9, 3.5] as const;
+export const labSpeedForLevel = (level: number) => labSpeeds[Math.min(labSpeeds.length - 1, Math.max(0, Math.floor(level)))] ?? labSpeeds[0];
 
 export const upgradeData: UpgradeDefinition[] = [
   {
@@ -100,6 +114,30 @@ export const upgradeData: UpgradeDefinition[] = [
     newMachinePowerDraw: 90,
     newMachineProductionSpeed: 0.5,
   },
+  ...([
+    { level: 1, speed: 1.2, technology: 'research-speed-1', previous: undefined },
+    { level: 2, speed: 1.5, technology: 'research-speed-2', previous: 'research-speed-1' },
+    { level: 3, speed: 1.9, technology: 'research-speed-3', previous: 'research-speed-2' },
+    { level: 4, speed: 2.4, technology: 'research-speed-4', previous: 'research-speed-3' },
+    { level: 5, speed: 2.9, technology: 'research-speed-5', previous: 'research-speed-4' },
+    { level: 6, speed: 3.5, technology: 'research-speed-6', previous: 'research-speed-5' },
+  ] as const).map(({ level, speed, technology, previous }) => ({
+    id: `research-speed-${level}` as UpgradeKey,
+    name: `Research Speed Upgrade ${level}`,
+    copy: `Increase every constructed science lab to research at ${speed}× speed. This upgrade is free and takes one second per lab.`,
+    prerequisiteTechnology: technology,
+    ...(previous ? { prerequisiteUpgrade: previous as UpgradeKey } : {}),
+    relevantMachine: 'Science Lab',
+    machineGroup: 'assembly' as const,
+    upgradeCostPerMachine: [],
+    upgradeTimePerMachine: 1,
+    newMachine: 'lab',
+    newMachineLabel: `Research Speed ${level}`,
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 0,
+    newMachineProductionSpeed: speed,
+    labSpeedLevel: level,
+  })),
 ];
 
 export const upgradeMap: Record<UpgradeKey, UpgradeDefinition> = Object.fromEntries(
@@ -120,7 +158,8 @@ export const bufferedActualRateFor = (peakRate: number, stored: number, capacity
 export const machineCountForUpgrade = (
   machineCounts: Record<MachineGroup, number>,
   upgrade: UpgradeDefinition,
-) => machineCounts[upgrade.machineGroup] ?? 0;
+  labCount = 0,
+) => upgrade.labSpeedLevel !== undefined ? labCount : machineCounts[upgrade.machineGroup] ?? 0;
 
 const missingMaterials = (state: UpgradeStartState, costs: BuildMaterialCost[]) => costs
   .map(({ key, amount, source }) => ({ key, amount, available: state[source][key] ?? 0 }))
@@ -128,7 +167,9 @@ const missingMaterials = (state: UpgradeStartState, costs: BuildMaterialCost[]) 
 
 export const beginUpgrade = (state: UpgradeStartState, upgradeId: UpgradeKey, jobId: string): UpgradeStartResult => {
   const upgrade = upgradeMap[upgradeId];
-  if (state.machineVariants[upgrade.machineGroup] === upgrade.newMachine) {
+  const labUpgrade = upgrade.labSpeedLevel !== undefined;
+  const currentLabSpeedLevel = state.labSpeedLevel ?? 0;
+  if (labUpgrade ? currentLabSpeedLevel >= (upgrade.labSpeedLevel ?? 0) : state.machineVariants[upgrade.machineGroup] === upgrade.newMachine) {
     return { ok: false, reason: 'already-installed', message: `${upgrade.newMachineLabel} is already installed` };
   }
   if (state.queue.some((item) => item.action === 'upgrade')) {
@@ -137,10 +178,16 @@ export const beginUpgrade = (state: UpgradeStartState, upgradeId: UpgradeKey, jo
   if (!state.research.includes(upgrade.prerequisiteTechnology)) {
     return { ok: false, reason: 'prerequisite', message: `${upgrade.prerequisiteTechnology} required` };
   }
-  if (upgrade.prerequisiteUpgrade && state.machineVariants[upgrade.machineGroup] !== upgradeMap[upgrade.prerequisiteUpgrade].newMachine) {
-    return { ok: false, reason: 'prerequisite-upgrade', message: `${upgradeMap[upgrade.prerequisiteUpgrade].name} required` };
+  if (upgrade.prerequisiteUpgrade) {
+    const prerequisite = upgradeMap[upgrade.prerequisiteUpgrade];
+    const prerequisiteMet = labUpgrade
+      ? currentLabSpeedLevel >= (prerequisite.labSpeedLevel ?? 0)
+      : state.machineVariants[upgrade.machineGroup] === prerequisite.newMachine;
+    if (!prerequisiteMet) {
+      return { ok: false, reason: 'prerequisite-upgrade', message: `${prerequisite.name} required` };
+    }
   }
-  const machineCount = machineCountForUpgrade(state.machineCounts, upgrade);
+  const machineCount = machineCountForUpgrade(state.machineCounts, upgrade, state.labCount);
   if (!machineCount) {
     return { ok: false, reason: 'no-machines', message: `construct at least one ${upgrade.relevantMachine.toLowerCase()} first` };
   }
@@ -182,8 +229,13 @@ export const beginUpgrade = (state: UpgradeStartState, upgradeId: UpgradeKey, jo
 
 export const applyUpgradeCompletion = (machineVariants: MachineVariants, upgradeId: string): MachineVariants => {
   const upgrade = upgradeMap[upgradeId as UpgradeKey];
-  if (!upgrade) return { ...machineVariants };
+  if (!upgrade || upgrade.labSpeedLevel !== undefined) return { ...machineVariants };
   return { ...machineVariants, [upgrade.machineGroup]: upgrade.newMachine };
+};
+
+export const applyLabSpeedUpgradeCompletion = (labSpeedLevel: number, upgradeId: string) => {
+  const upgrade = upgradeMap[upgradeId as UpgradeKey];
+  return upgrade?.labSpeedLevel === undefined ? labSpeedLevel : Math.max(labSpeedLevel, upgrade.labSpeedLevel);
 };
 
 export const applyOilProcessingUpgradeCompletion = (assemblers: Record<string, number>, machineCount: number) => ({
@@ -192,8 +244,8 @@ export const applyOilProcessingUpgradeCompletion = (assemblers: Record<string, n
   'basic-oil-processing': 0,
 });
 
-export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: MachineVariants; queue: UpgradeQueueRecord[] } => {
-  const record = saved && typeof saved === 'object' ? saved as { machineVariants?: unknown; queue?: unknown } : {};
+export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: MachineVariants; labSpeedLevel: number; queue: UpgradeQueueRecord[] } => {
+  const record = saved && typeof saved === 'object' ? saved as { machineVariants?: unknown; labSpeedLevel?: unknown; queue?: unknown } : {};
   const savedVariants = record.machineVariants && typeof record.machineVariants === 'object'
     ? record.machineVariants as Partial<MachineVariants>
     : {};
@@ -205,6 +257,10 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
         : 'assembling-machine-1',
     mining: savedVariants.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
   };
+  const savedLabSpeedLevel = typeof record.labSpeedLevel === 'number' && Number.isFinite(record.labSpeedLevel)
+    ? record.labSpeedLevel
+    : 0;
+  const labSpeedLevel = Math.min(labSpeeds.length - 1, Math.max(0, Math.floor(savedLabSpeedLevel)));
   const persistedQueue = Array.isArray(record.queue) ? record.queue : [];
   let upgradeSeen = false;
   const validUpgradeIds = new Set<string>([...Object.keys(upgradeMap), 'iron-chests', 'steel-furnaces', OIL_PROCESSING_UPGRADE_ID]);
@@ -216,5 +272,5 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
     upgradeSeen = true;
     return true;
   });
-  return { machineVariants, queue };
+  return { machineVariants, labSpeedLevel, queue };
 };
