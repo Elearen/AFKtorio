@@ -40,6 +40,7 @@ type ScienceKey = 'automationPack' | 'logisticsPack' | 'chemicalPack' | 'militar
 type TrackedKey = string;
 type ResearchKey = string;
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
+type UpgradeFilter = 'completed' | 'available' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
 type UnitStatus = 'running' | 'starved' | 'blocked';
 const defaultTechnologyResearchTime = 30;
@@ -2161,6 +2162,7 @@ function LogisticsPage({ notice }: PageProps) {
 }
 
 function UpgradesPage({ state, setState, notice }: PageProps) {
+  const [upgradeFilter, setUpgradeFilter] = useState<UpgradeFilter>('available');
   const activeUpgrade = state.queue.find((item) => item.action === 'upgrade');
   const storageBoxCount = storageBoxCountFor(state);
   const storageUpgradeComplete = state.storageBoxType === 'iron';
@@ -2399,13 +2401,41 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
       />,
     },
   ].sort((a, b) => a.availability - b.availability || a.category - b.category);
+  const upgradeCounts = sortedUpgradeCards.reduce<Record<UpgradeFilter, number>>((counts, upgrade) => {
+    const filter = upgrade.availability === 2 ? 'completed' : upgrade.availability === 0 ? 'available' : 'locked';
+    counts[filter] += 1;
+    return counts;
+  }, { completed: 0, available: 0, locked: 0 });
+  const visibleUpgradeCards = sortedUpgradeCards.filter((upgrade) => {
+    const status = upgrade.availability === 2 ? 'completed' : upgrade.availability === 0 ? 'available' : 'locked';
+    return status === upgradeFilter;
+  });
   return <PageFrame>
      <Header eyebrow="Machine + lab upgrades" title="Upgrades" copy="Convert machines, improve lab speed, or upgrade storage and oil processing in one timed job. Material costs are reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 12 upgrades</Tag>} />
     <section className="surface mb-5 rounded-xl border-[hsl(var(--primary)/.25)] bg-[linear-gradient(100deg,hsl(34_28%_16%/.82),hsl(216_25%_14%/.96))] p-4 sm:p-5">
       <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">How conversion works</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Costs are calculated from the current number of relevant machines, deducted immediately, and all matching machines change variant together when the timer completes. Construction elsewhere in the factory can continue.</p></div></div>
     </section>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="eyebrow">Upgrade status</div>
+          <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{visibleUpgradeCards.length} shown · {sortedUpgradeCards.length} total</div>
+        </div>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Upgrade filters">
+          {(['completed', 'available', 'locked'] as UpgradeFilter[]).map((option) => (
+            <button
+              key={option}
+              onClick={() => setUpgradeFilter(option)}
+              className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${upgradeFilter === option ? 'button-primary' : 'button-ghost'}`}
+              aria-pressed={upgradeFilter === option}
+              data-testid={`button-upgrade-filter-${option}`}
+            >
+              {option[0].toUpperCase() + option.slice(1)} <span className="mono opacity-75">{upgradeCounts[option]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
      <div className="grid gap-3 md:grid-cols-2">
-        {sortedUpgradeCards.map(({ card }) => card)}
+         {visibleUpgradeCards.map(({ card }) => card)}
      </div>
   </PageFrame>;
 }
