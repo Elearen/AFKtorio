@@ -1116,7 +1116,11 @@ function loadState() {
       savedStorage: normalizedStorage,
       savedBoxes: parsed.storageBoxes,
       savedTanks: parsed.storageTanks,
-      boxCapacity: storageBoxType === 'wooden' ? storageBoxCapacity : ironStorageBoxCapacity,
+      boxCapacity: storageBoxType === 'wooden'
+        ? storageBoxCapacity
+        : storageBoxType === 'steel'
+          ? steelStorageBoxCapacity
+          : ironStorageBoxCapacity,
     });
     const savedFurnaceCount = Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => {
       const count = parsed.assemblers?.[recipeKey];
