@@ -392,6 +392,14 @@ export const tierProductCatalog: TierProduct[] = [
   },
   {
     "tier": 5,
+    "sourceName": "logistic-science-pack"
+  },
+  {
+    "tier": 5,
+    "sourceName": "military-science-pack"
+  },
+  {
+    "tier": 5,
     "sourceName": "heavy-oil"
   },
   {
@@ -404,15 +412,7 @@ export const tierProductCatalog: TierProduct[] = [
   },
   {
     "tier": 5,
-    "sourceName": "logistic-science-pack"
-  },
-  {
-    "tier": 5,
     "sourceName": "long-handed-inserter"
-  },
-  {
-    "tier": 5,
-    "sourceName": "military-science-pack"
   },
   {
     "tier": 5,
