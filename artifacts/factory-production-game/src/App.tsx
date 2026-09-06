@@ -165,7 +165,14 @@ const activeResearchFor = (state: GameState) => {
 const scienceRequirementKeysFor = (technology?: TechnologyDefinition) => Array.from(new Set(
   technology?.scienceCosts.map((cost) => keyForSource(cost.pack)) ?? [],
 ));
-const researchUnitsFor = (technology: TechnologyDefinition) => technology.count ?? (technology.countFormula ? 1000 : 1);
+const researchUnitsFor = (technology: TechnologyDefinition) => {
+  if (technology.count !== undefined) return technology.count;
+  if (technology.countFormula) {
+    return evaluateResearchCountFormula(technology.countFormula, technologyLevelFor(technology.name)) ?? 1000;
+  }
+  return 1;
+};
+const researchUnitsLabelFor = (technology: TechnologyDefinition) => fmt(researchUnitsFor(technology));
 const researchProgressFor = (state: GameState, technology: TechnologyDefinition) => {
   if (state.research.includes(technology.name)) return researchUnitsFor(technology);
   const trigger = researchTriggerProgress(state, technology);
@@ -2656,7 +2663,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     <Header eyebrow="Technology control" title="Research" copy="Select a technology to research with your labs, or mark several for auto research. Checked technologies run one at a time from the top of this official catalog." action={<Tag><Lightbulb size={11} /> {technologyCatalog.length} technologies · {state.research.length} complete</Tag>} />
     <section className="surface mb-5 rounded-xl border-[hsl(var(--secondary)/.45)] bg-[linear-gradient(100deg,hsl(88_25%_16%/.86),hsl(216_25%_13%/.96))] p-4 sm:p-5" data-testid="panel-current-research">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0"><div className="eyebrow flex items-center gap-2 text-[hsl(var(--secondary))]"><span className="status-dot status-running mini-pulse" /> currently researching</div><div className="mt-2 truncate text-base font-extrabold">{activeResearch ? prettyLabel(activeResearch.name) : 'No active technology'}</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{activeResearch?.researchTrigger ? 'Waiting for its production trigger.' : activeResearch ? `${fmt(activeResearchProgress)} / ${activeResearch.countFormula ?? fmt(activeResearchTotal)} research units complete.` : 'Select a technology or enable auto research to start a lab target.'}</div></div>
+       <div className="min-w-0"><div className="eyebrow flex items-center gap-2 text-[hsl(var(--secondary))]"><span className="status-dot status-running mini-pulse" /> currently researching</div><div className="mt-2 truncate text-base font-extrabold">{activeResearch ? prettyLabel(activeResearch.name) : 'No active technology'}</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{activeResearch?.researchTrigger ? 'Waiting for its production trigger.' : activeResearch ? `${fmt(activeResearchProgress)} / ${researchUnitsLabelFor(activeResearch)} research units complete.` : 'Select a technology or enable auto research to start a lab target.'}</div></div>
         <div className="grid grid-cols-2 gap-2 sm:min-w-[260px]"><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Research rate</div><div className="mono mt-1 text-lg text-[hsl(var(--secondary))]">{activeResearchIsLabDriven ? `${activeResearchRate.toFixed(1)} / min` : '—'}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{activeResearch?.researchTrigger ? 'production trigger' : activeResearch ? 'lab units per minute' : 'no active lab target'}</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Estimated time</div><div className="mono mt-1 text-lg text-[hsl(var(--primary))]">{activeResearchEta === null ? '—' : duration(activeResearchEta)}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{activeResearchEta === null ? (activeResearch?.researchTrigger ? 'waiting for trigger' : 'waiting for science') : 'until completion'}</div></div></div>
       </div>
       {activeResearchIsLabDriven && <div className="mt-4"><Progress value={activeResearchProgress / activeResearchTotal * 100} tone="teal" /></div>}
@@ -2683,7 +2690,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
         const total = researchUnitsFor(technology);
         const trigger = researchTriggerProgress(state, technology);
         const autoPosition = technology.researchTrigger ? -1 : (state.autoResearch ?? []).indexOf(technology.name);
-        const progressLabel = trigger ? `${fmt(trigger.produced)} / ${fmt(trigger.required)}` : `${fmt(progress)} / ${technology.countFormula ?? fmt(total)} units`;
+         const progressLabel = trigger ? `${fmt(trigger.produced)} / ${fmt(trigger.required)}` : `${fmt(progress)} / ${researchUnitsLabelFor(technology)} units`;
         const isResearching = activeResearch?.name === technology.name;
         return <div className={`surface rounded-xl p-3 sm:p-4 ${isResearching ? 'border-[hsl(var(--secondary)/.9)] bg-[linear-gradient(100deg,hsl(88_28%_18%/.95),hsl(174_30%_15%/.78))] shadow-[0_0_0_1px_hsl(var(--secondary)/.22)]' : selected === technology.name ? 'border-[hsl(var(--secondary)/.65)] bg-[hsl(174_30%_15%/.7)]' : 'hover:border-[hsl(var(--border))]'}`} key={technology.name}>
           <div className="flex items-start gap-3">
