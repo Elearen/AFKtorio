@@ -217,6 +217,10 @@ const assemblyMachineTwoRecipe = recipeMap['assembling-machine-2'];
 const assemblyMachineTwoBuildCost = upgradeMap['assembly-machine-2'].newMachineMaterialCost;
 const assemblyMachineTwoPowerKw = upgradeMap['assembly-machine-2'].newMachinePowerDraw;
 const assemblyMachineTwoProductionSpeed = upgradeMap['assembly-machine-2'].newMachineProductionSpeed;
+const assemblyMachineThreeRecipe = recipeMap['assembling-machine-3'];
+const assemblyMachineThreeBuildCost = upgradeMap['assembly-machine-3'].newMachineMaterialCost;
+const assemblyMachineThreePowerKw = upgradeMap['assembly-machine-3'].newMachinePowerDraw;
+const assemblyMachineThreeProductionSpeed = upgradeMap['assembly-machine-3'].newMachineProductionSpeed;
 const labPowerKw = 7000;
 const storageBoxCapacity = STORAGE_BOX_CAPACITY;
 const ironStorageBoxCapacity = STORAGE_IRON_BOX_CAPACITY;
@@ -377,7 +381,7 @@ const recipeBuildCosts = (recipe: Recipe): BuildMaterialCost[] => Object.entries
 }));
 const legacyUpgradeCostsFor = (item: QueueItem): BuildMaterialCost[] | undefined => {
   if (item.action !== 'upgrade' || item.costs?.length || !item.targetId || !item.machineCount || item.machineCount <= 0) return undefined;
-  if (item.targetId === 'assembly-machine-2' || item.targetId === 'electric-mining-drill') {
+  if (item.targetId === 'assembly-machine-2' || item.targetId === 'assembly-machine-3' || item.targetId === 'electric-mining-drill') {
     const upgrade = upgradeMap[item.targetId];
     return scaledBuildCosts(upgrade.upgradeCostPerMachine, item.machineCount);
   }
@@ -461,8 +465,24 @@ const oilRefineryCountFor = (state: GameState) => (state.assemblers['basic-oil-p
 const chemicalPlantCountFor = (state: GameState) => chemicalPlantRecipeNames.reduce((total, recipeKey) => total + (state.assemblers[recipeKey] ?? 0), 0);
 const smeltingFurnaceCountFor = (state: GameState) => Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => total + (state.assemblers[recipeKey] ?? 0), 0);
 const productionUnitCount = (state: GameState) => Object.values(state.assemblers).reduce((total, count) => total + count, 0);
-const assemblyMachineProductionSpeedFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe) ? oilRefineryCraftingSpeed : isChemicalPlantRecipe(recipe) ? chemicalPlantCraftingSpeed : state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoProductionSpeed : assemblyMachineOneProductionSpeed;
-const assemblyMachinePowerFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe) ? oilRefineryPowerKw : isChemicalPlantRecipe(recipe) ? chemicalPlantPowerKw : state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoPowerKw : assemblyMachineOnePowerKw;
+const assemblyMachineProductionSpeedFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe)
+  ? oilRefineryCraftingSpeed
+  : isChemicalPlantRecipe(recipe)
+    ? chemicalPlantCraftingSpeed
+    : state.machineVariants.assembly === 'assembling-machine-3'
+      ? assemblyMachineThreeProductionSpeed
+      : state.machineVariants.assembly === 'assembling-machine-2'
+        ? assemblyMachineTwoProductionSpeed
+        : assemblyMachineOneProductionSpeed;
+const assemblyMachinePowerFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe)
+  ? oilRefineryPowerKw
+  : isChemicalPlantRecipe(recipe)
+    ? chemicalPlantPowerKw
+    : state.machineVariants.assembly === 'assembling-machine-3'
+      ? assemblyMachineThreePowerKw
+      : state.machineVariants.assembly === 'assembling-machine-2'
+        ? assemblyMachineTwoPowerKw
+        : assemblyMachineOnePowerKw;
 const miningMachineProductionSpeedFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillProductionSpeed : burnerMiningDrillProductionSpeed;
 const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillPowerKw : 0;
 const miningUsesStoredCoal = (state: GameState) => state.machineVariants.mining !== 'electric-mining-drill';
@@ -521,15 +541,37 @@ const miningOutputPerSecondFor = (key: RawKey) => key === 'uranium' ? 0.32 : key
 const miningMachineBuildCostFor = (state: GameState): BuildMaterialCost[] => state.machineVariants.mining === 'electric-mining-drill'
   ? electricMiningDrillBuildCost
   : [{ key: 'gear', amount: burnerMiningDrillCost.gear, source: 'products' }, { key: 'ironPlate', amount: burnerMiningDrillCost.ironPlate, source: 'products' }, { key: 'stone', amount: burnerMiningDrillCost.stone, source: 'raw' }];
-const productionMachineLabelFor = (state: GameState, recipe?: Recipe) => recipe?.name === 'space-science-pack' ? 'Rocket Silo' : isOilRefineryRecipe(recipe) ? 'Oil Refinery' : isChemicalPlantRecipe(recipe) ? 'Chemical Plant' : state.machineVariants.assembly === 'assembling-machine-2' ? 'Assembly Machine 2' : 'Assembly Machine 1';
-const productionMachineRecipeFor = (state: GameState, recipe?: Recipe) => recipe?.name === 'space-science-pack' ? rocketSiloRecipe : isOilRefineryRecipe(recipe) ? oilRefineryRecipe : isChemicalPlantRecipe(recipe) ? chemicalPlantRecipe : state.machineVariants.assembly === 'assembling-machine-2' ? assemblyMachineTwoRecipe : assemblyMachineOneRecipe;
+const productionMachineLabelFor = (state: GameState, recipe?: Recipe) => recipe?.name === 'space-science-pack'
+  ? 'Rocket Silo'
+  : isOilRefineryRecipe(recipe)
+    ? 'Oil Refinery'
+    : isChemicalPlantRecipe(recipe)
+      ? 'Chemical Plant'
+      : state.machineVariants.assembly === 'assembling-machine-3'
+        ? 'Assembly Machine 3'
+        : state.machineVariants.assembly === 'assembling-machine-2'
+          ? 'Assembly Machine 2'
+          : 'Assembly Machine 1';
+const productionMachineRecipeFor = (state: GameState, recipe?: Recipe) => recipe?.name === 'space-science-pack'
+  ? rocketSiloRecipe
+  : isOilRefineryRecipe(recipe)
+    ? oilRefineryRecipe
+    : isChemicalPlantRecipe(recipe)
+      ? chemicalPlantRecipe
+      : state.machineVariants.assembly === 'assembling-machine-3'
+        ? assemblyMachineThreeRecipe
+        : state.machineVariants.assembly === 'assembling-machine-2'
+          ? assemblyMachineTwoRecipe
+          : assemblyMachineOneRecipe;
 const productionMachineBuildCostFor = (state: GameState, recipe?: Recipe): BuildMaterialCost[] => recipe?.name === 'space-science-pack'
   ? rocketSiloBuildCost
   : isOilRefineryRecipe(recipe) || isChemicalPlantRecipe(recipe)
   ? recipeBuildCosts(isOilRefineryRecipe(recipe) ? oilRefineryRecipe : chemicalPlantRecipe)
-  : state.machineVariants.assembly === 'assembling-machine-2'
-    ? assemblyMachineTwoBuildCost
-    : [{ key: 'circuit', amount: assemblyMachineOneBuildCost.circuit, source: 'products' }, { key: 'gear', amount: assemblyMachineOneBuildCost.gear, source: 'products' }, { key: 'ironPlate', amount: assemblyMachineOneBuildCost.ironPlate, source: 'products' }];
+  : state.machineVariants.assembly === 'assembling-machine-3'
+    ? assemblyMachineThreeBuildCost
+    : state.machineVariants.assembly === 'assembling-machine-2'
+      ? assemblyMachineTwoBuildCost
+      : [{ key: 'circuit', amount: assemblyMachineOneBuildCost.circuit, source: 'products' }, { key: 'gear', amount: assemblyMachineOneBuildCost.gear, source: 'products' }, { key: 'ironPlate', amount: assemblyMachineOneBuildCost.ironPlate, source: 'products' }];
 const productionMachineLoadLabelFor = (state: GameState) => [oilRefineryCountFor(state), chemicalPlantCountFor(state), electricAssemblerCount(state)].filter((count) => count > 0).length > 1
   ? 'Mixed production'
   : chemicalPlantCountFor(state) > 0
@@ -2220,21 +2262,32 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     'electric-mining-drill': 1,
     'steel-furnaces': 2,
     'assembly-machine-2': 3,
-    [OIL_PROCESSING_UPGRADE_ID]: 4,
+    'assembly-machine-3': 4,
+    [OIL_PROCESSING_UPGRADE_ID]: 5,
   };
   const upgradeAvailabilityRank = (complete: boolean, prerequisiteMet: boolean) => complete ? 2 : prerequisiteMet ? 0 : 1;
   const sortedUpgradeCards = [
     ...upgradeData.map((item) => {
       const machineCount = machineCountForUpgrade(state, item);
       const complete = state.machineVariants[item.machineGroup] === item.newMachine;
-      const prerequisiteMet = state.research.includes(item.prerequisiteTechnology);
+      const prerequisiteUpgradeMet = !item.prerequisiteUpgrade
+        || state.machineVariants[item.machineGroup] === upgradeMap[item.prerequisiteUpgrade].newMachine;
+      const prerequisiteMet = state.research.includes(item.prerequisiteTechnology) && prerequisiteUpgradeMet;
       const queued = activeUpgrade?.targetId === item.id;
       const totalCosts = scaledBuildCosts(item.upgradeCostPerMachine, machineCount);
       const missing = complete || !machineCount ? '' : missingBuildMaterials(state, totalCosts);
       const conversionCount = activeUpgrade?.machineCount ?? machineCount;
       const canStart = !complete && !activeUpgrade && prerequisiteMet && machineCount > 0 && !missing;
-      const fromMachine = item.id === 'assembly-machine-2' ? 'assembling-machine-1' : 'burner-mining-drill';
-      const fromLabel = item.id === 'assembly-machine-2' ? 'Assembly Machine 1' : 'Burner Mining Drill';
+      const fromMachine = item.id === 'assembly-machine-2'
+        ? 'assembling-machine-1'
+        : item.id === 'assembly-machine-3'
+          ? 'assembling-machine-2'
+          : 'burner-mining-drill';
+      const fromLabel = item.id === 'assembly-machine-2'
+        ? 'Assembly Machine 1'
+        : item.id === 'assembly-machine-3'
+          ? 'Assembly Machine 2'
+          : 'Burner Mining Drill';
       return {
         id: item.id,
         availability: upgradeAvailabilityRank(complete, prerequisiteMet),
@@ -2247,7 +2300,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
           iconPair={<UpgradeIconPair from={<ResourceIcon item={fromMachine} size={26} />} to={<ResourceIcon item={item.newMachine} size={26} />} fromLabel={fromLabel} toLabel={item.newMachineLabel} />}
           flow={!complete ? <UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} /> : undefined}
           progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId={`panel-upgrade-progress-${item.id}`} /> : undefined}
-          meta={<UpgradeMetaGrid prerequisite={item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? item.newMachine : fromMachine} size={17} />} />}
+           meta={<UpgradeMetaGrid prerequisite={item.prerequisiteUpgrade ? `${item.prerequisiteTechnology} + ${upgradeMap[item.prerequisiteUpgrade].name}` : item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? item.newMachine : fromMachine} size={17} />} />}
           costPerItem={item.upgradeCostPerMachine}
           totalCost={totalCosts}
           timePerMachine={item.upgradeTimePerMachine}
@@ -2322,7 +2375,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     },
   ].sort((a, b) => a.availability - b.availability || a.category - b.category);
   return <PageFrame>
-    <Header eyebrow="Machine + storage conversion" title="Upgrades" copy="Convert machines, furnaces, oil processing, or item-storage chests in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 5 upgrades</Tag>} />
+     <Header eyebrow="Machine + storage conversion" title="Upgrades" copy="Convert machines, furnaces, oil processing, or item-storage chests in one timed job. The full cost is reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 6 upgrades</Tag>} />
     <section className="surface mb-5 rounded-xl border-[hsl(var(--primary)/.25)] bg-[linear-gradient(100deg,hsl(34_28%_16%/.82),hsl(216_25%_14%/.96))] p-4 sm:p-5">
       <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">How conversion works</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Costs are calculated from the current number of relevant machines, deducted immediately, and all matching machines change variant together when the timer completes. Construction elsewhere in the factory can continue.</p></div></div>
     </section>

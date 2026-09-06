@@ -57,6 +57,22 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   assert.equal(production.newMachinePowerDraw, 150);
   assert.equal(production.newMachineProductionSpeed, 0.75);
 
+  const productionThree = upgradeMap['assembly-machine-3'];
+  assert.deepEqual(productionThree.upgradeCostPerMachine, [
+    { key: 'speed-module', amount: 4, source: 'products' },
+  ]);
+  assert.equal(productionThree.upgradeTimePerMachine, 0.5);
+  assert.deepEqual(productionThree.newMachineMaterialCost, [
+    { key: 'circuit', amount: 3, source: 'products' },
+    { key: 'gear', amount: 5, source: 'products' },
+    { key: 'steel', amount: 2, source: 'products' },
+    { key: 'speed-module', amount: 4, source: 'products' },
+  ]);
+  assert.equal(productionThree.newMachinePowerDraw, 375);
+  assert.equal(productionThree.newMachineProductionSpeed, 1.25);
+  assert.equal(productionThree.prerequisiteTechnology, 'automation-3');
+  assert.equal(productionThree.prerequisiteUpgrade, 'assembly-machine-2');
+
   const mining = upgradeMap['electric-mining-drill'];
   assert.deepEqual(mining.upgradeCostPerMachine, [
     { key: 'circuit', amount: 3, source: 'products' },
@@ -95,6 +111,26 @@ test('production upgrade reserves the full cost and total time for every existin
   assert.equal(result.state.machineVariants.assembly, 'assembling-machine-1');
 });
 
+test('Assembly Machine 3 upgrade reserves four speed modules per Assembly Machine 2', () => {
+  const result = beginUpgrade(baseState({
+    research: ['automation-3'],
+    machineVariants: { assembly: 'assembling-machine-2', mining: 'burner-mining-drill' },
+    machineCounts: { assembly: 3, mining: 0 },
+    products: { circuit: 20, gear: 20, steel: 10, ironPlate: 30, 'speed-module': 20 },
+  }), 'assembly-machine-3', 'upgrade-production-3');
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.state.products, { circuit: 20, gear: 20, steel: 10, ironPlate: 30, 'speed-module': 8 });
+  assert.equal(result.job.machineCount, 3);
+  assert.equal(result.job.total, 1.5);
+  assert.deepEqual(result.job.costs, [
+    { key: 'speed-module', amount: 12, source: 'products' },
+  ]);
+  assert.deepEqual(result.job.reserved, [12]);
+  assert.equal(result.state.machineVariants.assembly, 'assembling-machine-2');
+});
+
 test('electric mining upgrade reserves its full cost and scales time by miner count', () => {
   const result = beginUpgrade(baseState({
     research: ['electric-mining-drill'],
@@ -121,6 +157,11 @@ test('upgrade start rejects missing prerequisites, machines, materials, and comp
     machineCounts: { assembly: 1, mining: 0 },
     queue: [{ id: 'existing', action: 'upgrade', target: 'other', seconds: 1, total: 2 }],
   }), 'assembly-machine-2', 'd')), 'upgrade-busy');
+  assert.equal(failureReason(beginUpgrade(baseState({
+    research: ['automation-3'],
+    machineCounts: { assembly: 1, mining: 0 },
+    products: { circuit: 20, gear: 20, steel: 10, ironPlate: 30, 'speed-module': 4 },
+  }), 'assembly-machine-3', 'e')), 'prerequisite-upgrade');
 });
 
 test('completion switches all machines in the upgraded group and leaves other groups intact', () => {
@@ -129,8 +170,11 @@ test('completion switches all machines in the upgraded group and leaves other gr
   assert.deepEqual(afterProduction, { assembly: 'assembling-machine-2', mining: 'burner-mining-drill' });
   assert.deepEqual(initial, { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' });
 
-  const afterMining = applyUpgradeCompletion(afterProduction, 'electric-mining-drill');
-  assert.deepEqual(afterMining, { assembly: 'assembling-machine-2', mining: 'electric-mining-drill' });
+  const afterAssemblyThree = applyUpgradeCompletion(afterProduction, 'assembly-machine-3');
+  assert.deepEqual(afterAssemblyThree, { assembly: 'assembling-machine-3', mining: 'burner-mining-drill' });
+
+  const afterMining = applyUpgradeCompletion(afterAssemblyThree, 'electric-mining-drill');
+  assert.deepEqual(afterMining, { assembly: 'assembling-machine-3', mining: 'electric-mining-drill' });
 });
 
 test('oil processing conversion is free-time and moves basic machines to advanced', () => {
@@ -186,6 +230,16 @@ test('save migration preserves an in-progress Steel Furnaces job', () => {
   });
 
   assert.equal(migrated.queue[0].targetId, 'steel-furnaces');
+});
+
+test('save migration preserves Assembly Machine 3 state and jobs', () => {
+  const migrated = migrateMachineUpgradeState({
+    machineVariants: { assembly: 'assembling-machine-3', mining: 'burner-mining-drill' },
+    queue: [{ id: 'assembly-3', action: 'upgrade', target: 'Upgrade production to Assembly Machine 3', targetId: 'assembly-machine-3', machineCount: 5, seconds: 1, total: 2.5 }],
+  });
+
+  assert.deepEqual(migrated.machineVariants, { assembly: 'assembling-machine-3', mining: 'burner-mining-drill' });
+  assert.equal(migrated.queue[0].targetId, 'assembly-machine-3');
 });
 
 test('full storage reports zero mining output when there is no downstream demand', () => {

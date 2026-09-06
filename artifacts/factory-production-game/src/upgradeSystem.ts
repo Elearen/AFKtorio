@@ -1,5 +1,5 @@
 export type MachineGroup = 'assembly' | 'mining';
-export type UpgradeKey = 'assembly-machine-2' | 'electric-mining-drill';
+export type UpgradeKey = 'assembly-machine-2' | 'assembly-machine-3' | 'electric-mining-drill';
 export const OIL_PROCESSING_UPGRADE_ID = 'advanced-oil-processing';
 export const oilProcessingUpgradeTimeFor = (machineCount: number) => Math.max(0, machineCount);
 export const oilCrackingConditionMet = (recipeId: string, inventory: Record<string, number>) => recipeId === 'heavy-oil-cracking'
@@ -16,6 +16,7 @@ export type UpgradeDefinition = {
   prerequisiteTechnology: string;
   relevantMachine: string;
   machineGroup: MachineGroup;
+  prerequisiteUpgrade?: UpgradeKey;
   upgradeCostPerMachine: BuildMaterialCost[];
   upgradeTimePerMachine: number;
   newMachine: string;
@@ -47,7 +48,7 @@ export type UpgradeStartState = {
 };
 
 export type UpgradeStartResult =
-  | { ok: false; reason: 'already-installed' | 'upgrade-busy' | 'prerequisite' | 'no-machines' | 'missing-materials'; message: string }
+  | { ok: false; reason: 'already-installed' | 'upgrade-busy' | 'prerequisite' | 'prerequisite-upgrade' | 'no-machines' | 'missing-materials'; message: string }
   | { ok: true; state: UpgradeStartState; upgrade: UpgradeDefinition; totalCosts: BuildMaterialCost[]; job: UpgradeQueueRecord };
 
 const products = (costs: Array<[string, number]>): BuildMaterialCost[] => costs.map(([key, amount]) => ({ key, amount, source: 'products' }));
@@ -67,6 +68,22 @@ export const upgradeData: UpgradeDefinition[] = [
     newMachineMaterialCost: products([['circuit', 6], ['gear', 10], ['ironPlate', 9], ['steel', 2]]),
     newMachinePowerDraw: 150,
     newMachineProductionSpeed: 0.75,
+  },
+  {
+    id: 'assembly-machine-3',
+    name: 'Upgrade production to Assembly Machine 3',
+    copy: 'Replace every Assembly Machine 2 with a faster Assembly Machine 3. The conversion uses Speed Modules and increases production speed to 1.25.',
+    prerequisiteTechnology: 'automation-3',
+    prerequisiteUpgrade: 'assembly-machine-2',
+    relevantMachine: 'Assembly Machine 2',
+    machineGroup: 'assembly',
+    upgradeCostPerMachine: products([['speed-module', 4]]),
+    upgradeTimePerMachine: 0.5,
+    newMachine: 'assembling-machine-3',
+    newMachineLabel: 'Assembly Machine 3',
+    newMachineMaterialCost: products([['circuit', 3], ['gear', 5], ['steel', 2], ['speed-module', 4]]),
+    newMachinePowerDraw: 375,
+    newMachineProductionSpeed: 1.25,
   },
   {
     id: 'electric-mining-drill',
@@ -119,6 +136,9 @@ export const beginUpgrade = (state: UpgradeStartState, upgradeId: UpgradeKey, jo
   }
   if (!state.research.includes(upgrade.prerequisiteTechnology)) {
     return { ok: false, reason: 'prerequisite', message: `${upgrade.prerequisiteTechnology} required` };
+  }
+  if (upgrade.prerequisiteUpgrade && state.machineVariants[upgrade.machineGroup] !== upgradeMap[upgrade.prerequisiteUpgrade].newMachine) {
+    return { ok: false, reason: 'prerequisite-upgrade', message: `${upgradeMap[upgrade.prerequisiteUpgrade].name} required` };
   }
   const machineCount = machineCountForUpgrade(state.machineCounts, upgrade);
   if (!machineCount) {
@@ -178,7 +198,11 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
     ? record.machineVariants as Partial<MachineVariants>
     : {};
   const machineVariants: MachineVariants = {
-    assembly: savedVariants.assembly === 'assembling-machine-2' ? 'assembling-machine-2' : 'assembling-machine-1',
+    assembly: savedVariants.assembly === 'assembling-machine-3'
+      ? 'assembling-machine-3'
+      : savedVariants.assembly === 'assembling-machine-2'
+        ? 'assembling-machine-2'
+        : 'assembling-machine-1',
     mining: savedVariants.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
   };
   const persistedQueue = Array.isArray(record.queue) ? record.queue : [];
