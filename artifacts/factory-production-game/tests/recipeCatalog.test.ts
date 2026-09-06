@@ -61,3 +61,12 @@ test('Concrete is classified as a Core recipe', () => {
   assert.equal(recipeScienceChainFor(concrete, false), 'Core');
   assert.equal(recipeScienceChainFor(concrete, true), 'Core');
 });
+
+test('Speed Module 1 is classified as a Core recipe', () => {
+  const speedModule = recipeCatalog.find((recipe) => recipe.name === 'speed-module');
+
+  assert.ok(speedModule);
+  assert.equal(speedModule.scienceChain, 'Core');
+  assert.equal(recipeScienceChainFor(speedModule, false), 'Core');
+  assert.equal(recipeScienceChainFor(speedModule, true), 'Core');
+});
