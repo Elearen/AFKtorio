@@ -121,5 +121,7 @@ test('Steel Chests upgrade scales steel cost and time by existing item chests', 
   assert.equal(steelChestUpgradeCostFor(ironChestCount), 40);
   assert.equal(steelChestUpgradeTimeFor(ironChestCount), 2.5);
   assert.equal(storageCapacityFor('iron', fluidKeys, { iron: 3 }, {}, STORAGE_STEEL_BOX_CAPACITY), 3000);
+  assert.equal(storageCapacityFor('iron', fluidKeys, { iron: 0 }, {}, STORAGE_IRON_BOX_CAPACITY), 400);
+  assert.equal(storageCapacityFor('iron', fluidKeys, { iron: 0 }, {}, STORAGE_STEEL_BOX_CAPACITY), 1000);
   assert.equal(storageCapacityFor('water', fluidKeys, { iron: 3 }, { water: 4 }, STORAGE_STEEL_BOX_CAPACITY), FLUID_STORAGE_BASE_CAPACITY + 4 * STORAGE_TANK_CAPACITY);
 });

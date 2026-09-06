@@ -41,9 +41,14 @@ export const storageCapacityFor = (
   storageBoxes: Record<string, number>,
   storageTanks: Record<string, number>,
   boxCapacity = STORAGE_BOX_CAPACITY,
-) => fluidKeys.has(key)
-  ? FLUID_STORAGE_BASE_CAPACITY + storageContainerCountFor(key, fluidKeys, storageBoxes, storageTanks) * STORAGE_TANK_CAPACITY
-  : storageContainerCountFor(key, fluidKeys, storageBoxes, storageTanks) * (key === 'spacePack' ? SPACE_SCIENCE_STORAGE_CAPACITY : boxCapacity);
+) => {
+  if (fluidKeys.has(key)) {
+    return FLUID_STORAGE_BASE_CAPACITY + storageContainerCountFor(key, fluidKeys, storageBoxes, storageTanks) * STORAGE_TANK_CAPACITY;
+  }
+  const itemCapacity = key === 'spacePack' ? SPACE_SCIENCE_STORAGE_CAPACITY : boxCapacity;
+  const additionalChestCount = Math.max(0, (storageBoxes[key] ?? 0) - 1);
+  return itemCapacity + additionalChestCount * itemCapacity;
+};
 
 export const canPurchaseStorageFor = (key: string, fluidKeys: ReadonlySet<string>, research: readonly string[]) =>
   !fluidKeys.has(key) || research.includes(FLUID_HANDLING_TECHNOLOGY);
