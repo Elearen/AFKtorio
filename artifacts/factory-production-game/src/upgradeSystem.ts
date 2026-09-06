@@ -263,7 +263,7 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
   const labSpeedLevel = Math.min(labSpeeds.length - 1, Math.max(0, Math.floor(savedLabSpeedLevel)));
   const persistedQueue = Array.isArray(record.queue) ? record.queue : [];
   let upgradeSeen = false;
-  const validUpgradeIds = new Set<string>([...Object.keys(upgradeMap), 'iron-chests', 'steel-furnaces', OIL_PROCESSING_UPGRADE_ID]);
+  const validUpgradeIds = new Set<string>([...Object.keys(upgradeMap), 'iron-chests', 'steel-chests', 'steel-furnaces', OIL_PROCESSING_UPGRADE_ID]);
   const queue = persistedQueue.filter((item): item is UpgradeQueueRecord => {
     if (!item || typeof item !== 'object') return false;
     const candidate = item as UpgradeQueueRecord;

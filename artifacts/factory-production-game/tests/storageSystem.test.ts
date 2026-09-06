@@ -13,10 +13,14 @@ import {
   STORAGE_IRON_BOX_CAPACITY,
   STORAGE_IRON_BOX_COST,
   STORAGE_IRON_BOX_UPGRADE_TIME,
+  STORAGE_STEEL_BOX_COST,
+  STORAGE_STEEL_BOX_UPGRADE_TIME,
   STORAGE_TANK_CAPACITY,
   storageCapacityFor,
   ironChestUpgradeCostFor,
   ironChestUpgradeTimeFor,
+  steelChestUpgradeCostFor,
+  steelChestUpgradeTimeFor,
   itemStorageBoxCountFor,
 } from '../src/storageSystem.js';
 
@@ -105,4 +109,13 @@ test('Iron Chests count can be limited to unlocked item-storage keys', () => {
 
   assert.equal(itemStorageBoxCountFor(['iron', 'copper'], fluidKeys, boxes), 5);
   assert.equal(itemStorageBoxCountFor(['iron', 'copper', 'steel'], fluidKeys, boxes), 12);
+});
+
+test('Steel Chests upgrade scales steel cost and time by existing item chests', () => {
+  const ironChestCount = 5;
+
+  assert.equal(STORAGE_STEEL_BOX_COST, 8);
+  assert.equal(STORAGE_STEEL_BOX_UPGRADE_TIME, 0.5);
+  assert.equal(steelChestUpgradeCostFor(ironChestCount), 40);
+  assert.equal(steelChestUpgradeTimeFor(ironChestCount), 2.5);
 });

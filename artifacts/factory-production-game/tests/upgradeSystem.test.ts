@@ -263,6 +263,15 @@ test('save migration preserves an in-progress Iron Chests job', () => {
   assert.equal(migrated.queue[0].targetId, 'iron-chests');
 });
 
+test('save migration preserves an in-progress Steel Chests job', () => {
+  const migrated = migrateMachineUpgradeState({
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
+    queue: [{ id: 'steel-chests', action: 'upgrade', target: 'Upgrade all storage to Steel Chests', targetId: 'steel-chests', machineCount: 5, seconds: 1, total: 2.5 }],
+  });
+
+  assert.equal(migrated.queue[0].targetId, 'steel-chests');
+});
+
 test('save migration preserves an in-progress Steel Furnaces job', () => {
   const migrated = migrateMachineUpgradeState({
     machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },

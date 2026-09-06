@@ -391,6 +391,9 @@ const legacyUpgradeCostsFor = (item: QueueItem): BuildMaterialCost[] | undefined
   if (item.targetId === 'iron-chests') {
     return [{ key: 'ironPlate', amount: ironChestUpgradeCostFor(item.machineCount), source: 'products' }];
   }
+  if (item.targetId === 'steel-chests') {
+    return [{ key: 'steel', amount: steelChestUpgradeCostFor(item.machineCount), source: 'products' }];
+  }
   if (item.targetId === 'steel-furnaces') {
     return scaledBuildCosts(recipeBuildCosts(steelFurnaceRecipe), item.machineCount);
   }
@@ -454,7 +457,7 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
 const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
 const duration = (n: number) => `${Math.floor(n / 60)}m ${String(Math.max(0, Math.floor(n % 60))).padStart(2, '0')}s`;
 const containerCountFor = (state: GameState, key: TrackedKey) => calculateStorageContainerCountFor(key, fluidKeys, state.storageBoxes, state.storageTanks);
-const storageBoxCapacityFor = (state: GameState) => state.storageBoxType === 'iron' ? ironStorageBoxCapacity : storageBoxCapacity;
+const storageBoxCapacityFor = (state: GameState) => state.storageBoxType === 'wooden' ? storageBoxCapacity : ironStorageBoxCapacity;
 const storageBoxCountFor = (state: GameState) => itemStorageBoxCountFor(
   trackedKeys.filter((key) => unlockedProductKeys(state).has(key)),
   fluidKeys,
@@ -1057,6 +1060,9 @@ function simulate(previous: GameState, seconds: number): GameState {
       if (upgradeId === 'iron-chests') {
         state.storageBoxType = 'iron';
         state.storage = Object.fromEntries(trackedKeys.map((key) => [key, storageCapacityFor(state, key)])) as Record<TrackedKey, number>;
+      } else if (upgradeId === 'steel-chests') {
+        state.storageBoxType = 'steel';
+        state.storage = Object.fromEntries(trackedKeys.map((key) => [key, storageCapacityFor(state, key)])) as Record<TrackedKey, number>;
       } else if (upgradeId === 'steel-furnaces') {
         state.furnaceVariant = 'steel-furnace';
       } else if (upgradeId === OIL_PROCESSING_UPGRADE_ID) {
@@ -1097,7 +1103,7 @@ function loadState() {
       delete storage.researchPack;
       return storage;
     })();
-    const storageBoxType = parsed.storageBoxType === 'iron' ? 'iron' : 'wooden';
+    const storageBoxType = parsed.storageBoxType === 'steel' ? 'steel' : parsed.storageBoxType === 'iron' ? 'iron' : 'wooden';
     const furnaceVariant = parsed.furnaceVariant === 'steel-furnace' ? 'steel-furnace' : 'stone-furnace';
     const migratedStorage = migrateStorageState({
       trackedKeys,
@@ -1105,7 +1111,7 @@ function loadState() {
       savedStorage: normalizedStorage,
       savedBoxes: parsed.storageBoxes,
       savedTanks: parsed.storageTanks,
-      boxCapacity: storageBoxType === 'iron' ? ironStorageBoxCapacity : storageBoxCapacity,
+      boxCapacity: storageBoxType === 'wooden' ? storageBoxCapacity : ironStorageBoxCapacity,
     });
     const savedFurnaceCount = Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => {
       const count = parsed.assemblers?.[recipeKey];
@@ -2034,16 +2040,18 @@ function PowerDependencyTreePage({ state, notice }: PageProps) {
 function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.8 2.8c.4 3-1.3 4.2-2.4 5.4-1 1-1.2 2.3-.6 3.3.4-1.3 1.5-2.3 2.8-2.7 2.6 2 3.8 4.3 3.2 7.1-.4 1.8-1.7 3.2-3.3 4.1 4.7-.8 7-4 6.2-8.4-.5-2.8-2.5-5.8-5.9-8.8ZM10 12c-3.7 1.4-5.4 4-4.6 6.6.6 2 2.3 3.4 4.5 4-1.2-1.2-1.5-2.6-.6-4.1.7-1.2 1.6-2.1 2.6-2.6-1.1-1-1.8-2.3-1.9-3.9Z"/></svg>; }
 
 function StoragePage({ state, setState, enqueue, notice }: PageProps) {
-  const storageUpgradeInProgress = state.queue.some((item) => item.action === 'upgrade' && item.targetId === 'iron-chests');
+  const storageUpgradeInProgress = state.queue.some((item) => item.action === 'upgrade' && (item.targetId === 'iron-chests' || item.targetId === 'steel-chests'));
+  const storageUpgradeInProgressLabel = state.queue.some((item) => item.targetId === 'steel-chests') ? 'Steel Chests' : 'Iron Chests';
   const buildStorage = (key: TrackedKey) => {
     const fluid = isFluidKey(key);
     if (fluid && !canPurchaseStorageFor(key, fluidKeys, state.research)) return notice('Fluid Handling required');
-    if (!fluid && storageUpgradeInProgress) return notice('finish the Iron Chests upgrade before constructing another box');
+    if (!fluid && storageUpgradeInProgress) return notice(`finish the ${storageUpgradeInProgressLabel} upgrade before constructing another box`);
+    const steel = !fluid && state.storageBoxType === 'steel';
     const iron = !fluid && state.storageBoxType === 'iron';
     const constructionItems = state.queue.filter((item) => item.action === 'storage' && item.targetId === key);
-    const costs = fluid ? storageTankBuildCost : iron ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }] : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
+    const costs = fluid ? storageTankBuildCost : steel ? [{ key: 'steel', amount: STORAGE_STEEL_BOX_COST, source: 'products' as const }] : iron ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }] : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
     const buildSeconds = fluid ? storageTankRecipe.energyRequired : storageBoxBuildSeconds;
-    const containerLabel = fluid ? 'storage tank' : iron ? 'iron chest' : 'wooden box';
+    const containerLabel = fluid ? 'storage tank' : steel ? 'steel chest' : iron ? 'iron chest' : 'wooden box';
     enqueue('storage', `${containerLabel[0].toUpperCase()}${containerLabel.slice(1)} · ${meta[key].label}`, buildSeconds, key, costs);
     notice(`${containerLabel} for ${meta[key].label} queued`);
   };
@@ -2060,14 +2068,16 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
     : 0;
   const lowestMaterialKeys = visibleMaterialKeys.filter((key) => storageCapacityFor(state, key) === lowestMaterialCapacity);
   const lowestFluidKeys = visibleFluidKeys.filter((key) => storageCapacityFor(state, key) === lowestFluidCapacity);
-  const materialChestCost = state.storageBoxType === 'iron'
-    ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }]
-    : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
+   const materialChestCost = state.storageBoxType === 'steel'
+     ? [{ key: 'steel', amount: STORAGE_STEEL_BOX_COST, source: 'products' as const }]
+     : state.storageBoxType === 'iron'
+       ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }]
+       : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
   const bulkStorageCostLabel = (costs: BuildMaterialCost[], count: number) => costs
     .map((cost) => `${fmt(cost.amount * count)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`)
     .join(' + ');
   return <PageFrame>
-    <Header eyebrow="Buffer control" title="Storage" copy={`${state.storageBoxType === 'iron' ? 'Item buffers use iron chests.' : 'Item buffers use wooden boxes.'} Fluids start with 100 units of base capacity, then expand with storage tanks after Fluid Handling research.`} action={<Tag><Box size={11} /> {visibleKeys.length} visible items</Tag>} />
+     <Header eyebrow="Buffer control" title="Storage" copy={`${state.storageBoxType === 'steel' ? 'Item buffers use steel chests.' : state.storageBoxType === 'iron' ? 'Item buffers use iron chests.' : 'Item buffers use wooden boxes.'} Fluids start with 100 units of base capacity, then expand with storage tanks after Fluid Handling research.`} action={<Tag><Box size={11} /> {visibleKeys.length} visible items</Tag>} />
     <section className="surface mb-5 rounded-xl p-3 sm:p-4" data-testid="panel-bulk-storage-upgrades">
       <div className="mb-3 eyebrow">Bulk storage expansion</div>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -2076,15 +2086,15 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
           disabled={!lowestMaterialKeys.length || storageUpgradeInProgress}
           className="button-base button-ghost flex min-h-[44px] items-center !px-3 !py-2 text-left disabled:cursor-not-allowed disabled:opacity-45"
           aria-label={`Upgrade materials to ${fmt(lowestMaterialCapacity + storageBoxCapacityFor(state))}`}
-          title={storageUpgradeInProgress ? 'Iron Chests upgrade in progress' : `Upgrade ${lowestMaterialKeys.length} material storages · cost ${bulkStorageCostLabel(materialChestCost, lowestMaterialKeys.length)}`}
+           title={storageUpgradeInProgress ? `${storageUpgradeInProgressLabel} upgrade in progress` : `Upgrade ${lowestMaterialKeys.length} material storages · cost ${bulkStorageCostLabel(materialChestCost, lowestMaterialKeys.length)}`}
           data-testid="button-upgrade-lowest-material-storage"
         >
           <span className="flex w-full min-w-0 items-center justify-between gap-2 text-[11px] font-bold">
             <span className="flex min-w-0 items-center gap-2"><TrendingUp size={13} className="shrink-0" /><span className="truncate">Upgrade materials to {fmt(lowestMaterialCapacity + storageBoxCapacityFor(state))}</span></span>
             <span className="flex shrink-0 items-center gap-3">
-              <span className="flex items-center gap-1" title={`${lowestMaterialKeys.length} ${materialChestCost[0].key === 'wood' ? 'wooden' : 'iron'} chest${lowestMaterialKeys.length === 1 ? '' : 's'}`}>
+               <span className="flex items-center gap-1" title={`${lowestMaterialKeys.length} ${state.storageBoxType} chest${lowestMaterialKeys.length === 1 ? '' : 's'}`}>
                 <span className="mono text-[10px]">{lowestMaterialKeys.length}</span>
-                <ResourceIcon item={state.storageBoxType === 'iron' ? 'iron-chest' : 'wooden-chest'} size={17} />
+                 <ResourceIcon item={state.storageBoxType === 'steel' ? 'steel-chest' : state.storageBoxType === 'iron' ? 'iron-chest' : 'wooden-chest'} size={17} />
               </span>
               <ArrowRight size={14} className="shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
               <span className="flex items-center gap-2" title={`Total cost: ${bulkStorageCostLabel(materialChestCost, lowestMaterialKeys.length)}`}>
@@ -2126,10 +2136,11 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
           const fluid = isFluidKey(key);
           const canPurchase = canPurchaseStorageFor(key, fluidKeys, state.research);
           const containerCount = containerCountFor(state, key);
-          const iron = !fluid && state.storageBoxType === 'iron';
-          const containerLabel = fluid ? 'storage tank' : iron ? 'iron chest' : 'wooden box';
-          const containerIcon = fluid ? 'storage-tank' : iron ? 'iron-chest' : 'wooden-chest';
-          const costs = fluid ? storageTankBuildCost : iron ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }] : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
+           const steel = !fluid && state.storageBoxType === 'steel';
+           const iron = !fluid && state.storageBoxType === 'iron';
+           const containerLabel = fluid ? 'storage tank' : steel ? 'steel chest' : iron ? 'iron chest' : 'wooden box';
+           const containerIcon = fluid ? 'storage-tank' : steel ? 'steel-chest' : iron ? 'iron-chest' : 'wooden-chest';
+           const costs = fluid ? storageTankBuildCost : steel ? [{ key: 'steel', amount: STORAGE_STEEL_BOX_COST, source: 'products' as const }] : iron ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }] : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
           const buildSeconds = fluid ? storageTankRecipe.energyRequired : storageBoxBuildSeconds;
           const constructionItems = state.queue.filter((item) => item.action === 'storage' && item.targetId === key);
           const isBuilding = constructionItems.length > 0;
@@ -2140,8 +2151,8 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
                <div className="flex shrink-0 items-center gap-1.5 text-[hsl(var(--secondary))]" title={`${containerCount} ${containerLabel}${containerCount === 1 ? '' : 's'}`}>
                  <ResourceIcon item={containerIcon} size={17} /><span className="mono text-[11px]">{containerCount}</span>
               </div>
-               <button onClick={() => buildStorage(key)} disabled={(fluid && !canPurchase) || (!fluid && storageUpgradeInProgress)} className={`button-base button-ghost !gap-1 !px-2 !py-1.5 ${isBuilding ? 'button-build-active' : ''}`} aria-label={fluid && !canPurchase ? `Fluid Handling required to construct a storage tank for ${meta[key].label}` : !fluid && storageUpgradeInProgress ? 'Iron Chests upgrade in progress' : `Construct another ${containerLabel} for ${meta[key].label}`} title={fluid && !canPurchase ? 'Fluid Handling required' : !fluid && storageUpgradeInProgress ? 'Iron Chests upgrade in progress' : `Construct another ${containerLabel} · ${costs.map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · ${buildSeconds} sec`} data-testid={`button-build-storage-${key}`}>
-                 {fluid && !canPurchase ? <><LockKeyhole size={12} /><span className="hidden sm:inline">Fluid Handling</span></> : !fluid && storageUpgradeInProgress ? <><Clock3 size={12} /><span className="hidden sm:inline">upgrading</span></> : <>{isBuilding ? <Check size={12} /> : <Plus size={12} />}<span className="hidden sm:inline">{fluid ? 'tank' : iron ? 'chest' : 'box'}</span>{costs.map((cost) => <span className="contents" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{fmt(cost.amount)}</span></span>)}</>}
+               <button onClick={() => buildStorage(key)} disabled={(fluid && !canPurchase) || (!fluid && storageUpgradeInProgress)} className={`button-base button-ghost !gap-1 !px-2 !py-1.5 ${isBuilding ? 'button-build-active' : ''}`} aria-label={fluid && !canPurchase ? `Fluid Handling required to construct a storage tank for ${meta[key].label}` : !fluid && storageUpgradeInProgress ? `${storageUpgradeInProgressLabel} upgrade in progress` : `Construct another ${containerLabel} for ${meta[key].label}`} title={fluid && !canPurchase ? 'Fluid Handling required' : !fluid && storageUpgradeInProgress ? `${storageUpgradeInProgressLabel} upgrade in progress` : `Construct another ${containerLabel} · ${costs.map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · ${buildSeconds} sec`} data-testid={`button-build-storage-${key}`}>
+                 {fluid && !canPurchase ? <><LockKeyhole size={12} /><span className="hidden sm:inline">Fluid Handling</span></> : !fluid && storageUpgradeInProgress ? <><Clock3 size={12} /><span className="hidden sm:inline">upgrading</span></> : <>{isBuilding ? <Check size={12} /> : <Plus size={12} />}<span className="hidden sm:inline">{fluid ? 'tank' : 'chest'}</span>{costs.map((cost) => <span className="contents" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{fmt(cost.amount)}</span></span>)}</>}
               </button>
             </div>
             <div className="mt-2 flex items-center gap-2" aria-label={`${meta[key].label}: ${fmt(amount)} in stock, capacity ${fmt(capacity)}`}>
@@ -2149,7 +2160,7 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
               <div className="min-w-0 flex-1"><Progress value={amount / capacity * 100} /></div>
               <span className="mono w-14 shrink-0 text-right text-[11px]" title="Total capacity">{fmt(capacity)}</span>
             </div>
-              {isBuilding && <BuildProgress items={constructionItems} label={`${fluid ? 'Storage tank' : iron ? 'Iron chest' : 'Wooden box'} · ${meta[key].label}`} />}
+               {isBuilding && <BuildProgress items={constructionItems} label={`${fluid ? 'Storage tank' : steel ? 'Steel chest' : iron ? 'Iron chest' : 'Wooden box'} · ${meta[key].label}`} />}
           </section>;
         })}
       </div>
@@ -2166,11 +2177,16 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
   const [upgradeFilter, setUpgradeFilter] = useState<UpgradeFilter>('available');
   const activeUpgrade = state.queue.find((item) => item.action === 'upgrade');
   const storageBoxCount = storageBoxCountFor(state);
-  const storageUpgradeComplete = state.storageBoxType === 'iron';
+  const storageUpgradeComplete = state.storageBoxType !== 'wooden';
   const storageUpgradeQueued = activeUpgrade?.targetId === 'iron-chests';
   const storageUpgradeCosts = [{ key: 'ironPlate', amount: ironChestUpgradeCostFor(storageBoxCount), source: 'products' as const }];
   const storageUpgradeTotalSeconds = ironChestUpgradeTimeFor(storageBoxCount);
   const storageUpgradeMissing = storageUpgradeComplete || !storageBoxCount ? '' : missingBuildMaterials(state, storageUpgradeCosts);
+  const steelStorageUpgradeComplete = state.storageBoxType === 'steel';
+  const steelStorageUpgradeQueued = activeUpgrade?.targetId === 'steel-chests';
+  const steelStorageUpgradeCosts = [{ key: 'steel', amount: steelChestUpgradeCostFor(storageBoxCount), source: 'products' as const }];
+  const steelStorageUpgradeTotalSeconds = steelChestUpgradeTimeFor(storageBoxCount);
+  const steelStorageUpgradeMissing = !storageUpgradeComplete || steelStorageUpgradeComplete || !storageBoxCount ? '' : missingBuildMaterials(state, steelStorageUpgradeCosts);
   const furnaceCount = smeltingFurnaceCountFor(state);
   const furnaceUpgradeComplete = state.furnaceVariant === 'steel-furnace';
   const furnaceUpgradeQueued = activeUpgrade?.targetId === 'steel-furnaces';
@@ -2228,6 +2244,30 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     }));
     notice(`Upgrade storage to Iron Chests started for ${storageBoxCount} chest${storageBoxCount === 1 ? '' : 's'}`);
   };
+  const startSteelStorageUpgrade = () => {
+    if (steelStorageUpgradeComplete) return notice('Steel Chests are already installed');
+    if (activeUpgrade) return notice('finish the active upgrade before starting another');
+    if (!storageUpgradeComplete) return notice('complete the Iron Chests upgrade first');
+    if (!storageBoxCount) return notice('construct at least one iron chest first');
+    if (steelStorageUpgradeMissing) return notice(`missing ${steelStorageUpgradeMissing}`);
+    const job: QueueItem = {
+      id: `upgrade-${Date.now()}`,
+      action: 'upgrade',
+      target: 'Upgrade all storage to Steel Chests',
+      targetId: 'steel-chests',
+      seconds: steelStorageUpgradeTotalSeconds,
+      total: steelStorageUpgradeTotalSeconds,
+      machineCount: storageBoxCount,
+      costs: steelStorageUpgradeCosts.map((cost) => ({ ...cost })),
+      reserved: steelStorageUpgradeCosts.map((cost) => cost.amount),
+    };
+    setState((s) => ({
+      ...s,
+      products: { ...s.products, steel: (s.products.steel ?? 0) - steelChestUpgradeCostFor(storageBoxCount) },
+      queue: [...s.queue, job],
+    }));
+    notice(`Upgrade all storage to Steel Chests started for ${storageBoxCount} chest${storageBoxCount === 1 ? '' : 's'}`);
+  };
   const startFurnaceUpgrade = () => {
     if (furnaceUpgradeComplete) return notice('Steel Furnaces are already installed');
     if (activeUpgrade) return notice('finish the active upgrade before starting another');
@@ -2271,17 +2311,18 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
   };
   const upgradeCategoryPriority: Record<string, number> = {
     'iron-chests': 0,
-    'electric-mining-drill': 1,
-    'steel-furnaces': 2,
-    'assembly-machine-2': 3,
-    'assembly-machine-3': 4,
-    'research-speed-1': 5,
-    'research-speed-2': 6,
-    'research-speed-3': 7,
-    'research-speed-4': 8,
-    'research-speed-5': 9,
-    'research-speed-6': 10,
-    [OIL_PROCESSING_UPGRADE_ID]: 11,
+    'steel-chests': 1,
+    'electric-mining-drill': 2,
+    'steel-furnaces': 3,
+    'assembly-machine-2': 4,
+    'assembly-machine-3': 5,
+    'research-speed-1': 6,
+    'research-speed-2': 7,
+    'research-speed-3': 8,
+    'research-speed-4': 9,
+    'research-speed-5': 10,
+    'research-speed-6': 11,
+    [OIL_PROCESSING_UPGRADE_ID]: 12,
   };
   const upgradeAvailabilityRank = (complete: boolean, prerequisiteMet: boolean) => complete ? 2 : prerequisiteMet ? 0 : 1;
   const sortedUpgradeCards = [
@@ -2401,6 +2442,27 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
         action={<div className="mt-3"><button onClick={startStorageUpgrade} disabled={storageUpgradeComplete || !!activeUpgrade || !storageBoxCount || !!storageUpgradeMissing} className={`button-base w-full !py-2 ${storageUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-iron-chests">{storageUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : storageUpgradeMissing ? `need ${storageUpgradeMissing}` : !storageBoxCount ? 'build chests first' : 'start upgrade'}</>}</button></div>}
       />,
     },
+     {
+       id: 'steel-chests',
+       availability: upgradeAvailabilityRank(steelStorageUpgradeComplete, storageUpgradeComplete),
+       category: upgradeCategoryPriority['steel-chests'],
+       card: <UpgradeCard
+         key="steel-chests"
+         testId="card-upgrade-steel-chests"
+         title="Upgrade all storage to Steel Chests"
+         copy="Replace every constructed Iron Chest with a Steel Chest. Fluid storage tanks are not affected."
+         iconPair={<UpgradeIconPair from={<ResourceIcon item="iron-chest" size={26} />} to={<ResourceIcon item="steel-chest" size={26} />} fromLabel="Iron Chest" toLabel="Steel Chest" />}
+         flow={!steelStorageUpgradeComplete ? <UpgradeFlow count={steelStorageUpgradeQueued ? activeUpgrade?.machineCount ?? storageBoxCount : storageBoxCount} from="Iron Chest" to="Steel Chest" /> : undefined}
+         progress={steelStorageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'iron chest' : 'iron chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-steel-chests" /> : undefined}
+         meta={<UpgradeMetaGrid prerequisite="Iron Chests upgrade" prerequisiteMet={storageUpgradeComplete} machine={steelStorageUpgradeComplete ? 'Steel Chest' : 'Iron Chest'} machineIcon={<ResourceIcon item={steelStorageUpgradeComplete ? 'steel-chest' : 'iron-chest'} size={17} />} />}
+         costPerItem={[{ key: 'steel', amount: STORAGE_STEEL_BOX_COST, source: 'products' }]}
+         totalCost={steelStorageUpgradeCosts}
+         timePerMachine={STORAGE_STEEL_BOX_UPGRADE_TIME}
+         totalTime={steelStorageUpgradeQueued && activeUpgrade ? activeUpgrade.total : steelStorageUpgradeTotalSeconds}
+         showCosts={!steelStorageUpgradeComplete}
+         action={<div className="mt-3"><button onClick={startSteelStorageUpgrade} disabled={steelStorageUpgradeComplete || !!activeUpgrade || !storageUpgradeComplete || !storageBoxCount || !!steelStorageUpgradeMissing} className={`button-base w-full !py-2 ${steelStorageUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-steel-chests">{steelStorageUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !storageUpgradeComplete ? 'locked' : steelStorageUpgradeMissing ? `need ${steelStorageUpgradeMissing}` : !storageBoxCount ? 'build chests first' : 'start upgrade'}</>}</button></div>}
+       />,
+     },
   ].sort((a, b) => a.availability - b.availability || a.category - b.category);
   const upgradeCounts = sortedUpgradeCards.reduce<Record<UpgradeFilter, number>>((counts, upgrade) => {
     const filter = upgrade.availability === 2 ? 'completed' : upgrade.availability === 0 ? 'available' : 'locked';
@@ -2412,7 +2474,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     return status === upgradeFilter;
   });
   return <PageFrame>
-     <Header eyebrow="Machine + lab upgrades" title="Upgrades" copy="Convert machines, improve lab speed, or upgrade storage and oil processing in one timed job. Material costs are reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 12 upgrades</Tag>} />
+     <Header eyebrow="Machine + lab upgrades" title="Upgrades" copy="Convert machines, improve lab speed, or upgrade storage and oil processing in one timed job. Material costs are reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 13 upgrades</Tag>} />
     <section className="surface mb-5 rounded-xl border-[hsl(var(--primary)/.25)] bg-[linear-gradient(100deg,hsl(34_28%_16%/.82),hsl(216_25%_14%/.96))] p-4 sm:p-5">
       <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">How conversion works</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Costs are calculated from the current number of relevant machines, deducted immediately, and all matching machines change variant together when the timer completes. Construction elsewhere in the factory can continue.</p></div></div>
     </section>
