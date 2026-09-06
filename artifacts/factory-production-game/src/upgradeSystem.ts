@@ -169,7 +169,7 @@ export const beginUpgrade = (state: UpgradeStartState, upgradeId: UpgradeKey, jo
   const upgrade = upgradeMap[upgradeId];
   const labUpgrade = upgrade.labSpeedLevel !== undefined;
   const currentLabSpeedLevel = state.labSpeedLevel ?? 0;
-  if (labUpgrade ? currentLabSpeedLevel >= (upgrade.labSpeedLevel ?? 0) : state.machineVariants[upgrade.machineGroup] === upgrade.newMachine) {
+  if (labUpgrade ? currentLabSpeedLevel >= (upgrade.labSpeedLevel ?? 0) : upgradeInstalledFor(state.machineVariants, upgradeId)) {
     return { ok: false, reason: 'already-installed', message: `${upgrade.newMachineLabel} is already installed` };
   }
   if (state.queue.some((item) => item.action === 'upgrade')) {
@@ -230,7 +230,28 @@ export const beginUpgrade = (state: UpgradeStartState, upgradeId: UpgradeKey, jo
 export const applyUpgradeCompletion = (machineVariants: MachineVariants, upgradeId: string): MachineVariants => {
   const upgrade = upgradeMap[upgradeId as UpgradeKey];
   if (!upgrade || upgrade.labSpeedLevel !== undefined) return { ...machineVariants };
+  if (upgradeInstalledFor(machineVariants, upgradeId)) return { ...machineVariants };
   return { ...machineVariants, [upgrade.machineGroup]: upgrade.newMachine };
+};
+
+const machineVariantRank: Record<MachineGroup, Record<string, number>> = {
+  assembly: {
+    'assembling-machine-1': 1,
+    'assembling-machine-2': 2,
+    'assembling-machine-3': 3,
+  },
+  mining: {
+    'burner-mining-drill': 1,
+    'electric-mining-drill': 2,
+  },
+};
+
+export const upgradeInstalledFor = (machineVariants: MachineVariants, upgradeId: string) => {
+  const upgrade = upgradeMap[upgradeId as UpgradeKey];
+  if (!upgrade || upgrade.labSpeedLevel !== undefined) return false;
+  const currentRank = machineVariantRank[upgrade.machineGroup][machineVariants[upgrade.machineGroup]] ?? 0;
+  const targetRank = machineVariantRank[upgrade.machineGroup][upgrade.newMachine] ?? 0;
+  return targetRank > 0 && currentRank >= targetRank;
 };
 
 export const applyLabSpeedUpgradeCompletion = (labSpeedLevel: number, upgradeId: string) => {

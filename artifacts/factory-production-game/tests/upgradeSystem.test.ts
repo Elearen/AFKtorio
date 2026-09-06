@@ -11,6 +11,7 @@ import {
   oilProcessingUpgradeTimeFor,
   labSpeedForLevel,
   upgradeMap,
+  upgradeInstalledFor,
   type UpgradeStartState,
 } from '../src/upgradeSystem.js';
 import {
@@ -208,6 +209,8 @@ test('completion switches all machines in the upgraded group and leaves other gr
 
   const afterAssemblyThree = applyUpgradeCompletion(afterProduction, 'assembly-machine-3');
   assert.deepEqual(afterAssemblyThree, { assembly: 'assembling-machine-3', mining: 'burner-mining-drill' });
+  assert.deepEqual(applyUpgradeCompletion(afterAssemblyThree, 'assembly-machine-2'), afterAssemblyThree);
+  assert.equal(upgradeInstalledFor(afterAssemblyThree, 'assembly-machine-2'), true);
 
   const afterMining = applyUpgradeCompletion(afterAssemblyThree, 'electric-mining-drill');
   assert.deepEqual(afterMining, { assembly: 'assembling-machine-3', mining: 'electric-mining-drill' });
@@ -215,6 +218,14 @@ test('completion switches all machines in the upgraded group and leaves other gr
   assert.equal(applyLabSpeedUpgradeCompletion(0, 'research-speed-1'), 1);
   assert.equal(applyLabSpeedUpgradeCompletion(1, 'research-speed-2'), 2);
   assert.equal(applyLabSpeedUpgradeCompletion(6, 'research-speed-1'), 6);
+});
+
+test('lower machine upgrades cannot be started after a later upgrade is installed', () => {
+  assert.equal(failureReason(beginUpgrade(baseState({
+    research: ['automation-2'],
+    machineVariants: { assembly: 'assembling-machine-3', mining: 'burner-mining-drill' },
+    machineCounts: { assembly: 1, mining: 0 },
+  }), 'assembly-machine-2', 'already-installed')), 'already-installed');
 });
 
 test('oil processing conversion is free-time and moves basic machines to advanced', () => {

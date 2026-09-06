@@ -10,7 +10,7 @@ import { activateReadyConstruction, constructionCanBeFullyFunded, fulfillConstru
 import { calculatePowerFlow } from './powerSystem';
 import {
   OIL_PROCESSING_UPGRADE_ID, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
-  migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeMap,
+  migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeInstalledFor, upgradeMap,
   type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
 import {
@@ -1062,15 +1062,15 @@ function simulate(previous: GameState, seconds: number): GameState {
     }
     if (item.action === 'upgrade') {
       const upgradeId = item.targetId ?? item.target;
-      if (upgradeId === 'iron-chests') {
+      if (upgradeId === 'iron-chests' && state.storageBoxType === 'wooden') {
         state.storageBoxType = 'iron';
         state.storage = Object.fromEntries(trackedKeys.map((key) => [key, storageCapacityFor(state, key)])) as Record<TrackedKey, number>;
-      } else if (upgradeId === 'steel-chests') {
+      } else if (upgradeId === 'steel-chests' && state.storageBoxType !== 'steel') {
         state.storageBoxType = 'steel';
         state.storage = Object.fromEntries(trackedKeys.map((key) => [key, storageCapacityFor(state, key)])) as Record<TrackedKey, number>;
-      } else if (upgradeId === 'steel-furnaces') {
+      } else if (upgradeId === 'steel-furnaces' && state.furnaceVariant !== 'steel-furnace') {
         state.furnaceVariant = 'steel-furnace';
-      } else if (upgradeId === OIL_PROCESSING_UPGRADE_ID) {
+      } else if (upgradeId === OIL_PROCESSING_UPGRADE_ID && !state.oilProcessingAdvanced) {
         const machineCount = item.machineCount ?? state.assemblers['basic-oil-processing'] ?? 0;
         state.assemblers = applyOilProcessingUpgradeCompletion(state.assemblers, machineCount);
         state.assemblyProgress['basic-oil-processing'] = 0;
@@ -2340,7 +2340,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
       const isLabSpeedUpgrade = item.labSpeedLevel !== undefined;
       const complete = isLabSpeedUpgrade
         ? state.labSpeedLevel >= (item.labSpeedLevel ?? 0)
-        : state.machineVariants[item.machineGroup] === item.newMachine;
+        : upgradeInstalledFor(state.machineVariants, item.id);
       const prerequisiteUpgradeMet = !item.prerequisiteUpgrade
         || (isLabSpeedUpgrade
           ? state.labSpeedLevel >= (upgradeMap[item.prerequisiteUpgrade].labSpeedLevel ?? 0)
