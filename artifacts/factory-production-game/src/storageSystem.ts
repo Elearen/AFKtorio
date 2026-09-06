@@ -4,13 +4,16 @@ export type StorageState = {
   storageTanks: Record<string, number>;
 };
 
-export type StorageBoxType = 'wooden' | 'iron';
+export type StorageBoxType = 'wooden' | 'iron' | 'steel';
 export const FLUID_STORAGE_BASE_CAPACITY = 100;
 export const STORAGE_BOX_CAPACITY = 180;
 export const SPACE_SCIENCE_STORAGE_CAPACITY = 1000;
 export const STORAGE_IRON_BOX_CAPACITY = 400;
 export const STORAGE_IRON_BOX_COST = 8;
 export const STORAGE_IRON_BOX_UPGRADE_TIME = 0.5;
+export const STORAGE_STEEL_BOX_CAPACITY = STORAGE_IRON_BOX_CAPACITY;
+export const STORAGE_STEEL_BOX_COST = 8;
+export const STORAGE_STEEL_BOX_UPGRADE_TIME = 0.5;
 export const STORAGE_TANK_CAPACITY = 25_000;
 export const FLUID_HANDLING_TECHNOLOGY = 'fluid-handling';
 
@@ -22,6 +25,8 @@ export const itemStorageBoxCountFor = (
 
 export const ironChestUpgradeCostFor = (woodenChestCount: number) => woodenChestCount * STORAGE_IRON_BOX_COST;
 export const ironChestUpgradeTimeFor = (woodenChestCount: number) => woodenChestCount * STORAGE_IRON_BOX_UPGRADE_TIME;
+export const steelChestUpgradeCostFor = (ironChestCount: number) => ironChestCount * STORAGE_STEEL_BOX_COST;
+export const steelChestUpgradeTimeFor = (ironChestCount: number) => ironChestCount * STORAGE_STEEL_BOX_UPGRADE_TIME;
 
 export const storageContainerCountFor = (
   key: string,
