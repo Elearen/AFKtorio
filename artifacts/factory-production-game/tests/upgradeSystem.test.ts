@@ -11,6 +11,11 @@ import {
   oilProcessingUpgradeTimeFor,
   labSpeedForLevel,
   STEEL_FURNACE_PREREQUISITE_TECHNOLOGY,
+  ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY,
+  ELECTRIC_FURNACE_UPGRADE_ID,
+  electricFurnacePrerequisiteMet,
+  electricFurnaceUpgradeCostPerFurnace,
+  electricFurnaceUpgradeTimePerFurnace,
   steelFurnacePrerequisiteMet,
   upgradeMap,
   upgradeInstalledFor,
@@ -28,6 +33,8 @@ import {
   oilRefineryPowerKw,
   stoneFurnaceCraftingSpeed,
   steelFurnaceCraftingSpeed,
+  electricFurnaceCraftingSpeed,
+  electricFurnacePowerKw,
 } from '../src/productionSystem.js';
 import { recipeCatalog } from '../src/recipeCatalog.js';
 
@@ -114,6 +121,19 @@ test('Steel Furnaces require Advanced Material Processing research', () => {
   assert.equal(steelFurnacePrerequisiteMet([]), false);
   assert.equal(steelFurnacePrerequisiteMet(['steel-processing']), false);
   assert.equal(steelFurnacePrerequisiteMet(['advanced-material-processing']), true);
+});
+
+test('Electric Furnaces require Advanced Material Processing 2 and Steel Furnaces', () => {
+  assert.equal(ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY, 'advanced-material-processing-2');
+  assert.equal(electricFurnacePrerequisiteMet([ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY], 'steel-furnace'), true);
+  assert.equal(electricFurnacePrerequisiteMet([ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY], 'stone-furnace'), false);
+  assert.equal(electricFurnacePrerequisiteMet(['advanced-material-processing'], 'steel-furnace'), false);
+  assert.equal(ELECTRIC_FURNACE_UPGRADE_ID, 'electric-furnaces');
+  assert.deepEqual(electricFurnaceUpgradeCostPerFurnace, [
+    { key: 'advanced-circuit', amount: 5, source: 'products' },
+    { key: 'steel', amount: 4, source: 'products' },
+  ]);
+  assert.equal(electricFurnaceUpgradeTimePerFurnace, 5);
 });
 
 test('production upgrade reserves the full cost and total time for every existing machine', () => {
@@ -322,6 +342,16 @@ test('save migration preserves completed Research Speed level and queued lab upg
   assert.equal(migrated.queue[0].targetId, 'research-speed-4');
 });
 
+test('save migration preserves a queued Electric Furnace conversion', () => {
+  const migrated = migrateMachineUpgradeState({
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
+    queue: [{ id: 'electric', action: 'upgrade', target: 'Upgrade all furnaces to Electric Furnaces', targetId: ELECTRIC_FURNACE_UPGRADE_ID, machineCount: 3, seconds: 10, total: 15 }],
+  });
+
+  assert.equal(migrated.queue[0].targetId, ELECTRIC_FURNACE_UPGRADE_ID);
+  assert.equal(migrated.queue[0].machineCount, 3);
+});
+
 test('full storage reports zero mining output when there is no downstream demand', () => {
   assert.equal(bufferedActualRateFor(60, 180, 180, 0), 0);
   assert.equal(bufferedActualRateFor(60, 170, 180, 0), 60);
@@ -341,6 +371,8 @@ test('building crafting speeds use absolute machine speeds', () => {
   assert.equal(chemicalPlantPowerKw, 210);
   assert.equal(stoneFurnaceCraftingSpeed, 1);
   assert.equal(steelFurnaceCraftingSpeed, 2);
+  assert.equal(electricFurnaceCraftingSpeed, 2);
+  assert.equal(electricFurnacePowerKw, 180);
   assert.equal(craftingSpeedFor(false, assemblyMachineOneCraftingSpeed), 0.5);
   assert.equal(craftingSpeedFor(true, assemblyMachineOneCraftingSpeed), 1);
   assert.equal(craftingSpeedFor(true, assemblyMachineOneCraftingSpeed, steelFurnaceCraftingSpeed), 2);

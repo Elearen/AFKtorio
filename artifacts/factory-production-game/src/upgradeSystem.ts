@@ -11,7 +11,16 @@ export type UpgradeKey =
   | 'research-speed-6';
 export const OIL_PROCESSING_UPGRADE_ID = 'advanced-oil-processing';
 export const STEEL_FURNACE_PREREQUISITE_TECHNOLOGY = 'advanced-material-processing';
+export const ELECTRIC_FURNACE_UPGRADE_ID = 'electric-furnaces';
+export const ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY = 'advanced-material-processing-2';
+export const electricFurnaceUpgradeCostPerFurnace: BuildMaterialCost[] = [
+  { key: 'advanced-circuit', amount: 5, source: 'products' },
+  { key: 'steel', amount: 4, source: 'products' },
+];
+export const electricFurnaceUpgradeTimePerFurnace = 5;
 export const steelFurnacePrerequisiteMet = (research: string[]) => research.includes(STEEL_FURNACE_PREREQUISITE_TECHNOLOGY);
+export const electricFurnacePrerequisiteMet = (research: string[], furnaceVariant: string) =>
+  research.includes(ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY) && furnaceVariant === 'steel-furnace';
 export const oilProcessingUpgradeTimeFor = (machineCount: number) => Math.max(0, machineCount);
 export const oilCrackingConditionMet = (recipeId: string, inventory: Record<string, number>) => recipeId === 'heavy-oil-cracking'
   ? (inventory['heavy-oil'] ?? 0) > (inventory['light-oil'] ?? 0)
@@ -286,7 +295,7 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
   const labSpeedLevel = Math.min(labSpeeds.length - 1, Math.max(0, Math.floor(savedLabSpeedLevel)));
   const persistedQueue = Array.isArray(record.queue) ? record.queue : [];
   let upgradeSeen = false;
-  const validUpgradeIds = new Set<string>([...Object.keys(upgradeMap), 'iron-chests', 'steel-chests', 'steel-furnaces', OIL_PROCESSING_UPGRADE_ID]);
+  const validUpgradeIds = new Set<string>([...Object.keys(upgradeMap), 'iron-chests', 'steel-chests', 'steel-furnaces', ELECTRIC_FURNACE_UPGRADE_ID, OIL_PROCESSING_UPGRADE_ID]);
   const queue = persistedQueue.filter((item): item is UpgradeQueueRecord => {
     if (!item || typeof item !== 'object') return false;
     const candidate = item as UpgradeQueueRecord;

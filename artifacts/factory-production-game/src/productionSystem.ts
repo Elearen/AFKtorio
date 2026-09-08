@@ -20,6 +20,8 @@ export const chemicalPlantRecipeNames = [
 const chemicalPlantRecipeNameSet = new Set<string>(chemicalPlantRecipeNames);
 export const stoneFurnaceCraftingSpeed = 1;
 export const steelFurnaceCraftingSpeed = 2;
+export const electricFurnaceCraftingSpeed = 2;
+export const electricFurnacePowerKw = 180;
 
 export const isAutomatedOnlyRecipe = (recipe: Pick<RecipeCatalogEntry, 'name' | 'category'>) =>
   recipe.category === 'smelting'

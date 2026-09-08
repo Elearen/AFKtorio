@@ -5,13 +5,13 @@ import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
 import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
-import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
+import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, electricFurnaceCraftingSpeed, electricFurnacePowerKw, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, constructionCanBeFullyFunded, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import {
   OIL_PROCESSING_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
   migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeInstalledFor, upgradeMap,
-  steelFurnacePrerequisiteMet, type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
+  ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY, ELECTRIC_FURNACE_UPGRADE_ID, electricFurnacePrerequisiteMet, electricFurnaceUpgradeCostPerFurnace, electricFurnaceUpgradeTimePerFurnace, steelFurnacePrerequisiteMet, type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
 import {
   canPurchaseStorageFor, completeStorageConstruction, createInitialStorageState,
@@ -102,7 +102,7 @@ type GameState = {
   produced: Record<string, number>;
   rateHistory: RateSample[];
   machineVariants: MachineVariants;
-  furnaceVariant: 'stone-furnace' | 'steel-furnace';
+  furnaceVariant: 'stone-furnace' | 'steel-furnace' | 'electric-furnace';
   totalOutput: number;
   lastSeen: number;
   gameStartTimestamp: number;
@@ -219,6 +219,7 @@ const fueledBurnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone'];
 const smeltingRecipeKeys = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
 const stoneFurnaceRecipe = recipeMap['stone-furnace'];
 const steelFurnaceRecipe = recipeMap['steel-furnace'];
+const electricFurnaceRecipe = recipeMap['electric-furnace'];
 const assemblyMachineOneRecipe = recipeMap['assembling-machine-1'];
 const assemblyMachineOneBuildCost = { circuit: 3, gear: 5, ironPlate: 9 };
 const assemblyMachineOnePowerKw = 75;
@@ -292,15 +293,17 @@ const isSmeltingRecipe = (recipe: Recipe) => smeltingRecipeKeys.has(recipe.name)
 const isOilRefineryRecipe = (recipe?: Recipe) => Boolean(recipe && (recipe.name === 'basic-oil-processing' || recipe.name === 'advanced-oil-processing'));
 const chemicalPlantRecipeKeys = new Set<string>(chemicalPlantRecipeNames);
 const isChemicalPlantRecipe = (recipe?: Recipe) => Boolean(recipe && chemicalPlantRecipeKeys.has(recipe.name));
-const furnaceCraftingSpeedFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? steelFurnaceCraftingSpeed : 1;
-const furnaceFuelMultiplierFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? 0.5 : 1;
+const furnaceCraftingSpeedFor = (state: GameState) => state.furnaceVariant === 'electric-furnace'
+  ? electricFurnaceCraftingSpeed
+  : state.furnaceVariant === 'steel-furnace' ? steelFurnaceCraftingSpeed : 1;
+const furnaceFuelMultiplierFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? 0 : state.furnaceVariant === 'steel-furnace' ? 0.5 : 1;
 const automatedRecipeInputsFor = (state: GameState, recipe: Recipe) => {
   const inputs = automatedRecipeInputs(recipe);
   if (isSmeltingRecipe(recipe) && inputs.coal) inputs.coal *= furnaceFuelMultiplierFor(state);
   return inputs;
 };
-const furnaceLabelFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? 'Steel Furnace' : 'Stone Furnace';
-const furnaceBuildRecipeFor = (state: GameState) => state.furnaceVariant === 'steel-furnace' ? steelFurnaceRecipe : stoneFurnaceRecipe;
+const furnaceLabelFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? 'Electric Furnace' : state.furnaceVariant === 'steel-furnace' ? 'Steel Furnace' : 'Stone Furnace';
+const furnaceBuildRecipeFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? electricFurnaceRecipe : state.furnaceVariant === 'steel-furnace' ? steelFurnaceRecipe : stoneFurnaceRecipe;
 const productionBuildingFor = (state: GameState, recipe: Recipe) => recipe.name === 'space-science-pack' ? 'rocket-silo' : isSmeltingRecipe(recipe) ? state.furnaceVariant : isOilRefineryRecipe(recipe) ? 'oil-refinery' : isChemicalPlantRecipe(recipe) ? 'chemical-plant' : state.machineVariants.assembly;
 const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
 const trackedKeys: TrackedKey[] = Array.from(new Set([
@@ -409,6 +412,9 @@ const legacyUpgradeCostsFor = (item: QueueItem): BuildMaterialCost[] | undefined
   }
   if (item.targetId === 'steel-furnaces') {
     return scaledBuildCosts(recipeBuildCosts(steelFurnaceRecipe), item.machineCount);
+  }
+  if (item.targetId === ELECTRIC_FURNACE_UPGRADE_ID) {
+    return scaledBuildCosts(electricFurnaceUpgradeCostPerFurnace, item.machineCount);
   }
   return undefined;
 };
@@ -547,8 +553,9 @@ const electricPowerDraw = (state: GameState) => {
     const recipe = recipeMap[recipeKey];
     return total + (recipe && !isSmeltingRecipe(recipe) ? count * assemblyMachinePowerFor(state, recipe) : 0);
   }, 0);
+  const furnacePower = state.furnaceVariant === 'electric-furnace' ? smeltingFurnaceCountFor(state) * electricFurnacePowerKw : 0;
   const miningPower = state.machineVariants.mining === 'electric-mining-drill' ? burnerMinerCount(state) * miningMachinePowerFor(state) : 0;
-  return (state.labs * labPowerKw + assemblerPower + miningPower) / 1000;
+  return (state.labs * labPowerKw + assemblerPower + furnacePower + miningPower) / 1000;
 };
 const electricPowerRatioFor = (state: GameState, seconds = 1) => {
   const required = electricPowerDraw(state);
@@ -970,7 +977,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     const count = state.assemblers[key] ?? 0;
     if (!count) return;
     const recipe = recipeMap[key];
-    const machinePowerRatio = isSmeltingRecipe(recipe) ? 1 : powerRatio;
+    const machinePowerRatio = isSmeltingRecipe(recipe) && state.furnaceVariant !== 'electric-furnace' ? 1 : powerRatio;
     const storageThrottle = recipeStorageThrottleFor(state, recipe, machinePowerRatio);
     // Progress represents an in-flight cycle, not a queue of completed
     // cycles. Clamp legacy/starved backlog before advancing the line so a
@@ -1113,8 +1120,10 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
       } else if (upgradeId === 'steel-chests' && state.storageBoxType !== 'steel') {
         state.storageBoxType = 'steel';
         state.storage = Object.fromEntries(trackedKeys.map((key) => [key, storageCapacityFor(state, key)])) as Record<TrackedKey, number>;
-      } else if (upgradeId === 'steel-furnaces' && state.furnaceVariant !== 'steel-furnace') {
+      } else if (upgradeId === 'steel-furnaces' && state.furnaceVariant === 'stone-furnace') {
         state.furnaceVariant = 'steel-furnace';
+      } else if (upgradeId === ELECTRIC_FURNACE_UPGRADE_ID && state.furnaceVariant === 'steel-furnace') {
+        state.furnaceVariant = 'electric-furnace';
       } else if (upgradeId === OIL_PROCESSING_UPGRADE_ID && !state.oilProcessingAdvanced) {
         const machineCount = item.machineCount ?? state.assemblers['basic-oil-processing'] ?? 0;
         state.assemblers = applyOilProcessingUpgradeCompletion(state.assemblers, machineCount);
@@ -1154,7 +1163,9 @@ function loadState() {
       return storage;
     })();
     const storageBoxType = parsed.storageBoxType === 'steel' ? 'steel' : parsed.storageBoxType === 'iron' ? 'iron' : 'wooden';
-    const furnaceVariant = parsed.furnaceVariant === 'steel-furnace' ? 'steel-furnace' : 'stone-furnace';
+    const furnaceVariant = parsed.furnaceVariant === 'electric-furnace'
+      ? 'electric-furnace'
+      : parsed.furnaceVariant === 'steel-furnace' ? 'steel-furnace' : 'stone-furnace';
     const migratedStorage = migrateStorageState({
       trackedKeys,
       fluidKeys,
@@ -1942,7 +1953,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction }
   const buildProductionUnit = (key: ComponentKey) => {
     const recipe = recipeMap[key];
     if (isSmeltingRecipe(recipe)) {
-      if (state.queue.some((item) => item.action === 'upgrade' && item.targetId === 'steel-furnaces')) return notice('finish the furnace conversion before building more furnaces');
+       if (state.queue.some((item) => item.action === 'upgrade' && (item.targetId === 'steel-furnaces' || item.targetId === ELECTRIC_FURNACE_UPGRADE_ID))) return notice('finish the furnace conversion before building more furnaces');
       const furnaceRecipe = furnaceBuildRecipeFor(state);
       enqueue('furnace', `${prettyLabel(key)} ${currentFurnaceLabel.toLowerCase()}`, furnaceRecipe.energyRequired, key, recipeBuildCosts(furnaceRecipe));
       return;
@@ -2013,7 +2024,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction }
           </div>
         </div>
         {autoCondition.label && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-auto-condition-${key}`}><div className="flex items-center justify-between gap-2 text-[10px]"><span className="eyebrow text-[hsl(var(--primary))]">Auto start / stop</span><Tag tone={autoCondition.met ? 'teal' : 'amber'}>{autoCondition.met ? 'running' : 'stopped'}</Tag></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Runs when <span className="font-semibold text-[hsl(var(--foreground))]">{autoCondition.label}</span>.</div></div>}
-         {smelting && recipe.fuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
+         {smelting && recipe.fuel && state.furnaceVariant !== 'electric-furnace' && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
          <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} />
           <div className="mt-4 flex gap-2">{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-${count ? 'build-more' : 'build'}-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> {count ? 'queued · build another' : 'queued'}</> : <><Hammer size={13} /> {count ? 'construct another' : 'construct'}</>}</button></div>
            {isBuilding && <BuildProgress items={constructionItems} label={`${buildingLabel} · ${prettyLabel(key)}`} cancelConstruction={cancelConstruction} notice={notice} />}
@@ -2277,13 +2288,19 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
   const steelStorageUpgradeTotalSeconds = steelChestUpgradeTimeFor(storageBoxCount);
   const steelStorageUpgradeMissing = !storageUpgradeComplete || steelStorageUpgradeComplete || !storageBoxCount ? '' : missingBuildMaterials(state, steelStorageUpgradeCosts);
   const furnaceCount = smeltingFurnaceCountFor(state);
-  const furnaceUpgradeComplete = state.furnaceVariant === 'steel-furnace';
+  const furnaceUpgradeComplete = state.furnaceVariant !== 'stone-furnace';
   const furnaceUpgradeQueued = activeUpgrade?.targetId === 'steel-furnaces';
   const furnaceUpgradeCostPerFurnace = recipeBuildCosts(steelFurnaceRecipe);
   const furnaceUpgradeCosts = scaledBuildCosts(furnaceUpgradeCostPerFurnace, furnaceCount);
   const furnaceUpgradeTotalSeconds = steelFurnaceRecipe.energyRequired * furnaceCount;
   const furnaceUpgradeMissing = furnaceUpgradeComplete || !furnaceCount ? '' : missingBuildMaterials(state, furnaceUpgradeCosts);
   const furnaceUpgradePrerequisiteMet = steelFurnacePrerequisiteMet(state.research);
+  const electricFurnaceUpgradeComplete = state.furnaceVariant === 'electric-furnace';
+  const electricFurnaceUpgradeQueued = activeUpgrade?.targetId === ELECTRIC_FURNACE_UPGRADE_ID;
+  const electricFurnaceUpgradeCosts = scaledBuildCosts(electricFurnaceUpgradeCostPerFurnace, furnaceCount);
+  const electricFurnaceUpgradeTotalSeconds = electricFurnaceUpgradeTimePerFurnace * furnaceCount;
+  const electricFurnaceUpgradeMissing = electricFurnaceUpgradeComplete || !furnaceCount ? '' : missingBuildMaterials(state, electricFurnaceUpgradeCosts);
+  const electricFurnaceUpgradePrerequisiteMet = electricFurnacePrerequisiteMet(state.research, state.furnaceVariant);
   const oilProcessingUpgradeComplete = state.oilProcessingAdvanced;
   const oilProcessingUpgradeQueued = activeUpgrade?.targetId === OIL_PROCESSING_UPGRADE_ID;
   const basicOilMachineCount = state.assemblers['basic-oil-processing'] ?? 0;
@@ -2387,6 +2404,32 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
     });
     notice(`Upgrade all furnaces to Steel Furnaces started for ${furnaceCount} furnace${furnaceCount === 1 ? '' : 's'}`);
   };
+  const startElectricFurnaceUpgrade = () => {
+    if (electricFurnaceUpgradeComplete) return notice('Electric Furnaces are already installed');
+    if (activeUpgrade) return notice('finish the active upgrade before starting another');
+    if (!electricFurnaceUpgradePrerequisiteMet) return notice(`${prettyLabel(ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY)} research and Steel Furnaces are required`);
+    if (!furnaceCount) return notice('construct at least one steel furnace first');
+    if (electricFurnaceUpgradeMissing) return notice(`missing ${electricFurnaceUpgradeMissing}`);
+    const job: QueueItem = {
+      id: `upgrade-${Date.now()}`,
+      action: 'upgrade',
+      target: 'Upgrade all furnaces to Electric Furnaces',
+      targetId: ELECTRIC_FURNACE_UPGRADE_ID,
+      seconds: electricFurnaceUpgradeTotalSeconds,
+      total: electricFurnaceUpgradeTotalSeconds,
+      machineCount: furnaceCount,
+      costs: electricFurnaceUpgradeCosts.map((cost) => ({ ...cost })),
+      reserved: electricFurnaceUpgradeCosts.map((cost) => cost.amount),
+      ...constructionVisualTiming(electricFurnaceUpgradeTotalSeconds),
+    };
+    setState((s) => {
+      const raw = { ...s.raw };
+      const products = { ...s.products };
+      reserveConstructionMaterials({ raw, products }, electricFurnaceUpgradeCosts);
+      return { ...s, raw, products, queue: [...s.queue, job] };
+    });
+    notice(`Upgrade all furnaces to Electric Furnaces started for ${furnaceCount} furnace${furnaceCount === 1 ? '' : 's'}`);
+  };
   const startOilProcessingUpgrade = () => {
     if (oilProcessingUpgradeComplete) return notice('Advanced Oil Processing is already installed');
     if (activeUpgrade) return notice('finish the active upgrade before starting another');
@@ -2410,15 +2453,16 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
     'steel-chests': 1,
     'electric-mining-drill': 2,
     'steel-furnaces': 3,
-    'assembly-machine-2': 4,
-    'assembly-machine-3': 5,
-    'research-speed-1': 6,
-    'research-speed-2': 7,
-    'research-speed-3': 8,
-    'research-speed-4': 9,
-    'research-speed-5': 10,
-    'research-speed-6': 11,
-    [OIL_PROCESSING_UPGRADE_ID]: 12,
+    [ELECTRIC_FURNACE_UPGRADE_ID]: 4,
+    'assembly-machine-2': 5,
+    'assembly-machine-3': 6,
+    'research-speed-1': 7,
+    'research-speed-2': 8,
+    'research-speed-3': 9,
+    'research-speed-4': 10,
+    'research-speed-5': 11,
+    'research-speed-6': 12,
+    [OIL_PROCESSING_UPGRADE_ID]: 13,
   };
   const upgradeAvailabilityRank = (complete: boolean, prerequisiteMet: boolean) => complete ? 2 : prerequisiteMet ? 0 : 1;
   const sortedUpgradeCards = [
@@ -2517,6 +2561,27 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
         action={<div className="mt-3"><button onClick={startFurnaceUpgrade} disabled={furnaceUpgradeComplete || !!activeUpgrade || !furnaceUpgradePrerequisiteMet || !furnaceCount || !!furnaceUpgradeMissing} className={`button-base w-full !py-2 ${furnaceUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-steel-furnaces">{furnaceUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !furnaceUpgradePrerequisiteMet ? 'locked' : furnaceUpgradeMissing ? `need ${furnaceUpgradeMissing}` : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</>}</button></div>}
       />,
     },
+     {
+       id: ELECTRIC_FURNACE_UPGRADE_ID,
+       availability: upgradeAvailabilityRank(electricFurnaceUpgradeComplete, electricFurnaceUpgradePrerequisiteMet),
+       category: upgradeCategoryPriority[ELECTRIC_FURNACE_UPGRADE_ID],
+       card: <UpgradeCard
+         key={ELECTRIC_FURNACE_UPGRADE_ID}
+         testId="card-upgrade-electric-furnaces"
+         title="Upgrade all furnaces to Electric Furnaces"
+         copy="Convert every constructed Steel Furnace together. Electric Furnaces keep the same speed, remove coal consumption, and draw 180 kW each."
+         iconPair={<UpgradeIconPair from={<ResourceIcon item="steel-furnace" size={26} />} to={<ResourceIcon item="electric-furnace" size={26} />} fromLabel="Steel Furnace" toLabel="Electric Furnace" />}
+         flow={!electricFurnaceUpgradeComplete ? <UpgradeFlow count={electricFurnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} from="Steel Furnace" to="Electric Furnace" /> : undefined}
+         progress={electricFurnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'steel furnace' : 'steel furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-electric-furnaces" /> : undefined}
+         meta={<UpgradeMetaGrid prerequisite={`${ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY} + Steel Furnaces`} prerequisiteMet={electricFurnaceUpgradePrerequisiteMet} machine={electricFurnaceUpgradeComplete ? 'Electric Furnace' : 'Steel Furnace'} machineIcon={<ResourceIcon item={electricFurnaceUpgradeComplete ? 'electric-furnace' : 'steel-furnace'} size={17} />} />}
+         costPerItem={electricFurnaceUpgradeCostPerFurnace}
+         totalCost={electricFurnaceUpgradeCosts}
+         timePerMachine={electricFurnaceUpgradeTimePerFurnace}
+         totalTime={electricFurnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : electricFurnaceUpgradeTotalSeconds}
+         showCosts={!electricFurnaceUpgradeComplete}
+         action={<div className="mt-3"><button onClick={startElectricFurnaceUpgrade} disabled={electricFurnaceUpgradeComplete || !!activeUpgrade || !electricFurnaceUpgradePrerequisiteMet || !furnaceCount || !!electricFurnaceUpgradeMissing} className={`button-base w-full !py-2 ${electricFurnaceUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-electric-furnaces">{electricFurnaceUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : electricFurnaceUpgradeMissing ? `need ${electricFurnaceUpgradeMissing}` : !electricFurnaceUpgradePrerequisiteMet ? 'locked' : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</>}</button></div>}
+       />,
+     },
     {
       id: 'iron-chests',
       availability: upgradeAvailabilityRank(storageUpgradeComplete, true),
