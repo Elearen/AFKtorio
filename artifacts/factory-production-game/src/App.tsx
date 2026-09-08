@@ -1373,24 +1373,16 @@ function UpgradeProgress({ count, label, seconds, total, progressStartedAt, prog
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(progress)}% complete</span><span>{total.toFixed(1)}s total</span></div>
   </div>;
 }
-function UpgradePowerAdvisory({ testId, machineLabel, machineCount, powerDrawKw, state }: { testId: string; machineLabel: string; machineCount: number; powerDrawKw: number; state: GameState }) {
+function UpgradePowerAdvisory({ testId, machineCount, powerDrawKw, state }: { testId: string; machineCount: number; powerDrawKw: number; state: GameState }) {
   const additionalPowerKw = machineCount * powerDrawKw;
   const sparePowerKw = (powerProductionFor(state) - electricPowerDraw(state)) * 1000;
   const enoughSparePower = sparePowerKw >= additionalPowerKw;
   const toneClass = enoughSparePower
     ? 'border-[hsl(var(--secondary)/.3)] bg-[hsl(var(--secondary)/.06)] text-[hsl(var(--secondary))]'
     : 'border-[hsl(var(--destructive)/.35)] bg-[hsl(var(--destructive)/.08)] text-[hsl(var(--destructive))]';
-  return <div className={`mt-3 rounded-md border p-2.5 ${toneClass}`} data-testid={testId}>
-    <div className="flex items-center gap-1.5 text-[10px] font-semibold">
-      {enoughSparePower ? <Check size={11} aria-hidden="true" /> : <TriangleAlert size={11} aria-hidden="true" />}
-      <span className="eyebrow">Power advisory</span>
-    </div>
-    <div className="mt-1 text-[10px] leading-4">
-      There will {enoughSparePower ? 'be enough' : 'not be enough'} spare power to run {machineCount === 1 ? `the ${machineLabel}` : `the ${machineCount} ${machineLabel}s`} after the upgrade.
-    </div>
-    <div className="mt-1 text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">
-      +{powerLabel(additionalPowerKw / 1000)} MW expected demand · {powerLabel(Math.max(0, sparePowerKw - additionalPowerKw) / 1000)} MW spare after upgrade
-    </div>
+  return <div className={`mt-3 flex items-center gap-1.5 rounded-md border px-2.5 py-2 text-[10px] font-semibold ${toneClass}`} data-testid={testId}>
+    {enoughSparePower ? <Check size={12} aria-hidden="true" /> : <X size={12} aria-hidden="true" />}
+    <span>Additional {powerLabel(additionalPowerKw / 1000)} MW of power {enoughSparePower ? 'available' : 'not available'}</span>
   </div>;
 }
 function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, costPerItem, totalCost, timePerMachine, totalTime, showCosts, powerAdvisory, action }: {
@@ -2532,7 +2524,7 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
           flow={!complete ? <UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} /> : undefined}
           progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId={`panel-upgrade-progress-${item.id}`} /> : undefined}
            meta={<UpgradeMetaGrid prerequisite={item.prerequisiteUpgrade ? `${item.prerequisiteTechnology} + ${upgradeMap[item.prerequisiteUpgrade].name}` : item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? toMachine : fromMachine} size={17} />} />}
-          powerAdvisory={item.id === 'electric-mining-drill' && !complete && machineCount > 0 ? <UpgradePowerAdvisory testId="panel-upgrade-power-electric-miner" machineLabel="Electric Miner" machineCount={machineCount} powerDrawKw={item.newMachinePowerDraw} state={state} /> : undefined}
+          powerAdvisory={item.id === 'electric-mining-drill' && !complete && machineCount > 0 ? <UpgradePowerAdvisory testId="panel-upgrade-power-electric-miner" machineCount={machineCount} powerDrawKw={item.newMachinePowerDraw} state={state} /> : undefined}
           costPerItem={item.upgradeCostPerMachine}
           totalCost={totalCosts}
           timePerMachine={item.upgradeTimePerMachine}
@@ -2597,7 +2589,7 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
          flow={!electricFurnaceUpgradeComplete ? <UpgradeFlow count={electricFurnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} from="Steel Furnace" to="Electric Furnace" /> : undefined}
          progress={electricFurnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'steel furnace' : 'steel furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-electric-furnaces" /> : undefined}
          meta={<UpgradeMetaGrid prerequisite={`${ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY} + Steel Furnaces`} prerequisiteMet={electricFurnaceUpgradePrerequisiteMet} machine={electricFurnaceUpgradeComplete ? 'Electric Furnace' : 'Steel Furnace'} machineIcon={<ResourceIcon item={electricFurnaceUpgradeComplete ? 'electric-furnace' : 'steel-furnace'} size={17} />} />}
-         powerAdvisory={!electricFurnaceUpgradeComplete && furnaceCount > 0 ? <UpgradePowerAdvisory testId="panel-upgrade-power-electric-furnaces" machineLabel="Electric Furnace" machineCount={electricFurnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} powerDrawKw={electricFurnacePowerKw} state={state} /> : undefined}
+         powerAdvisory={!electricFurnaceUpgradeComplete && furnaceCount > 0 ? <UpgradePowerAdvisory testId="panel-upgrade-power-electric-furnaces" machineCount={electricFurnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} powerDrawKw={electricFurnacePowerKw} state={state} /> : undefined}
          costPerItem={electricFurnaceUpgradeCostPerFurnace}
          totalCost={electricFurnaceUpgradeCosts}
          timePerMachine={electricFurnaceUpgradeTimePerFurnace}
