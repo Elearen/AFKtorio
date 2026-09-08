@@ -6,7 +6,7 @@ import { technologyCatalog, type TechnologyDefinition } from './technologyCatalo
 import { technologyOrder } from './technologyOrder';
 import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
 import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
-import { activateReadyConstruction, constructionCanBeFullyFunded, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
+import { activateReadyConstruction, constructionCanBeFullyFunded, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import {
   OIL_PROCESSING_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
@@ -59,6 +59,8 @@ type QueueItem = {
   costs?: BuildMaterialCost[];
   reserved?: number[];
   started?: boolean;
+  progressStartedAt?: number;
+  progressDurationMs?: number;
 };
 type HandcraftJob = { recipeKey: string; seconds: number; total: number };
 type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number };
@@ -906,14 +908,15 @@ const unlockMilestone = (state: GameState, milestone: MilestoneKey) => {
   return true;
 };
 
-function simulate(previous: GameState, seconds: number): GameState {
-  const now = Date.now();
+function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now()): GameState {
+  const now = tickTimestamp;
   const liveProduction = emptyRateRecord();
   const liveManualProduction = emptyRateRecord();
   const liveConsumption = emptyRateRecord();
   const activeConstructionIds = new Set(
     previous.queue.filter((item) => item.started !== false).map((item) => item.id),
   );
+  const previousQueueById = new Map(previous.queue.map((item) => [item.id, item]));
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes }, storageTanks: { ...previous.storageTanks },
     assemblers: { ...previous.assemblers }, oilProcessingAdvanced: previous.oilProcessingAdvanced, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, accumulators: previous.accumulators, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
@@ -1039,6 +1042,13 @@ function simulate(previous: GameState, seconds: number): GameState {
     researchTargetsProcessed += 1;
   }
   activateReadyConstruction(state.queue);
+  state.queue.forEach((item) => {
+    if (item.started === false || item.progressStartedAt !== undefined) return;
+    const wasWaiting = previousQueueById.get(item.id)?.started === false;
+    const visualTotal = wasWaiting ? item.total : item.seconds;
+    item.progressStartedAt = now;
+    item.progressDurationMs = constructionTickCountFor(visualTotal) * 1000;
+  });
   const completed = state.queue.filter((item) => activeConstructionIds.has(item.id) && item.started !== false && item.seconds <= seconds);
   state.queue = state.queue.map((item) => !activeConstructionIds.has(item.id) || item.started === false ? item : ({ ...item, seconds: Math.max(0, item.seconds - seconds) })).filter((item) => item.started === false || !activeConstructionIds.has(item.id) || item.seconds > 0);
   completed.forEach((item) => {
@@ -1336,8 +1346,13 @@ function UpgradeMetaGrid({ prerequisite, prerequisiteMet, machine, machineIcon }
     </div>
   </div>;
 }
-function UpgradeProgress({ count, label, seconds, total, testId }: { count: number; label: string; seconds: number; total: number; testId: string }) {
-  const progress = visualProgressFor(seconds, total, 1);
+function UpgradeProgress({ count, label, seconds, total, progressStartedAt, progressDurationMs, testId }: { count: number; label: string; seconds: number; total: number; progressStartedAt?: number; progressDurationMs?: number; testId: string }) {
+  const progress = useConstructionVisualProgress(
+    `${testId}:${progressStartedAt ?? 'legacy'}`,
+    progressStartedAt,
+    progressDurationMs,
+    visualProgressFor(seconds, total, 1),
+  );
   return <div className="construction-panel mt-3 rounded-md p-2.5" aria-live="polite" data-testid={testId}>
     <div className="flex items-center justify-between gap-2">
       <div className="min-w-0 truncate text-[10px] font-bold">{count} {label} converting</div>
@@ -1460,13 +1475,39 @@ function PowerMetrics({ production, peakProduction, productionUnit, consumption,
 }
 const visualProgressFor = (seconds: number, total: number, leadSeconds = 0) =>
   Math.max(0, Math.min(100, (1 - Math.max(0, seconds - Math.max(0, leadSeconds)) / Math.max(0.0001, total)) * 100));
+function useConstructionVisualProgress(key: string, startedAt: number | undefined, durationMs: number | undefined, fallback: number) {
+  const [frame, setFrame] = useState(() => ({ key, now: Date.now() }));
+  const now = frame.key === key ? frame.now : (startedAt ?? Date.now());
+
+  useEffect(() => {
+    setFrame({ key, now: startedAt ?? Date.now() });
+    if (startedAt === undefined || durationMs === undefined) return;
+    let animationFrame = 0;
+    const update = () => {
+      setFrame({ key, now: Date.now() });
+      animationFrame = window.requestAnimationFrame(update);
+    };
+    animationFrame = window.requestAnimationFrame(update);
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [key, startedAt, durationMs]);
+
+  return startedAt !== undefined && durationMs !== undefined
+    ? constructionVisualProgressFor(Math.max(now, startedAt), startedAt, durationMs)
+    : fallback;
+}
 function BuildProgress({ items, label, cancelConstruction, notice }: { items: QueueItem[]; label: string; cancelConstruction?: (id: string) => void; notice?: (message: string) => void }) {
-  if (!items.length) return null;
   const active = items[0];
-  const waitingForMaterials = active.started === false;
-  const complete = waitingForMaterials
-    ? Math.min(...(active.costs ?? []).map((cost, index) => (active.reserved?.[index] ?? 0) / Math.max(0.0001, cost.amount) * 100), 0)
-    : visualProgressFor(active.seconds, active.total, 1);
+  const waitingForMaterials = active?.started === false;
+  const fallbackProgress = waitingForMaterials
+    ? Math.min(...(active?.costs ?? []).map((cost, index) => (active?.reserved?.[index] ?? 0) / Math.max(0.0001, cost.amount) * 100), 0)
+    : active ? visualProgressFor(active.seconds, active.total, 1) : 0;
+  const complete = useConstructionVisualProgress(
+    active ? `${active.id}:${active.progressStartedAt ?? 'legacy'}` : 'empty',
+    waitingForMaterials ? undefined : active?.progressStartedAt,
+    waitingForMaterials ? undefined : active?.progressDurationMs,
+    fallbackProgress,
+  );
+  if (!active) return null;
   const missing = waitingForMaterials
     ? (active.costs ?? []).map((cost, index) => {
       const amount = Math.max(0, cost.amount - (active.reserved?.[index] ?? 0));
@@ -2221,7 +2262,7 @@ function LogisticsPage({ notice }: PageProps) {
   return <PageFrame><Header eyebrow="Later-stage systems" title="Logistics" copy="The line is not ready for a freight network yet. These systems are mapped here so future expansion has a clear shape." action={<Tag tone="amber"><Clock3 size={11} /> coming later</Tag>} /><section className="surface rounded-xl p-4 sm:p-5"><div className="mb-5 flex items-start gap-3 rounded-xl border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-4"><div className="text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">Later-stage tab</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">These are intentionally visible but non-functional. No fake throughput, no pretend routing — just the systems waiting beyond the first efficient loop.</p></div></div><div className="grid gap-3 sm:grid-cols-2">{entries.map(({ title, copy, icon: Icon }) => <button onClick={() => notice(`${title} is planned for a later stage`)} className="locked-wash flex items-center gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left transition-colors hover:border-[hsl(var(--secondary)/.4)]" key={title} data-testid={`button-logistics-${title.toLowerCase().replace(' ', '-')}`}><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"><Icon size={17} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-[12px] font-bold">{title}<Tag tone="muted"><LockKeyhole size={9} /> later</Tag></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{copy}</p></div><ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" /></button>)}</div></section></PageFrame>;
 }
 
-function UpgradesPage({ state, setState, notice }: PageProps) {
+function UpgradesPage({ state, setState, notice, constructionVisualTiming }: PageProps) {
   const [upgradeFilter, setUpgradeFilter] = useState<UpgradeFilter>('available');
   const activeUpgrade = state.queue.find((item) => item.action === 'upgrade');
   const storageBoxCount = storageBoxCountFor(state);
@@ -2263,7 +2304,8 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
       queue: state.queue,
     }, upgrade.id, jobId);
     if (!result.ok) return notice(result.message);
-    setState((s) => ({ ...s, raw: result.state.raw, products: result.state.products, queue: result.state.queue as QueueItem[] }));
+    const visualTiming = constructionVisualTiming(result.job.total);
+    setState((s) => ({ ...s, raw: result.state.raw, products: result.state.products, queue: (result.state.queue as QueueItem[]).map((item) => item.id === result.job.id ? { ...item, ...visualTiming } : item) }));
     const unitLabel = upgrade.labSpeedLevel !== undefined
       ? `lab${result.job.machineCount === 1 ? '' : 's'}`
       : `machine${result.job.machineCount === 1 ? '' : 's'}`;
@@ -2285,6 +2327,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
       machineCount: storageBoxCount,
       costs,
       reserved: costs.map((cost) => cost.amount),
+      ...constructionVisualTiming(storageUpgradeTotalSeconds),
     };
     setState((s) => ({
       ...s,
@@ -2309,6 +2352,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
       machineCount: storageBoxCount,
       costs: steelStorageUpgradeCosts.map((cost) => ({ ...cost })),
       reserved: steelStorageUpgradeCosts.map((cost) => cost.amount),
+      ...constructionVisualTiming(steelStorageUpgradeTotalSeconds),
     };
     setState((s) => ({
       ...s,
@@ -2333,6 +2377,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
       machineCount: furnaceCount,
       costs: furnaceUpgradeCosts.map((cost) => ({ ...cost })),
       reserved: furnaceUpgradeCosts.map((cost) => cost.amount),
+      ...constructionVisualTiming(furnaceUpgradeTotalSeconds),
     };
     setState((s) => {
       const raw = { ...s.raw };
@@ -2355,6 +2400,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
       seconds: oilProcessingUpgradeTimeFor(basicOilMachineCount),
       total: oilProcessingUpgradeTimeFor(basicOilMachineCount),
       machineCount: basicOilMachineCount,
+      ...constructionVisualTiming(oilProcessingUpgradeTimeFor(basicOilMachineCount)),
     };
     setState((s) => ({ ...s, queue: [...s.queue, job] }));
     notice(`Advanced Oil Processing conversion started for ${basicOilMachineCount} refinery${basicOilMachineCount === 1 ? '' : 'ies'}`);
@@ -2418,7 +2464,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
           copy={item.copy}
           iconPair={<UpgradeIconPair from={<ResourceIcon item={fromMachine} size={26} />} to={<ResourceIcon item={toMachine} size={26} />} fromLabel={fromLabel} toLabel={item.newMachineLabel} />}
           flow={!complete ? <UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} /> : undefined}
-          progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId={`panel-upgrade-progress-${item.id}`} /> : undefined}
+          progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId={`panel-upgrade-progress-${item.id}`} /> : undefined}
            meta={<UpgradeMetaGrid prerequisite={item.prerequisiteUpgrade ? `${item.prerequisiteTechnology} + ${upgradeMap[item.prerequisiteUpgrade].name}` : item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? toMachine : fromMachine} size={17} />} />}
           costPerItem={item.upgradeCostPerMachine}
           totalCost={totalCosts}
@@ -2440,7 +2486,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
         copy="Replace every constructed Basic Oil Processing refinery with Advanced Oil Processing. The conversion is free and takes one second per refinery."
         iconPair={<UpgradeIconPair from={<UpgradeAssetIcon file="basic-oil-processing" size={28} />} to={<UpgradeAssetIcon file="advanced-oil-processing" size={28} />} fromLabel="Basic Oil Processing" toLabel="Advanced Oil Processing" />}
         flow={!oilProcessingUpgradeComplete ? <UpgradeFlow count={oilProcessingConversionCount} from="Basic Oil Processing" to="Advanced Oil Processing" /> : undefined}
-        progress={oilProcessingUpgradeQueued && activeUpgrade ? <UpgradeProgress count={oilProcessingConversionCount} label={oilProcessingConversionCount === 1 ? 'refinery' : 'refineries'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-advanced-oil-processing" /> : undefined}
+        progress={oilProcessingUpgradeQueued && activeUpgrade ? <UpgradeProgress count={oilProcessingConversionCount} label={oilProcessingConversionCount === 1 ? 'refinery' : 'refineries'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-advanced-oil-processing" /> : undefined}
         meta={<UpgradeMetaGrid prerequisite="advanced-oil-processing" prerequisiteMet={oilProcessingPrerequisiteMet} machine="Oil Refinery" machineIcon={<UpgradeAssetIcon file={oilProcessingUpgradeComplete ? 'advanced-oil-processing' : 'basic-oil-processing'} size={17} />} />}
         costPerItem={[]}
         totalCost={[]}
@@ -2461,7 +2507,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
         copy="Convert every constructed stone furnace together. Steel Furnaces run at twice the speed and use half the coal per item."
         iconPair={<UpgradeIconPair from={<ResourceIcon item="stone-furnace" size={26} />} to={<ResourceIcon item="steel-furnace" size={26} />} fromLabel="Stone Furnace" toLabel="Steel Furnace" />}
         flow={!furnaceUpgradeComplete ? <UpgradeFlow count={furnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} from="Stone Furnace" to="Steel Furnace" /> : undefined}
-        progress={furnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'stone furnace' : 'stone furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-steel-furnaces" /> : undefined}
+         progress={furnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'stone furnace' : 'stone furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-steel-furnaces" /> : undefined}
         meta={<UpgradeMetaGrid prerequisite={STEEL_FURNACE_PREREQUISITE_TECHNOLOGY} prerequisiteMet={furnaceUpgradePrerequisiteMet} machine={furnaceUpgradeComplete ? 'Steel Furnace' : 'Stone Furnace'} machineIcon={<ResourceIcon item={furnaceUpgradeComplete ? 'steel-furnace' : 'stone-furnace'} size={17} />} />}
         costPerItem={furnaceUpgradeCostPerFurnace}
         totalCost={furnaceUpgradeCosts}
@@ -2482,7 +2528,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
         copy="Replace every constructed wooden chest with an Iron Chest. Fluid storage tanks are not affected."
         iconPair={<UpgradeIconPair from={<ResourceIcon item="wooden-chest" size={26} />} to={<ResourceIcon item="iron-chest" size={26} />} fromLabel="Wooden Chest" toLabel="Iron Chest" />}
         flow={!storageUpgradeComplete ? <UpgradeFlow count={storageUpgradeQueued ? activeUpgrade?.machineCount ?? storageBoxCount : storageBoxCount} from="Wooden Chest" to="Iron Chest" /> : undefined}
-        progress={storageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'wooden chest' : 'wooden chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-iron-chests" /> : undefined}
+         progress={storageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'wooden chest' : 'wooden chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-iron-chests" /> : undefined}
         meta={<UpgradeMetaGrid prerequisiteMet={true} machine={storageUpgradeComplete ? 'Iron Chest' : 'Wooden Chest'} machineIcon={<ResourceIcon item={storageUpgradeComplete ? 'iron-chest' : 'wooden-chest'} size={17} />} />}
         costPerItem={[{ key: 'ironPlate', amount: ironChestUpgradeCostFor(1), source: 'products' }]}
         totalCost={storageUpgradeCosts}
@@ -2503,7 +2549,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
          copy="Replace every constructed Iron Chest with a Steel Chest. Fluid storage tanks are not affected."
          iconPair={<UpgradeIconPair from={<ResourceIcon item="iron-chest" size={26} />} to={<ResourceIcon item="steel-chest" size={26} />} fromLabel="Iron Chest" toLabel="Steel Chest" />}
          flow={!steelStorageUpgradeComplete ? <UpgradeFlow count={steelStorageUpgradeQueued ? activeUpgrade?.machineCount ?? storageBoxCount : storageBoxCount} from="Iron Chest" to="Steel Chest" /> : undefined}
-         progress={steelStorageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'iron chest' : 'iron chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-steel-chests" /> : undefined}
+         progress={steelStorageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'iron chest' : 'iron chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-steel-chests" /> : undefined}
          meta={<UpgradeMetaGrid prerequisite="Iron Chests upgrade" prerequisiteMet={storageUpgradeComplete} machine={steelStorageUpgradeComplete ? 'Steel Chest' : 'Iron Chest'} machineIcon={<ResourceIcon item={steelStorageUpgradeComplete ? 'steel-chest' : 'iron-chest'} size={17} />} />}
          costPerItem={[{ key: 'steel', amount: STORAGE_STEEL_BOX_COST, source: 'products' }]}
          totalCost={steelStorageUpgradeCosts}
@@ -3043,13 +3089,14 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
   </PageFrame>;
 }
 
-type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => void; cancelConstruction: (id: string) => void; saveNow: () => void; reset: () => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
+type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => void; cancelConstruction: (id: string) => void; constructionVisualTiming: (total: number) => Pick<QueueItem, 'progressStartedAt' | 'progressDurationMs'>; saveNow: () => void; reset: () => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
 
 function PageFrame({ children }: { children: ReactNode }) { return <div className="mx-auto max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 md:px-8 md:pb-10">{children}</div>; }
 
 function Game() {
   const initial = useMemo(loadState, []);
   const [state, setState] = useState<GameState>(initial.state);
+  const nextSimulationAtRef = useRef(Date.now() + 1000);
   const [away] = useState(initial.away);
   const [recovered] = useState(initial.recovered);
   const [offlineReportVisible, setOfflineReportVisible] = useState(initial.away >= 60 && initial.recovered > 0);
@@ -3058,7 +3105,14 @@ function Game() {
   const [replayMilestone, setReplayMilestone] = useState<MilestoneKey | null>(null);
   const [location, navigate] = useLocation();
   const notice = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 1800); };
-  useEffect(() => { const timer = window.setInterval(() => setState((s) => simulate(s, 1)), 1000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const tickTimestamp = Date.now();
+      nextSimulationAtRef.current = tickTimestamp + 1000;
+      setState((s) => simulate(s, 1, tickTimestamp));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   useEffect(() => { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }, [state]);
   useEffect(() => {
     if (state.gameComplete) setEndgameModal(null);
@@ -3075,6 +3129,13 @@ function Game() {
     navigate('/');
     setState({ ...initialState, lastSeen: timestamp, gameStartTimestamp: timestamp, storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] });
   };
+  const constructionVisualTiming = (total: number) => {
+    const progressStartedAt = Date.now();
+    return {
+      progressStartedAt,
+      progressDurationMs: constructionVisualDurationMsFor(total, Math.max(0, nextSimulationAtRef.current - progressStartedAt)),
+    };
+  };
   const enqueue = (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => setState((s) => {
     if (action === 'rocketSilo' && !canBuildRocketSilo(s.rocketSiloBuilt, s.queue.some((item) => item.action === 'rocketSilo'))) return s;
     if (action === 'rocketParts' && (!s.rocketSiloBuilt || s.rocketPartsBuilt >= ROCKET_PART_TARGET || s.queue.some((item) => item.action === 'rocketParts'))) return s;
@@ -3085,6 +3146,7 @@ function Game() {
     const products = { ...s.products };
     const reserved = requestCosts?.length ? reserveConstructionMaterials({ raw, products }, requestCosts) : undefined;
     const started = !requestCosts?.length || reserved?.every((amount, index) => amount >= requestCosts[index].amount - 0.000001);
+    const visualTiming = started ? constructionVisualTiming(seconds) : {};
     const item: QueueItem = {
       id: `${action}-${targetId ?? target}-${Date.now()}-${s.queue.length}`,
       action,
@@ -3095,6 +3157,7 @@ function Game() {
       costs: requestCosts,
       reserved,
       started,
+      ...visualTiming,
     };
     return { ...s, raw, products, queue: [...s.queue, item] };
   });
@@ -3112,7 +3175,7 @@ function Game() {
     const inventory = refundConstructionMaterials({ raw: s.raw, products: s.products }, item);
     return { ...s, raw: inventory.raw, products: inventory.products, queue: s.queue.filter((queueItem) => queueItem.id !== id) };
   });
-  const props = { state, setState, enqueue, cancelConstruction, saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
+  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
   const pageKey = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;

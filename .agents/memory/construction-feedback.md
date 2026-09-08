@@ -9,6 +9,12 @@ Use the shared construction queue as the single source of truth for pressed/queu
 
 **How to apply:** Derive button state, queued counts, remaining time, and percentage completion directly from the queue item that the simulation decrements.
 
+Construction progress visuals start at 0 when a job is queued, then use a wall-clock timeline calibrated to the next simulation tick so the bar reaches 100% exactly as the queue item completes.
+
+**Why:** A one-tick visual lead made the initial percentage vary by build duration and looked like construction began before the player pressed the button.
+
+**How to apply:** Persist the visual start timestamp and calibrated duration on newly started queue items; keep the simulation timer authoritative for actual completion.
+
 Construction warnings should report only the remaining deficit for each unavailable material, not the full cost of another building or materials already in inventory.
 
 **Why:** Full-cost warnings obscure the actionable blocker when the player already owns some of the required materials.

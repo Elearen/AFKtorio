@@ -13,6 +13,8 @@ export type ConstructionQueueItem = {
   costs?: BuildMaterialCost[];
   reserved?: number[];
   started?: boolean;
+  progressStartedAt?: number;
+  progressDurationMs?: number;
 };
 
 const EPSILON = 0.000001;
@@ -28,6 +30,15 @@ const isBuildMaterialCost = (value: unknown): value is BuildMaterialCost => {
 
 export const constructionRequestReady = (item: ConstructionQueueItem) =>
   !item.costs?.length || item.costs.every((cost, index) => (item.reserved?.[index] ?? 0) >= cost.amount - EPSILON);
+
+export const constructionTickCountFor = (total: number) =>
+  Math.max(1, Math.ceil(Math.max(0, total) - EPSILON));
+
+export const constructionVisualDurationMsFor = (total: number, millisecondsUntilNextTick: number) =>
+  Math.max(0, millisecondsUntilNextTick) + Math.max(0, constructionTickCountFor(total) - 1) * 1000;
+
+export const constructionVisualProgressFor = (now: number, startedAt: number, durationMs: number) =>
+  durationMs <= 0 ? 100 : Math.max(0, Math.min(100, (now - startedAt) / durationMs * 100));
 
 export const constructionCanBeFullyFunded = (
   inventory: ConstructionInventory,

@@ -4,6 +4,9 @@ import {
   activateReadyConstruction,
   constructionRequestReady,
   constructionCanBeFullyFunded,
+  constructionTickCountFor,
+  constructionVisualDurationMsFor,
+  constructionVisualProgressFor,
   hasWaitingConstruction,
   fulfillConstructionReservation,
   normalizeConstructionQueue,
@@ -166,4 +169,13 @@ test('fully affordable follow-up constructions remain allowed', () => {
 
   assert.equal(constructionCanBeFullyFunded(inventory, costs), true);
   assert.equal(constructionCanBeFullyFunded({ raw: {}, products: { ironPlate: 4 } }, costs), false);
+});
+
+test('construction visual timing starts at zero and ends on the simulation completion tick', () => {
+  assert.equal(constructionTickCountFor(10), 10);
+  assert.equal(constructionTickCountFor(2.5), 3);
+  assert.equal(constructionVisualDurationMsFor(10, 250), 9250);
+  assert.equal(constructionVisualProgressFor(1000, 1000, 9250), 0);
+  assert.equal(constructionVisualProgressFor(10250, 1000, 9250), 100);
+  assert.equal(constructionVisualProgressFor(11000, 1000, 9250), 100);
 });
