@@ -10,6 +10,8 @@ export type UpgradeKey =
   | 'research-speed-5'
   | 'research-speed-6';
 export const OIL_PROCESSING_UPGRADE_ID = 'advanced-oil-processing';
+export const STEEL_FURNACE_PREREQUISITE_TECHNOLOGY = 'advanced-material-processing';
+export const steelFurnacePrerequisiteMet = (research: string[]) => research.includes(STEEL_FURNACE_PREREQUISITE_TECHNOLOGY);
 export const oilProcessingUpgradeTimeFor = (machineCount: number) => Math.max(0, machineCount);
 export const oilCrackingConditionMet = (recipeId: string, inventory: Record<string, number>) => recipeId === 'heavy-oil-cracking'
   ? (inventory['heavy-oil'] ?? 0) > (inventory['light-oil'] ?? 0)

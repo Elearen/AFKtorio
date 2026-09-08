@@ -9,9 +9,9 @@ import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPl
 import { activateReadyConstruction, constructionCanBeFullyFunded, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import {
-  OIL_PROCESSING_UPGRADE_ID, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
+  OIL_PROCESSING_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
   migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeInstalledFor, upgradeMap,
-  type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
+  steelFurnacePrerequisiteMet, type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
 import {
   canPurchaseStorageFor, completeStorageConstruction, createInitialStorageState,
@@ -2239,6 +2239,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
   const furnaceUpgradeCosts = scaledBuildCosts(furnaceUpgradeCostPerFurnace, furnaceCount);
   const furnaceUpgradeTotalSeconds = steelFurnaceRecipe.energyRequired * furnaceCount;
   const furnaceUpgradeMissing = furnaceUpgradeComplete || !furnaceCount ? '' : missingBuildMaterials(state, furnaceUpgradeCosts);
+  const furnaceUpgradePrerequisiteMet = steelFurnacePrerequisiteMet(state.research);
   const oilProcessingUpgradeComplete = state.oilProcessingAdvanced;
   const oilProcessingUpgradeQueued = activeUpgrade?.targetId === OIL_PROCESSING_UPGRADE_ID;
   const basicOilMachineCount = state.assemblers['basic-oil-processing'] ?? 0;
@@ -2316,6 +2317,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
   const startFurnaceUpgrade = () => {
     if (furnaceUpgradeComplete) return notice('Steel Furnaces are already installed');
     if (activeUpgrade) return notice('finish the active upgrade before starting another');
+    if (!furnaceUpgradePrerequisiteMet) return notice(`${prettyLabel(STEEL_FURNACE_PREREQUISITE_TECHNOLOGY)} research required`);
     if (!furnaceCount) return notice('construct at least one stone furnace first');
     if (furnaceUpgradeMissing) return notice(`missing ${furnaceUpgradeMissing}`);
     const job: QueueItem = {
@@ -2447,7 +2449,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
     },
     {
       id: 'steel-furnaces',
-      availability: upgradeAvailabilityRank(furnaceUpgradeComplete, true),
+      availability: upgradeAvailabilityRank(furnaceUpgradeComplete, furnaceUpgradePrerequisiteMet),
       category: upgradeCategoryPriority['steel-furnaces'],
       card: <UpgradeCard
         key="steel-furnaces"
@@ -2457,13 +2459,13 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
         iconPair={<UpgradeIconPair from={<ResourceIcon item="stone-furnace" size={26} />} to={<ResourceIcon item="steel-furnace" size={26} />} fromLabel="Stone Furnace" toLabel="Steel Furnace" />}
         flow={!furnaceUpgradeComplete ? <UpgradeFlow count={furnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} from="Stone Furnace" to="Steel Furnace" /> : undefined}
         progress={furnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'stone furnace' : 'stone furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} testId="panel-upgrade-progress-steel-furnaces" /> : undefined}
-        meta={<UpgradeMetaGrid prerequisiteMet={true} machine={furnaceUpgradeComplete ? 'Steel Furnace' : 'Stone Furnace'} machineIcon={<ResourceIcon item={furnaceUpgradeComplete ? 'steel-furnace' : 'stone-furnace'} size={17} />} />}
+        meta={<UpgradeMetaGrid prerequisite={STEEL_FURNACE_PREREQUISITE_TECHNOLOGY} prerequisiteMet={furnaceUpgradePrerequisiteMet} machine={furnaceUpgradeComplete ? 'Steel Furnace' : 'Stone Furnace'} machineIcon={<ResourceIcon item={furnaceUpgradeComplete ? 'steel-furnace' : 'stone-furnace'} size={17} />} />}
         costPerItem={furnaceUpgradeCostPerFurnace}
         totalCost={furnaceUpgradeCosts}
         timePerMachine={steelFurnaceRecipe.energyRequired}
         totalTime={furnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : furnaceUpgradeTotalSeconds}
         showCosts={!furnaceUpgradeComplete}
-        action={<div className="mt-3"><button onClick={startFurnaceUpgrade} disabled={furnaceUpgradeComplete || !!activeUpgrade || !furnaceCount || !!furnaceUpgradeMissing} className={`button-base w-full !py-2 ${furnaceUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-steel-furnaces">{furnaceUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : furnaceUpgradeMissing ? `need ${furnaceUpgradeMissing}` : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</>}</button></div>}
+        action={<div className="mt-3"><button onClick={startFurnaceUpgrade} disabled={furnaceUpgradeComplete || !!activeUpgrade || !furnaceUpgradePrerequisiteMet || !furnaceCount || !!furnaceUpgradeMissing} className={`button-base w-full !py-2 ${furnaceUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-steel-furnaces">{furnaceUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !furnaceUpgradePrerequisiteMet ? 'locked' : furnaceUpgradeMissing ? `need ${furnaceUpgradeMissing}` : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</>}</button></div>}
       />,
     },
     {

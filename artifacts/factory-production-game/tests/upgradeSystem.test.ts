@@ -10,6 +10,8 @@ import {
   oilCrackingConditionMet,
   oilProcessingUpgradeTimeFor,
   labSpeedForLevel,
+  STEEL_FURNACE_PREREQUISITE_TECHNOLOGY,
+  steelFurnacePrerequisiteMet,
   upgradeMap,
   upgradeInstalledFor,
   type UpgradeStartState,
@@ -105,6 +107,13 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   ]);
   assert.equal(mining.newMachinePowerDraw, 90);
   assert.equal(mining.newMachineProductionSpeed, 0.5);
+});
+
+test('Steel Furnaces require Advanced Material Processing research', () => {
+  assert.equal(STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, 'advanced-material-processing');
+  assert.equal(steelFurnacePrerequisiteMet([]), false);
+  assert.equal(steelFurnacePrerequisiteMet(['steel-processing']), false);
+  assert.equal(steelFurnacePrerequisiteMet(['advanced-material-processing']), true);
 });
 
 test('production upgrade reserves the full cost and total time for every existing machine', () => {
