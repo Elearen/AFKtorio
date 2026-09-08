@@ -149,9 +149,11 @@ button { cursor: pointer; }
 .enter-delay-2 { animation-delay: .12s; }
 .enter-delay-3 { animation-delay: .18s; }
 .flash { animation: flash .45s ease-out; }
+.quantity-increment-flash { animation: quantity-increment-flash .12s ease-out; }
 @keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse-soft { 0%, 100% { opacity: .76; } 50% { opacity: 1; } }
 @keyframes flash { 0% { background-color: hsl(var(--primary) / .22); } 100% { background-color: transparent; } }
+@keyframes quantity-increment-flash { 0%, 100% { color: inherit; text-shadow: none; } 45% { color: hsl(var(--secondary)); text-shadow: 0 0 6px hsl(var(--secondary) / .7); } }
 @keyframes construction-pulse { 0%, 100% { opacity: .68; box-shadow: 0 0 0 0 hsl(var(--primary) / 0); } 50% { opacity: 1; box-shadow: 0 0 0 4px hsl(var(--primary) / .08); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 

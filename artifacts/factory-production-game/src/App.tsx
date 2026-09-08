@@ -1499,9 +1499,22 @@ function Header({ eyebrow, title, copy, action }: { eyebrow: string; title: stri
 }
 function SectionTitle({ children, detail }: { children: ReactNode; detail?: string }) { return <div className="mb-3 flex min-w-0 flex-wrap items-end justify-between gap-x-3 gap-y-1"><span className="eyebrow min-w-0">{children}</span>{detail && <span className="mono min-w-0 max-w-full text-right text-[10px] text-[hsl(var(--muted-foreground))]">{detail}</span>}</div>; }
 function Progress({ value, tone = 'teal', realtime = false }: { value: number; tone?: 'teal' | 'amber' | 'red'; realtime?: boolean }) { return <div className="progress-track"><div className={`progress-fill ${tone === 'amber' ? 'amber' : tone === 'red' ? 'red' : ''}`} style={{ width: `${Math.max(0, Math.min(100, value))}%`, transition: realtime ? 'none' : undefined }} /></div>; }
+function StoredQuantity({ value, children, className = '', title }: { value: number; children: ReactNode; className?: string; title?: string }) {
+  const previousValue = useRef(value);
+  const [flashing, setFlashing] = useState(false);
+  useEffect(() => {
+    const increased = value > previousValue.current + 0.000001;
+    previousValue.current = value;
+    if (!increased) return;
+    setFlashing(true);
+    const timeout = window.setTimeout(() => setFlashing(false), 120);
+    return () => window.clearTimeout(timeout);
+  }, [value]);
+  return <span className={`${className} ${flashing ? 'quantity-increment-flash' : ''}`.trim()} title={title}>{children}</span>;
+}
 function CompactMetricsRow({ production, peakProduction, demand, peakConsumption, net, storage, capacity, peakWarning = false }: { production: number; peakProduction: number; demand: number; peakConsumption: number; net: number; storage: number; capacity: number; peakWarning?: boolean }) {
   const rate = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
-  const metric = ({ label, value, tone }: { label: string; value: string; tone: string }) => <div className="min-w-0 text-center" key={label} title={`${label}: ${value}`}><div className="truncate text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">{label}</div><div className={`mono mt-1 truncate text-[10px] font-semibold ${tone}`}>{value}</div></div>;
+  const metric = ({ label, value, tone, flashStorage }: { label: string; value: string; tone: string; flashStorage?: boolean }) => <div className="min-w-0 text-center" key={label} title={`${label}: ${value}`}><div className="truncate text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">{label}</div><div className={`mono mt-1 truncate text-[10px] font-semibold ${tone}`}>{flashStorage ? <StoredQuantity value={storage}>{value}</StoredQuantity> : value}</div></div>;
   return <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] px-2 py-2" aria-label="Production metrics">
     <div className="grid grid-cols-3 gap-1">
       {[
@@ -1514,7 +1527,7 @@ function CompactMetricsRow({ production, peakProduction, demand, peakConsumption
       {[
          { label: 'peak production', value: `${peakProduction.toFixed(1)}/m`, tone: peakWarning ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary)/.7)]' },
          { label: 'peak consumption', value: `${peakConsumption.toFixed(1)}/m`, tone: peakWarning ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--primary)/.7)]' },
-        { label: 'storage', value: `${fmt(storage)}/${fmt(capacity)}`, tone: 'text-[hsl(var(--foreground))]' },
+         { label: 'storage', value: `${fmt(storage)}/${fmt(capacity)}`, tone: 'text-[hsl(var(--foreground))]', flashStorage: true },
       ].map(metric)}
     </div>
   </div>;
@@ -2339,7 +2352,7 @@ function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: P
               </button>
             </div>
             <div className="mt-2 flex items-center gap-2" aria-label={`${meta[key].label}: ${fmt(amount)} in stock, capacity ${fmt(capacity)}`}>
-              <span className="mono w-12 shrink-0 text-[11px]" title="Current stock">{fmt(amount)}</span>
+              <StoredQuantity value={amount} className="mono w-12 shrink-0 text-[11px]" title="Current stock">{fmt(amount)}</StoredQuantity>
               <div className="min-w-0 flex-1"><Progress value={amount / capacity * 100} /></div>
               <span className="mono w-14 shrink-0 text-right text-[11px]" title="Total capacity">{fmt(capacity)}</span>
             </div>
