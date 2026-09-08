@@ -1499,7 +1499,7 @@ function Header({ eyebrow, title, copy, action }: { eyebrow: string; title: stri
 }
 function SectionTitle({ children, detail }: { children: ReactNode; detail?: string }) { return <div className="mb-3 flex min-w-0 flex-wrap items-end justify-between gap-x-3 gap-y-1"><span className="eyebrow min-w-0">{children}</span>{detail && <span className="mono min-w-0 max-w-full text-right text-[10px] text-[hsl(var(--muted-foreground))]">{detail}</span>}</div>; }
 function Progress({ value, tone = 'teal', realtime = false }: { value: number; tone?: 'teal' | 'amber' | 'red'; realtime?: boolean }) { return <div className="progress-track"><div className={`progress-fill ${tone === 'amber' ? 'amber' : tone === 'red' ? 'red' : ''}`} style={{ width: `${Math.max(0, Math.min(100, value))}%`, transition: realtime ? 'none' : undefined }} /></div>; }
-function CompactMetricsRow({ production, peakProduction, demand, peakConsumption, net, storage, capacity }: { production: number; peakProduction: number; demand: number; peakConsumption: number; net: number; storage: number; capacity: number }) {
+function CompactMetricsRow({ production, peakProduction, demand, peakConsumption, net, storage, capacity, peakWarning = false }: { production: number; peakProduction: number; demand: number; peakConsumption: number; net: number; storage: number; capacity: number; peakWarning?: boolean }) {
   const rate = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
   const metric = ({ label, value, tone }: { label: string; value: string; tone: string }) => <div className="min-w-0 text-center" key={label} title={`${label}: ${value}`}><div className="truncate text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">{label}</div><div className={`mono mt-1 truncate text-[10px] font-semibold ${tone}`}>{value}</div></div>;
   return <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] px-2 py-2" aria-label="Production metrics">
@@ -1512,8 +1512,8 @@ function CompactMetricsRow({ production, peakProduction, demand, peakConsumption
     </div>
     <div className="mt-2 grid grid-cols-3 gap-1 border-t border-[hsl(var(--border)/.7)] pt-2">
       {[
-        { label: 'peak production', value: `${peakProduction.toFixed(1)}/m`, tone: 'text-[hsl(var(--secondary)/.7)]' },
-        { label: 'peak consumption', value: `${peakConsumption.toFixed(1)}/m`, tone: 'text-[hsl(var(--primary)/.7)]' },
+         { label: 'peak production', value: `${peakProduction.toFixed(1)}/m`, tone: peakWarning ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary)/.7)]' },
+         { label: 'peak consumption', value: `${peakConsumption.toFixed(1)}/m`, tone: peakWarning ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--primary)/.7)]' },
         { label: 'storage', value: `${fmt(storage)}/${fmt(capacity)}`, tone: 'text-[hsl(var(--foreground))]' },
       ].map(metric)}
     </div>
@@ -1987,7 +1987,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
              <div className="flex items-center gap-2 text-[10px]"><ResourceIcon item="pumpjack" size={17} /><span className="font-semibold">Pumpjack output</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">rated flow</span></div>
              <div className="mono mt-2 text-[13px] text-[hsl(var(--secondary))]">50 crude oil / sec <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per pumpjack</span></div>
            </div>}
-          <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={productionRate - demandRate} storage={state.raw[key]} capacity={capFor(state, key)} />
+           <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={productionRate - demandRate} storage={state.raw[key]} capacity={capFor(state, key)} peakWarning={key === 'coal' && peakProductionRate < peakDemandRate} />
            <div className="mt-4 flex gap-2">
              {locked ? <button onClick={() => notice(`${info.needs} research required`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-locked-mining-${key}`}><LockKeyhole size={13} /> requires {info.needs}</button> : <>{manualCollectionControl}{buildControl}</>}
           </div>
