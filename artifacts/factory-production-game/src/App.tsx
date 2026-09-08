@@ -1460,7 +1460,7 @@ function PowerMetrics({ production, peakProduction, productionUnit, consumption,
 }
 const visualProgressFor = (seconds: number, total: number, leadSeconds = 0) =>
   Math.max(0, Math.min(100, (1 - Math.max(0, seconds - Math.max(0, leadSeconds)) / Math.max(0.0001, total)) * 100));
-function BuildProgress({ items, label }: { items: QueueItem[]; label: string }) {
+function BuildProgress({ items, label, cancelConstruction, notice }: { items: QueueItem[]; label: string; cancelConstruction?: (id: string) => void; notice?: (message: string) => void }) {
   if (!items.length) return null;
   const active = items[0];
   const waitingForMaterials = active.started === false;
@@ -1474,7 +1474,7 @@ function BuildProgress({ items, label }: { items: QueueItem[]; label: string }) 
     }).filter(Boolean).join(' + ')
     : '';
   return <div className="construction-panel mt-3 rounded-lg p-3" aria-live="polite" data-testid={`panel-construction-${active.id}`}>
-    <div className="flex items-start justify-between gap-3">
+     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-2">
         <div className="construction-pulse mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md"><Hammer size={12} /></div>
         <div className="min-w-0">
@@ -1482,7 +1482,10 @@ function BuildProgress({ items, label }: { items: QueueItem[]; label: string }) 
           <div className="mt-1 truncate text-[10px] font-bold">{label}{items.length > 1 ? ` · ${items.length} queued` : ''}</div>
         </div>
       </div>
-      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(active.seconds)}</span>
+       <div className="flex shrink-0 items-center gap-2">
+         <span className="mono text-[10px] text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(active.seconds)}</span>
+         {cancelConstruction && <button type="button" onClick={() => { cancelConstruction(active.id); notice?.(`${active.target} cancelled · materials refunded`); }} className="grid h-6 w-6 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label={`Cancel ${active.target}`} title="Cancel construction and refund materials" data-testid={`button-cancel-queue-${active.id}`}><X size={12} /></button>}
+       </div>
     </div>
     <div className="mt-2"><Progress value={complete} tone="amber" /></div>
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{waitingForMaterials ? `${Math.floor(Math.max(0, complete))}% funded` : `${Math.floor(Math.max(0, complete))}% complete`}</span><span>{waitingForMaterials ? `needs ${missing}` : 'building now'}</span></div>
@@ -1754,7 +1757,7 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
   </PageFrame>;
 }
 
-function MiningPage({ state, setState, enqueue, notice }: PageProps) {
+function MiningPage({ state, setState, enqueue, notice, cancelConstruction }: PageProps) {
   const tap = (key: RawKey) => {
     if (!manualMiningKeys.includes(key)) return notice(`${rawInfo[key].label} requires a machine`);
     if (state.manualMining) return notice(state.manualMining.resourceKey === key ? `already mining ${rawInfo[key].label.toLowerCase()}` : `finish mining ${rawInfo[state.manualMining.resourceKey].label.toLowerCase()} first`);
@@ -1858,7 +1861,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
            <div className="mt-4 flex gap-2">
              {locked ? <button onClick={() => notice(`${info.needs} research required`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-locked-mining-${key}`}><LockKeyhole size={13} /> requires {info.needs}</button> : <>{manualCollectionControl}{buildControl}</>}
           </div>
-          <BuildProgress items={constructionItems} label={constructionLabel} />
+           <BuildProgress items={constructionItems} label={constructionLabel} cancelConstruction={cancelConstruction} notice={notice} />
            {manualMiningJob && <ManualMiningProgress job={manualMiningJob} simulationSpeed={state.simulationSpeed} />}
         </section>;
       })}
@@ -1867,7 +1870,7 @@ function MiningPage({ state, setState, enqueue, notice }: PageProps) {
   </PageFrame>;
 }
 
-function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
+function ProductionPage({ state, setState, enqueue, notice, cancelConstruction }: PageProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
@@ -1972,7 +1975,7 @@ function ProductionPage({ state, setState, enqueue, notice }: PageProps) {
          {smelting && recipe.fuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
          <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} />
           <div className="mt-4 flex gap-2">{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-${count ? 'build-more' : 'build'}-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> {count ? 'queued · build another' : 'queued'}</> : <><Hammer size={13} /> {count ? 'construct another' : 'construct'}</>}</button></div>
-          {isBuilding && <BuildProgress items={constructionItems} label={`${buildingLabel} · ${prettyLabel(key)}`} />}
+           {isBuilding && <BuildProgress items={constructionItems} label={`${buildingLabel} · ${prettyLabel(key)}`} cancelConstruction={cancelConstruction} notice={notice} />}
           {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} simulationSpeed={state.simulationSpeed} />}
       </section>;
       })}
