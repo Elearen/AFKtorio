@@ -831,6 +831,23 @@ const rateFromHistory = (state: GameState, key: TrackedKey, field: 'production' 
   const amount = history.reduce((total, sample) => total + (sample[field][key] ?? 0), 0);
   return amount / seconds * 60;
 };
+const recentRateFromHistory = (state: GameState, key: TrackedKey, field: 'production' | 'consumption', windowSeconds: number) => {
+  let remainingSeconds = Math.max(0, windowSeconds);
+  let coveredSeconds = 0;
+  let amount = 0;
+  const history = state.rateHistory ?? [];
+  for (let index = history.length - 1; index >= 0 && remainingSeconds > 0; index -= 1) {
+    const sample = history[index];
+    const sampleSeconds = Math.max(0, sample.seconds);
+    const usedSeconds = Math.min(sampleSeconds, remainingSeconds);
+    if (usedSeconds <= 0) continue;
+    amount += (sample[field][key] ?? 0) * (usedSeconds / sampleSeconds);
+    coveredSeconds += usedSeconds;
+    remainingSeconds -= usedSeconds;
+  }
+  return coveredSeconds >= windowSeconds ? amount / windowSeconds * 60 : null;
+};
+const dashboardRateWindowSeconds = 5;
 const demandRateFor = (state: GameState, key: TrackedKey) => rateFromHistory(state, key, 'consumption');
 const productionRateFor = (state: GameState, key: TrackedKey) => {
   const observedRate = rateFromHistory(state, key, 'production');
@@ -1730,9 +1747,22 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
   const history = state.rateHistory ?? [];
   const historySeconds = history.reduce((total, sample) => total + sample.seconds, 0);
   const aggregateRate = (field: 'production' | 'consumption') => trackedKeys.reduce((total, key) => total + rateFromHistory(state, key, field), 0);
+  const dashboardAverageRate = (field: 'production' | 'consumption') => {
+    const rates = trackedKeys.map((key) => recentRateFromHistory(state, key, field, dashboardRateWindowSeconds));
+    return rates.every((rate): rate is number => rate !== null) ? rates.reduce((total, rate) => total + rate, 0) : null;
+  };
   const observedProduction = aggregateRate('production');
   const observedConsumption = aggregateRate('consumption');
   const netFlow = observedProduction - observedConsumption;
+  const dashboardObservedProduction = dashboardAverageRate('production');
+  const dashboardObservedConsumption = dashboardAverageRate('consumption');
+  const dashboardNetFlow = dashboardObservedProduction === null || dashboardObservedConsumption === null
+    ? null
+    : dashboardObservedProduction - dashboardObservedConsumption;
+  const dashboardAverageReady = dashboardNetFlow !== null;
+  const dashboardAverageLabel = dashboardAverageReady
+    ? `${dashboardRateWindowSeconds} sec avg · items / min`
+    : `warming up · ${Math.min(dashboardRateWindowSeconds, Math.floor(historySeconds))}/${dashboardRateWindowSeconds} sec`;
   const ratedCapacity = trackedKeys.reduce((total, key) => total + peakProductionRateFor(state, key), 0);
   const activeAssemblers = productionUnitCount(state);
   const starvedLines = componentKeys.filter((key) => {
@@ -1821,8 +1851,8 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
     <div ref={dashboardMetricsRef} aria-disabled={!circuitNetworkUnlocked} className={!circuitNetworkUnlocked ? 'pointer-events-none select-none opacity-45 grayscale' : ''} data-testid="dashboard-full-metrics">
     <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4 enter enter-delay-1">
       {[
-        { label: 'Observed output', value: observedProduction.toFixed(1), suffix: historySeconds ? 'items / min' : 'awaiting sample', icon: TrendingUp, color: 'text-[hsl(var(--secondary))]' },
-        { label: 'Network flow', value: `${netFlow >= 0 ? '+' : ''}${netFlow.toFixed(1)}`, suffix: historySeconds ? 'items / min net' : 'no samples yet', icon: Waves, color: netFlow < 0 ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary))]' },
+        { label: 'Observed output', value: dashboardObservedProduction === null ? '--' : dashboardObservedProduction.toFixed(1), suffix: dashboardAverageLabel, icon: TrendingUp, color: 'text-[hsl(var(--secondary))]' },
+        { label: 'Network flow', value: dashboardNetFlow === null ? '--' : `${dashboardNetFlow >= 0 ? '+' : ''}${dashboardNetFlow.toFixed(1)}`, suffix: dashboardAverageLabel.replace('items / min', 'items / min net'), icon: Waves, color: dashboardNetFlow !== null && dashboardNetFlow < 0 ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary))]' },
         { label: 'Operating units', value: fmt(active), suffix: 'machines + labs', icon: Activity, color: 'text-[#83d993]' },
         { label: 'Lifetime output', value: fmt(state.totalOutput), suffix: 'items produced', icon: Layers3, color: 'text-[hsl(var(--primary))]' },
       ].map((metric) => <div className="surface rounded-xl p-3.5" key={metric.label}><div className={`mb-2 flex items-center gap-2 ${metric.color}`}><metric.icon size={14} /><span className="eyebrow">{metric.label}</span></div><div className="mono text-[19px]">{metric.value} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{metric.suffix}</span></div></div>)}
