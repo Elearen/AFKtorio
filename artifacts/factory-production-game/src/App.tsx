@@ -2917,6 +2917,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         <div className="flex items-start gap-4">
           <div className="min-w-0">
             <h2 id="milestone-title" className="mt-2 text-3xl font-extrabold tracking-[-.04em]">Milestone Achieved</h2>
+             <p className="mt-1 text-[12px] font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]">{milestoneTitles[milestone]}</p>
           </div>
         </div>
         <p className="mt-6 text-[13px] leading-6 text-[hsl(var(--muted-foreground))]">{message}</p>
