@@ -154,3 +154,17 @@ mtime_ms = 1788829445718
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/0cce885d-1766-48a1-bb54-fe406637cb86/666b8c31-7392-4dc2-87e4-b7b3dcddc36a"
 storage_version_token = "1788829560263584"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "ptnrNeb1Gx1tSWllWEwgl"
+uri = "file://artifacts/factory-production-game/public/1000000-science-packs-milestone.jpg"
+type = "image"
+title = "1000000 Science Packs milestone artwork"
+description = "Reprocessed JPG artwork for the Factory Planet 1000000 Science Packs milestone."
+logical_id = "7a4d1b5b-d75b-49f6-a62d-7614127ce6ce"
+content_hash = "sha256:bc7e06fd074065da5644dc7525e7970c5b2dd1426d3ba491635a3e7ca2dfbba2"
+size = 528602
+mtime_ms = 1788829754473
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/7a4d1b5b-d75b-49f6-a62d-7614127ce6ce/ffa055b3-691c-4e42-a230-55fc95089f3c"
+storage_version_token = "1788829777351103"
+content_type = "image/jpeg"

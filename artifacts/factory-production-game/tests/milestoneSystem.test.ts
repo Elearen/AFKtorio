@@ -85,6 +85,38 @@ test('100000 Science Packs triggers at 100000 total science packs produced', () 
   assert.equal(migrated.unlockedMilestones.includes('hundred-thousand-science-packs'), true);
 });
 
+test('1000000 Science Packs triggers at 1000000 total science packs produced', () => {
+  assert.equal(milestoneTitles['million-science-packs'], '1000000 Science Packs');
+  assert.equal(milestoneOrder.includes('million-science-packs'), true);
+  const migrated = migrateMilestoneState({
+    welcomeSeen: true,
+    unlockedMilestones: [
+      'crash-landed',
+      'hundred-science-packs',
+      'thousand-science-packs',
+      'ten-thousand-science-packs',
+      'hundred-thousand-science-packs',
+    ],
+    milestoneNotifications: [
+      'hundred-science-packs',
+      'thousand-science-packs',
+      'ten-thousand-science-packs',
+      'hundred-thousand-science-packs',
+    ],
+    labCount: 0,
+    furnaceCount: 0,
+    totalSciencePacksProduced: 1000000,
+  });
+  assert.deepEqual(migrated.milestoneNotifications, [
+    'hundred-science-packs',
+    'thousand-science-packs',
+    'ten-thousand-science-packs',
+    'hundred-thousand-science-packs',
+    'million-science-packs',
+  ]);
+  assert.equal(migrated.unlockedMilestones.includes('million-science-packs'), true);
+});
+
 test('milestones use the requested archive order', () => {
   assert.deepEqual(milestoneOrder, [
     'crash-landed',
@@ -94,6 +126,7 @@ test('milestones use the requested archive order', () => {
     'thousand-science-packs',
     'ten-thousand-science-packs',
     'hundred-thousand-science-packs',
+    'million-science-packs',
     'sixty-furnaces',
     'twenty-one-labs',
     'trains',
