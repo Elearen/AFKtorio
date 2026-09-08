@@ -1956,7 +1956,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
   </PageFrame>;
 }
 
-function ProductionPage({ state, setState, enqueue, notice, cancelConstruction }: PageProps) {
+function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, constructionVisualTiming }: PageProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
@@ -1979,7 +1979,12 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction }
     setState((s) => {
       const next = { ...s, raw: { ...s.raw }, products: { ...s.products } };
       spendInputs(next, recipeInputs(recipe));
-      next.handcraft = { recipeKey: key, seconds: recipe.energyRequired, total: recipe.energyRequired };
+      next.handcraft = {
+        recipeKey: key,
+        seconds: recipe.energyRequired,
+        total: recipe.energyRequired,
+        ...constructionVisualTiming(recipe.energyRequired / Math.max(0.0001, s.simulationSpeed)),
+      };
       return next;
     });
     notice(`handcrafting ${prettyLabel(outputs[0]?.key ?? recipe.name)}`);
