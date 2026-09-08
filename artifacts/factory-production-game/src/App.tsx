@@ -2532,7 +2532,7 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
           flow={!complete ? <UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} /> : undefined}
           progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId={`panel-upgrade-progress-${item.id}`} /> : undefined}
            meta={<UpgradeMetaGrid prerequisite={item.prerequisiteUpgrade ? `${item.prerequisiteTechnology} + ${upgradeMap[item.prerequisiteUpgrade].name}` : item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? toMachine : fromMachine} size={17} />} />}
-          powerAdvisory={item.id === 'electric-mining-drill' && !complete && machineCount > 0 ? <UpgradePowerAdvisory testId="panel-upgrade-power-electric-miner" machineLabel="Electric Miner" machineCount={conversionCount} powerDrawKw={item.newMachinePowerDraw} state={state} /> : undefined}
+          powerAdvisory={item.id === 'electric-mining-drill' && !complete && machineCount > 0 ? <UpgradePowerAdvisory testId="panel-upgrade-power-electric-miner" machineLabel="Electric Miner" machineCount={machineCount} powerDrawKw={item.newMachinePowerDraw} state={state} /> : undefined}
           costPerItem={item.upgradeCostPerMachine}
           totalCost={totalCosts}
           timePerMachine={item.upgradeTimePerMachine}
