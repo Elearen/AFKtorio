@@ -1358,7 +1358,7 @@ function UpgradeProgress({ count, label, seconds, total, progressStartedAt, prog
       <div className="min-w-0 truncate text-[10px] font-bold">{count} {label} converting</div>
       <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{duration(seconds)}</span>
     </div>
-    <div className="mt-2"><Progress value={progress} tone="amber" /></div>
+    <div className="mt-2"><Progress value={progress} tone="amber" realtime={progressStartedAt !== undefined && progressDurationMs !== undefined} /></div>
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(progress)}% complete</span><span>{total.toFixed(1)}s total</span></div>
   </div>;
 }
@@ -1441,7 +1441,7 @@ function Header({ eyebrow, title, copy, action }: { eyebrow: string; title: stri
   return <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end enter"><div><div className="eyebrow flex items-center gap-2 text-[hsl(var(--primary))]"><span className="h-px w-5 bg-[hsl(var(--primary))]" />{eyebrow}</div><h1 className="mt-2 text-[clamp(1.65rem,4vw,2.5rem)] font-extrabold tracking-[-.04em]">{title}</h1><p className="mt-1 max-w-2xl text-[12px] text-[hsl(var(--muted-foreground))]">{copy}</p></div>{action}</div>;
 }
 function SectionTitle({ children, detail }: { children: ReactNode; detail?: string }) { return <div className="mb-3 flex min-w-0 flex-wrap items-end justify-between gap-x-3 gap-y-1"><span className="eyebrow min-w-0">{children}</span>{detail && <span className="mono min-w-0 max-w-full text-right text-[10px] text-[hsl(var(--muted-foreground))]">{detail}</span>}</div>; }
-function Progress({ value, tone = 'teal' }: { value: number; tone?: 'teal' | 'amber' | 'red' }) { return <div className="progress-track"><div className={`progress-fill ${tone === 'amber' ? 'amber' : tone === 'red' ? 'red' : ''}`} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div>; }
+function Progress({ value, tone = 'teal', realtime = false }: { value: number; tone?: 'teal' | 'amber' | 'red'; realtime?: boolean }) { return <div className="progress-track"><div className={`progress-fill ${tone === 'amber' ? 'amber' : tone === 'red' ? 'red' : ''}`} style={{ width: `${Math.max(0, Math.min(100, value))}%`, transition: realtime ? 'none' : undefined }} /></div>; }
 function CompactMetricsRow({ production, peakProduction, demand, peakConsumption, net, storage, capacity }: { production: number; peakProduction: number; demand: number; peakConsumption: number; net: number; storage: number; capacity: number }) {
   const rate = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
   const metric = ({ label, value, tone }: { label: string; value: string; tone: string }) => <div className="min-w-0 text-center" key={label} title={`${label}: ${value}`}><div className="truncate text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">{label}</div><div className={`mono mt-1 truncate text-[10px] font-semibold ${tone}`}>{value}</div></div>;
@@ -1528,7 +1528,7 @@ function BuildProgress({ items, label, cancelConstruction, notice }: { items: Qu
          {cancelConstruction && <button type="button" onClick={() => { cancelConstruction(active.id); notice?.(`${active.target} cancelled · materials refunded`); }} className="grid h-6 w-6 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label={`Cancel ${active.target}`} title="Cancel construction and refund materials" data-testid={`button-cancel-queue-${active.id}`}><X size={12} /></button>}
        </div>
     </div>
-    <div className="mt-2"><Progress value={complete} tone="amber" /></div>
+    <div className="mt-2"><Progress value={complete} tone="amber" realtime={active.progressStartedAt !== undefined && active.progressDurationMs !== undefined} /></div>
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{waitingForMaterials ? `${Math.floor(Math.max(0, complete))}% funded` : `${Math.floor(Math.max(0, complete))}% complete`}</span><span>{waitingForMaterials ? `needs ${missing}` : 'building now'}</span></div>
   </div>;
 }

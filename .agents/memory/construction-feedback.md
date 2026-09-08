@@ -15,6 +15,12 @@ Construction progress visuals start at 0 when a job is queued, then use a wall-c
 
 **How to apply:** Persist the visual start timestamp and calibrated duration on newly started queue items; keep the simulation timer authoritative for actual completion.
 
+Realtime progress values must bypass the legacy one-second CSS width transition.
+
+**Why:** Updating a transitioned width every animation frame continually restarts the transition, making the bar appear nearly stationary.
+
+**How to apply:** Disable the fill transition only for timestamp-driven construction and upgrade bars; retain it for tick-driven indicators.
+
 Construction warnings should report only the remaining deficit for each unavailable material, not the full cost of another building or materials already in inventory.
 
 **Why:** Full-cost warnings obscure the actionable blocker when the player already owns some of the required materials.
