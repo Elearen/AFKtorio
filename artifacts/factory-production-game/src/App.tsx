@@ -62,8 +62,9 @@ type QueueItem = {
   progressStartedAt?: number;
   progressDurationMs?: number;
 };
-type HandcraftJob = { recipeKey: string; seconds: number; total: number };
-type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number };
+type TimedProgress = { progressStartedAt?: number; progressDurationMs?: number };
+type HandcraftJob = { recipeKey: string; seconds: number; total: number } & TimedProgress;
+type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number } & TimedProgress;
 type RateSample = { seconds: number; production: Record<TrackedKey, number>; manualProduction?: Record<TrackedKey, number>; consumption: Record<TrackedKey, number> };
 type GameState = {
   raw: Record<RawKey, number>;
@@ -1560,7 +1561,12 @@ function BuildProgress({ items, label, cancelConstruction, notice }: { items: Qu
 function HandcraftProgress({ job, recipe, simulationSpeed }: { job: HandcraftJob; recipe: Recipe; simulationSpeed: number }) {
   const output = recipeOutputs(recipe)[0];
   const finishing = job.seconds <= 0;
-  const complete = visualProgressFor(job.seconds, job.total, simulationSpeed);
+  const complete = useConstructionVisualProgress(
+    `handcraft:${job.recipeKey}:${job.progressStartedAt ?? 'legacy'}`,
+    job.progressStartedAt,
+    job.progressDurationMs,
+    visualProgressFor(job.seconds, job.total, simulationSpeed),
+  );
   return <div className="construction-panel mt-3 rounded-lg p-3" aria-live="polite" data-testid={`panel-handcraft-${job.recipeKey}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-2">
@@ -1572,12 +1578,18 @@ function HandcraftProgress({ job, recipe, simulationSpeed }: { job: HandcraftJob
       </div>
       <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{finishing ? 'finishing' : `${job.seconds.toFixed(2)}s`}</span>
     </div>
-    <div className="mt-2"><Progress value={complete} tone="amber" /></div>
+    <div className="mt-2"><Progress value={complete} tone="amber" realtime={job.progressStartedAt !== undefined && job.progressDurationMs !== undefined} /></div>
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{finishing ? 'output will be stored above capacity if needed' : `${Math.floor(complete)}% complete`}</span><span>one item at a time</span></div>
   </div>;
 }
 function ManualMiningProgress({ job, simulationSpeed }: { job: ManualMiningJob; simulationSpeed: number }) {
-  const complete = Math.floor(visualProgressFor(job.seconds, job.total, simulationSpeed));
+  const progress = useConstructionVisualProgress(
+    `manual-mining:${job.resourceKey}:${job.progressStartedAt ?? 'legacy'}`,
+    job.progressStartedAt,
+    job.progressDurationMs,
+    visualProgressFor(job.seconds, job.total, simulationSpeed),
+  );
+  const complete = Math.floor(progress);
   return <div className="construction-panel mt-3 rounded-lg p-3" aria-live="polite" data-testid={`panel-manual-mining-${job.resourceKey}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-2">
@@ -1589,7 +1601,7 @@ function ManualMiningProgress({ job, simulationSpeed }: { job: ManualMiningJob; 
       </div>
       <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{job.seconds.toFixed(2)}s</span>
     </div>
-    <div className="mt-2"><Progress value={complete} tone="amber" /></div>
+    <div className="mt-2"><Progress value={progress} tone="amber" realtime={job.progressStartedAt !== undefined && job.progressDurationMs !== undefined} /></div>
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{complete}% complete</span><span>one item at a time</span></div>
   </div>;
 }
@@ -1823,11 +1835,19 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
   </PageFrame>;
 }
 
-function MiningPage({ state, setState, enqueue, notice, cancelConstruction }: PageProps) {
+function MiningPage({ state, setState, enqueue, notice, cancelConstruction, constructionVisualTiming }: PageProps) {
   const tap = (key: RawKey) => {
     if (!manualMiningKeys.includes(key)) return notice(`${rawInfo[key].label} requires a machine`);
     if (state.manualMining) return notice(state.manualMining.resourceKey === key ? `already mining ${rawInfo[key].label.toLowerCase()}` : `finish mining ${rawInfo[state.manualMining.resourceKey].label.toLowerCase()} first`);
-    setState((s) => ({ ...s, manualMining: { resourceKey: key, seconds: manualMiningSeconds, total: manualMiningSeconds } }));
+    setState((s) => ({
+      ...s,
+      manualMining: {
+        resourceKey: key,
+        seconds: manualMiningSeconds,
+        total: manualMiningSeconds,
+        ...constructionVisualTiming(manualMiningSeconds / Math.max(0.0001, s.simulationSpeed)),
+      },
+    }));
     notice(`manual ${rawInfo[key].label.toLowerCase()} mining started`);
   };
   const build = (key: RawKey) => {
