@@ -1,7 +1,7 @@
 export type MilestoneKey = 'crash-landed' | 'first-lab' | 'hundred-science-packs' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'trains' | 'advanced-oil-production' | 'rocket-silo' | 'spidertron' | 'game-complete' | 'space-science';
 
 export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'turn-lights-on', 'first-lab', 'hundred-science-packs', 'sixty-furnaces', 'twenty-one-labs', 'trains', 'advanced-oil-production', 'rocket-silo', 'game-complete', 'spidertron', 'space-science'];
-export const SCIENCE_PACKS_MILESTONE_THRESHOLD = 1000;
+export const SCIENCE_PACKS_MILESTONE_THRESHOLD = 100;
 
 export const milestoneTitles: Record<MilestoneKey, string> = {
   'crash-landed': 'Crash Landed',

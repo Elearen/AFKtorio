@@ -7,7 +7,7 @@ test('Turn the lights on is a replayable milestone with the requested settings l
   assert.equal(milestoneOrder.includes('turn-lights-on'), true);
 });
 
-test('100 Science Packs triggers at 1000 total science packs produced', () => {
+test('100 Science Packs triggers at 100 total science packs produced', () => {
   assert.equal(milestoneTitles['hundred-science-packs'], '100 Science Packs');
   assert.equal(milestoneOrder.includes('hundred-science-packs'), true);
   const migrated = migrateMilestoneState({
@@ -16,7 +16,7 @@ test('100 Science Packs triggers at 1000 total science packs produced', () => {
     milestoneNotifications: [],
     labCount: 0,
     furnaceCount: 0,
-    totalSciencePacksProduced: 1000,
+    totalSciencePacksProduced: 100,
   });
   assert.deepEqual(migrated.milestoneNotifications, ['hundred-science-packs']);
   assert.equal(migrated.unlockedMilestones.includes('hundred-science-packs'), true);
