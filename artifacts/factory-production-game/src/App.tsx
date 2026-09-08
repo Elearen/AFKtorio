@@ -22,7 +22,7 @@ import {
   steelChestUpgradeCostFor, steelChestUpgradeTimeFor,
   type StorageBoxType,
 } from './storageSystem';
-import { milestoneOrder, milestoneTitles, migrateMilestoneState, SCIENCE_PACKS_MILESTONE_THRESHOLD, SCIENCE_PACKS_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_TEN_THOUSAND_MILESTONE_THRESHOLD, type MilestoneKey } from './milestoneSystem';
+import { milestoneOrder, milestoneTitles, migrateMilestoneState, SCIENCE_PACKS_MILESTONE_THRESHOLD, SCIENCE_PACKS_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_TEN_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_HUNDRED_THOUSAND_MILESTONE_THRESHOLD, type MilestoneKey } from './milestoneSystem';
 import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
 import { formatWinDuration, winMetricsFor, type WinMetrics } from './endgameMetrics';
 import { primaryOutputFor } from './productionOutput';
@@ -649,6 +649,11 @@ const recordProduction = (state: GameState, key: TrackedKey, amount: number, pro
     && unlockMilestone(state, 'ten-thousand-science-packs')
     && !state.milestoneNotifications.includes('ten-thousand-science-packs')) {
     state.milestoneNotifications.push('ten-thousand-science-packs');
+  }
+  if (totalSciencePacksProducedFor(state.produced) >= SCIENCE_PACKS_HUNDRED_THOUSAND_MILESTONE_THRESHOLD
+    && unlockMilestone(state, 'hundred-thousand-science-packs')
+    && !state.milestoneNotifications.includes('hundred-thousand-science-packs')) {
+    state.milestoneNotifications.push('hundred-thousand-science-packs');
   }
 };
 const researchTriggerProgress = (state: GameState, technology: TechnologyDefinition) => {
@@ -2786,6 +2791,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   const isHundredSciencePacks = milestone === 'hundred-science-packs';
   const isThousandSciencePacks = milestone === 'thousand-science-packs';
   const isTenThousandSciencePacks = milestone === 'ten-thousand-science-packs';
+  const isHundredThousandSciencePacks = milestone === 'hundred-thousand-science-packs';
   const isTwentyOneLabs = milestone === 'twenty-one-labs';
   const isTurnLightsOn = milestone === 'turn-lights-on';
   const isAdvancedOilProduction = milestone === 'advanced-oil-production';
@@ -2801,6 +2807,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? '1000-science-packs-milestone.jpg'
       : isTenThousandSciencePacks
         ? '10000-science-packs-milestone.jpg'
+      : isHundredThousandSciencePacks
+        ? '100000-science-packs-milestone.jpg'
     : isTwentyOneLabs
       ? 'twenty-one-labs-milestone.jpg'
       : isTurnLightsOn
@@ -2824,6 +2832,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? 'A mature Factory Planet science production network beside a mountain river'
       : isTenThousandSciencePacks
         ? 'A vast Factory Planet industrial complex spanning a mountain river valley'
+      : isHundredThousandSciencePacks
+        ? 'A sprawling Factory Planet megafactory across a mountain river valley'
     : isTwentyOneLabs
       ? 'Factory Planet with more than twenty laboratories connected by production lines'
       : isTurnLightsOn
@@ -2853,6 +2863,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? { width: 1536, height: 1024 }
       : isTenThousandSciencePacks
         ? { width: 1536, height: 1024 }
+      : isHundredThousandSciencePacks
+        ? { width: 1536, height: 1024 }
       : isHundredSciencePacks
         ? { width: 1536, height: 1024 }
       : { width: 1122, height: 1402 };
@@ -2864,6 +2876,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? "You've produced 1000 science packs, you are progressing well."
       : isTenThousandSciencePacks
         ? "You've produced 10000 science packs, now that's what I call a factory!"
+      : isHundredThousandSciencePacks
+        ? "You've produced 100000 science packs, this is incredible work."
     : isTwentyOneLabs
       ? 'Over twenty labs! Your science production will be done in no time.'
       : isTurnLightsOn

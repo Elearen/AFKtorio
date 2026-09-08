@@ -1,9 +1,10 @@
-export type MilestoneKey = 'crash-landed' | 'first-lab' | 'hundred-science-packs' | 'thousand-science-packs' | 'ten-thousand-science-packs' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'trains' | 'advanced-oil-production' | 'rocket-silo' | 'spidertron' | 'game-complete' | 'space-science';
+export type MilestoneKey = 'crash-landed' | 'first-lab' | 'hundred-science-packs' | 'thousand-science-packs' | 'ten-thousand-science-packs' | 'hundred-thousand-science-packs' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'trains' | 'advanced-oil-production' | 'rocket-silo' | 'spidertron' | 'game-complete' | 'space-science';
 
-export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'turn-lights-on', 'first-lab', 'hundred-science-packs', 'thousand-science-packs', 'ten-thousand-science-packs', 'sixty-furnaces', 'twenty-one-labs', 'trains', 'advanced-oil-production', 'rocket-silo', 'game-complete', 'spidertron', 'space-science'];
+export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'turn-lights-on', 'first-lab', 'hundred-science-packs', 'thousand-science-packs', 'ten-thousand-science-packs', 'hundred-thousand-science-packs', 'sixty-furnaces', 'twenty-one-labs', 'trains', 'advanced-oil-production', 'rocket-silo', 'game-complete', 'spidertron', 'space-science'];
 export const SCIENCE_PACKS_MILESTONE_THRESHOLD = 100;
 export const SCIENCE_PACKS_THOUSAND_MILESTONE_THRESHOLD = 1000;
 export const SCIENCE_PACKS_TEN_THOUSAND_MILESTONE_THRESHOLD = 10000;
+export const SCIENCE_PACKS_HUNDRED_THOUSAND_MILESTONE_THRESHOLD = 100000;
 
 export const milestoneTitles: Record<MilestoneKey, string> = {
   'crash-landed': 'Crash Landed',
@@ -11,6 +12,7 @@ export const milestoneTitles: Record<MilestoneKey, string> = {
   'hundred-science-packs': '100 Science Packs',
   'thousand-science-packs': '1000 Science Packs',
   'ten-thousand-science-packs': '10000 Science Packs',
+  'hundred-thousand-science-packs': '100000 Science Packs',
   'sixty-furnaces': '60 Furnaces',
   'twenty-one-labs': '21 Labs',
   'turn-lights-on': 'Power Production',
@@ -28,6 +30,7 @@ const isMilestoneKey = (value: string): value is MilestoneKey => (
   || value === 'hundred-science-packs'
   || value === 'thousand-science-packs'
   || value === 'ten-thousand-science-packs'
+  || value === 'hundred-thousand-science-packs'
   || value === 'twenty-one-labs'
   || value === 'sixty-furnaces'
   || value === 'turn-lights-on'
@@ -103,10 +106,15 @@ export function migrateMilestoneState(input: MilestoneMigrationInput): MigratedM
     && !savedMilestoneKeys.includes('ten-thousand-science-packs')
     ? ['ten-thousand-science-packs']
     : [];
+  const hundredThousandSciencePackMilestones: MilestoneKey[] = input.totalSciencePacksProduced !== undefined
+    && input.totalSciencePacksProduced >= SCIENCE_PACKS_HUNDRED_THOUSAND_MILESTONE_THRESHOLD
+    && !savedMilestoneKeys.includes('hundred-thousand-science-packs')
+    ? ['hundred-thousand-science-packs']
+    : [];
   const welcomeSeen = input.welcomeSeen === true;
   const milestoneNotifications = hasMilestoneMetadata
-     ? Array.from(new Set([...savedMilestoneNotifications, ...newlyEarnedMilestones, ...advancedOilMilestones, ...sciencePackMilestones, ...thousandSciencePackMilestones, ...tenThousandSciencePackMilestones, ...spaceScienceMilestones]))
-     : [...earnedMilestones, ...newlyEarnedMilestones, ...advancedOilMilestones, ...sciencePackMilestones, ...thousandSciencePackMilestones, ...tenThousandSciencePackMilestones, ...spaceScienceMilestones];
+     ? Array.from(new Set([...savedMilestoneNotifications, ...newlyEarnedMilestones, ...advancedOilMilestones, ...sciencePackMilestones, ...thousandSciencePackMilestones, ...tenThousandSciencePackMilestones, ...hundredThousandSciencePackMilestones, ...spaceScienceMilestones]))
+     : [...earnedMilestones, ...newlyEarnedMilestones, ...advancedOilMilestones, ...sciencePackMilestones, ...thousandSciencePackMilestones, ...tenThousandSciencePackMilestones, ...hundredThousandSciencePackMilestones, ...spaceScienceMilestones];
   const unlockedMilestones = Array.from(new Set<MilestoneKey>([
     ...savedMilestoneKeys,
     ...(welcomeSeen ? ['crash-landed' as MilestoneKey] : []),
@@ -116,6 +124,7 @@ export function migrateMilestoneState(input: MilestoneMigrationInput): MigratedM
     ...sciencePackMilestones,
     ...thousandSciencePackMilestones,
     ...tenThousandSciencePackMilestones,
+    ...hundredThousandSciencePackMilestones,
     ...completedMilestones,
     ...spaceScienceMilestones,
     ...milestoneNotifications,
