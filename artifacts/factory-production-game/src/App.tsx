@@ -916,7 +916,8 @@ const unlockMilestone = (state: GameState, milestone: MilestoneKey) => {
   return true;
 };
 
-function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now()): GameState {
+function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now(), options: { offline?: boolean } = {}): GameState {
+  const offline = options.offline === true;
   const now = tickTimestamp;
   const liveProduction = emptyRateRecord();
   const liveManualProduction = emptyRateRecord();
@@ -967,7 +968,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     if (!count) return;
     const minerSeconds = fueledBurnerMinerKeys.includes(key) ? operatingSeconds : seconds;
       const outputRate = key === 'coal' && miningUsesStoredCoal(state) ? miningOutputRateFor(state, key) - burnerMiningDrillCoalPerSecond : miningOutputRateFor(state, key);
-    state.miningProgress[key] += count * outputRate * minerSeconds * speed * miningStorageThrottleFor(state, key);
+    state.miningProgress[key] += count * outputRate * minerSeconds * speed * (offline ? 1 : miningStorageThrottleFor(state, key));
     while (state.miningProgress[key] >= 1) {
       const accepted = addTracked(state, key, 1);
       if (accepted < 1 - 0.000001) { state.miningProgress[key] = 0; break; }
@@ -979,7 +980,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     if (!count) return;
     const recipe = recipeMap[key];
     const machinePowerRatio = isSmeltingRecipe(recipe) && state.furnaceVariant !== 'electric-furnace' ? 1 : powerRatio;
-    const storageThrottle = recipeStorageThrottleFor(state, recipe, machinePowerRatio);
+    const storageThrottle = offline ? 1 : recipeStorageThrottleFor(state, recipe, machinePowerRatio);
     // Progress represents an in-flight cycle, not a queue of completed
     // cycles. Clamp legacy/starved backlog before advancing the line so a
     // machine cannot burst above its steady-state rate when inputs return.
@@ -1275,7 +1276,7 @@ function loadState() {
     delete (state as GameState & { upgrades?: unknown }).upgrades;
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
     const before = state.totalOutput;
-    const recovered = simulate(state, away);
+    const recovered = simulate(state, away, Date.now(), { offline: true });
     return { state: recovered, away, recovered: recovered.totalOutput - before };
   } catch { return { state: initialState, away: 0, recovered: 0 }; }
 }
