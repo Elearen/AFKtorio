@@ -22,7 +22,7 @@ import {
   steelChestUpgradeCostFor, steelChestUpgradeTimeFor,
   type StorageBoxType,
 } from './storageSystem';
-import { milestoneOrder, milestoneTitles, migrateMilestoneState, SCIENCE_PACKS_MILESTONE_THRESHOLD, SCIENCE_PACKS_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_TEN_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_HUNDRED_THOUSAND_MILESTONE_THRESHOLD, type MilestoneKey } from './milestoneSystem';
+import { milestoneOrder, milestoneTitles, migrateMilestoneState, SCIENCE_PACKS_MILESTONE_THRESHOLD, SCIENCE_PACKS_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_TEN_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_HUNDRED_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_MILLION_MILESTONE_THRESHOLD, type MilestoneKey } from './milestoneSystem';
 import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
 import { formatWinDuration, winMetricsFor, type WinMetrics } from './endgameMetrics';
 import { primaryOutputFor } from './productionOutput';
@@ -654,6 +654,11 @@ const recordProduction = (state: GameState, key: TrackedKey, amount: number, pro
     && unlockMilestone(state, 'hundred-thousand-science-packs')
     && !state.milestoneNotifications.includes('hundred-thousand-science-packs')) {
     state.milestoneNotifications.push('hundred-thousand-science-packs');
+  }
+  if (totalSciencePacksProducedFor(state.produced) >= SCIENCE_PACKS_MILLION_MILESTONE_THRESHOLD
+    && unlockMilestone(state, 'million-science-packs')
+    && !state.milestoneNotifications.includes('million-science-packs')) {
+    state.milestoneNotifications.push('million-science-packs');
   }
 };
 const researchTriggerProgress = (state: GameState, technology: TechnologyDefinition) => {
@@ -2792,6 +2797,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   const isThousandSciencePacks = milestone === 'thousand-science-packs';
   const isTenThousandSciencePacks = milestone === 'ten-thousand-science-packs';
   const isHundredThousandSciencePacks = milestone === 'hundred-thousand-science-packs';
+  const isMillionSciencePacks = milestone === 'million-science-packs';
   const isTwentyOneLabs = milestone === 'twenty-one-labs';
   const isTurnLightsOn = milestone === 'turn-lights-on';
   const isAdvancedOilProduction = milestone === 'advanced-oil-production';
@@ -2809,6 +2815,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? '10000-science-packs-milestone.jpg'
       : isHundredThousandSciencePacks
         ? '100000-science-packs-milestone.jpg'
+      : isMillionSciencePacks
+        ? '1000000-science-packs-milestone.jpg'
     : isTwentyOneLabs
       ? 'twenty-one-labs-milestone.jpg'
       : isTurnLightsOn
@@ -2834,6 +2842,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? 'A vast Factory Planet industrial complex spanning a mountain river valley'
       : isHundredThousandSciencePacks
         ? 'A sprawling Factory Planet megafactory across a mountain river valley'
+      : isMillionSciencePacks
+        ? 'The biggest Factory Planet industrial network spanning a mountain valley'
     : isTwentyOneLabs
       ? 'Factory Planet with more than twenty laboratories connected by production lines'
       : isTurnLightsOn
@@ -2865,6 +2875,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? { width: 1536, height: 1024 }
       : isHundredThousandSciencePacks
         ? { width: 1536, height: 1024 }
+      : isMillionSciencePacks
+        ? { width: 1536, height: 1024 }
       : isHundredSciencePacks
         ? { width: 1536, height: 1024 }
       : { width: 1122, height: 1402 };
@@ -2878,6 +2890,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? "You've produced 10000 science packs, now that's what I call a factory!"
       : isHundredThousandSciencePacks
         ? "You've produced 100000 science packs, this is incredible work."
+      : isMillionSciencePacks
+        ? "You've produced 1000000 science packs, this is the biggest factory ever."
     : isTwentyOneLabs
       ? 'Over twenty labs! Your science production will be done in no time.'
       : isTurnLightsOn
