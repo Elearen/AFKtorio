@@ -1528,7 +1528,7 @@ function ManualMiningProgress({ job, simulationSpeed }: { job: ManualMiningJob; 
   </div>;
 }
 
-function RocketEndgameCard({ state, enqueue, notice }: Pick<PageProps, 'state' | 'enqueue' | 'notice'>) {
+function RocketEndgameCard({ state, enqueue, notice, cancelConstruction }: Pick<PageProps, 'state' | 'enqueue' | 'notice' | 'cancelConstruction'>) {
   const siloQueued = state.queue.some((item) => item.action === 'rocketSilo');
   const partsQueued = state.queue.some((item) => item.action === 'rocketParts');
   const siloCanBuild = canBuildRocketSilo(state.rocketSiloBuilt, siloQueued);
@@ -1560,7 +1560,7 @@ function RocketEndgameCard({ state, enqueue, notice }: Pick<PageProps, 'state' |
       <div className={`rounded-xl border p-3.5 ${state.rocketSiloBuilt ? 'border-[hsl(var(--secondary)/.35)] bg-[hsl(var(--secondary)/.06)]' : 'border-[hsl(var(--primary)/.3)] bg-[hsl(216_24%_10%/.7)]'}`} data-testid="panel-rocket-silo-step">
         <div className="flex items-center justify-between gap-2"><div className="eyebrow">01 · Rocket Silo</div><span className="mono text-[10px] text-[hsl(var(--secondary))]">{state.rocketSiloBuilt ? 'constructed' : siloQueued ? 'queued' : '1 required'}</span></div>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">{rocketSiloBuildCost.map((cost) => <span className="resource-chip !px-1.5 !py-1" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={15} />{costLabel(cost)}</span>)}<span className="resource-chip !px-1.5 !py-1"><Clock3 size={14} />{rocketSiloRecipe.energyRequired}s</span></div>
-        {siloQueued && <BuildProgress items={state.queue.filter((item) => item.action === 'rocketSilo')} label="Rocket Silo" />}
+        {siloQueued && <BuildProgress items={state.queue.filter((item) => item.action === 'rocketSilo')} label="Rocket Silo" cancelConstruction={cancelConstruction} notice={notice} />}
         <button onClick={buildSilo} disabled={!siloCanBuild} className={`button-base mt-4 w-full !py-2 ${state.rocketSiloBuilt || siloQueued ? 'button-ghost' : 'button-primary'} disabled:cursor-not-allowed disabled:opacity-45`} data-testid="button-build-rocket-silo">{state.rocketSiloBuilt ? <><Check size={13} /> Rocket Silo constructed</> : siloQueued ? <><Clock3 size={13} /> construction queued</> : <><Hammer size={13} /> construct Rocket Silo</>}</button>
       </div>
       <div className={`rounded-xl border p-3.5 ${partsComplete ? 'border-[hsl(var(--secondary)/.45)] bg-[hsl(var(--secondary)/.08)]' : 'border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.7)]'}`} data-testid="panel-rocket-parts-step">
@@ -1568,7 +1568,7 @@ function RocketEndgameCard({ state, enqueue, notice }: Pick<PageProps, 'state' |
         <div className="mt-2"><Progress value={state.rocketPartsBuilt / ROCKET_PART_TARGET * 100} tone={partsComplete ? 'teal' : 'amber'} /></div>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">{rocketPartBuildCost.map((cost) => <span className="resource-chip !px-1.5 !py-1" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={15} />{costLabel(cost)} / part</span>)}<span className="resource-chip !px-1.5 !py-1"><Clock3 size={14} />{rocketPartRecipe.energyRequired}s / part</span></div>
         <div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Batch requirement: {partsRemaining ? `${fmt(partsRemaining)} more · ${fmt(rocketPartBatchCost.reduce((total, cost) => total + cost.amount, 0))} total materials shown by line` : '100 parts complete'}</div>
-        {partsQueued && <BuildProgress items={state.queue.filter((item) => item.action === 'rocketParts')} label={`Rocket Parts · ${ROCKET_PART_TARGET}`} />}
+        {partsQueued && <BuildProgress items={state.queue.filter((item) => item.action === 'rocketParts')} label={`Rocket Parts · ${ROCKET_PART_TARGET}`} cancelConstruction={cancelConstruction} notice={notice} />}
         <button onClick={buildParts} disabled={!state.rocketSiloBuilt || partsComplete || partsQueued} className={`button-base mt-4 w-full !py-2 ${partsComplete ? 'button-ghost' : 'button-primary'} disabled:cursor-not-allowed disabled:opacity-45`} data-testid="button-build-rocket-parts">{!state.rocketSiloBuilt ? <><LockKeyhole size={13} /> requires Rocket Silo</> : partsComplete ? <><Check size={13} /> 100 parts complete</> : partsQueued ? <><Clock3 size={13} /> construction queued</> : <><Hammer size={13} /> construct 100 rocket parts</>}</button>
       </div>
     </div>
@@ -1930,7 +1930,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction }
       </div>
     </section>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      {state.research.includes('rocket-silo') && !state.gameComplete && <RocketEndgameCard state={state} enqueue={enqueue} notice={notice} />}
+      {state.research.includes('rocket-silo') && !state.gameComplete && <RocketEndgameCard state={state} enqueue={enqueue} notice={notice} cancelConstruction={cancelConstruction} />}
       {visibleRecipes.map((recipe) => {
       const key = recipe.name;
       const outputs = recipeOutputs(recipe);
@@ -1983,7 +1983,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction }
   </PageFrame>;
 }
 
-function PowerPage({ state, setState, enqueue, notice }: PageProps) {
+function PowerPage({ state, setState, enqueue, notice, cancelConstruction }: PageProps) {
   const steam = state.research.includes('steam-power');
   const solar = state.research.includes('solar-energy');
   const accumulator = recipeIsUnlocked(accumulatorRecipe, state);
@@ -2046,7 +2046,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
           <PowerMetrics production={boilerSteamRateFor(state)} peakProduction={boilerPeakSteamRateFor(state)} productionUnit="steam / min" consumption={boilerCoalUsageFor(state) + boilerWaterUsageFor(state)} peakConsumption={boilerPeakCoalUsageFor(state) + boilerPeakWaterUsageFor(state)} consumptionUnit="inputs / min" />
            {steam && state.boilers > 0 && <button onClick={toggleBoilers} className={`button-base mt-4 w-full !py-2 ${boilersEnabled ? 'button-ghost' : 'button-primary'}`} aria-pressed={boilersEnabled} data-testid="button-toggle-boilers"><Power size={13} /> {boilersEnabled ? 'disable boiler production' : 'enable boiler production'}</button>}
            <div className="mt-4 flex gap-2">{steam && state.boilers ? <><button onClick={() => notice(`boilers are producing ${boilerSteamRateFor(state).toFixed(1)} steam / min`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-boiler"><Gauge size={13} /> inspect live rate</button><button onClick={() => buildPowerUnit('boiler')} className={`button-base flex-1 !py-2 ${boilerConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-boiler">{boilerConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('boiler')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-boiler">{steam ? <><Hammer size={13} /> construct boiler</> : <><LockKeyhole size={13} /> requires Steam Power</>}</button>}</div>
-           <BuildProgress items={boilerConstructionItems} label="Boiler" />
+            <BuildProgress items={boilerConstructionItems} label="Boiler" cancelConstruction={cancelConstruction} notice={notice} />
         </article>
         <article className={`rounded-xl border p-3.5 sm:p-4 ${steam ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-steam-engine">
           <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="steam-engine" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Steam engine</h2><div className="flex items-center gap-2">{steamEngineStatusTag}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Steam engine count"><ResourceIcon item="steam-engine" size={17} /><span className="mono text-[13px]">{state.steamEngines}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Power generation · steam to electricity · Steam engine</p><div className="mt-1 flex flex-wrap gap-1">{steam ? steamEngineStatusTag : <Tag tone="muted">research lock</Tag>}{steamEngineConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
@@ -2055,7 +2055,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
           {constructionChips(steamEngineBuildCost, 'steam-engine')}
           <PowerMetrics production={steamEnginePowerFor(state)} peakProduction={steamEnginePeakPowerFor(state)} productionUnit="MW" consumption={steamEngineSteamUsageFor(state)} peakConsumption={steamEnginePeakSteamUsageFor(state)} consumptionUnit="steam / min" />
           <div className="mt-4 flex gap-2">{steam && state.steamEngines ? <><button onClick={() => notice(`steam engines are producing ${steamEnginePowerFor(state).toFixed(1)} MW`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-steam-engine"><Gauge size={13} /> inspect live rate</button><button onClick={() => buildPowerUnit('steamEngine')} className={`button-base flex-1 !py-2 ${steamEngineConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-steam-engine">{steamEngineConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('steamEngine')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-steam-engine">{steam ? <><Hammer size={13} /> construct steam engine</> : <><LockKeyhole size={13} /> requires Steam Power</>}</button>}</div>
-           <BuildProgress items={steamEngineConstructionItems} label="Steam engine" />
+           <BuildProgress items={steamEngineConstructionItems} label="Steam engine" cancelConstruction={cancelConstruction} notice={notice} />
         </article>
           <article className={`rounded-xl border p-3.5 sm:p-4 ${solar ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-solar">
            <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="solar-panel" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Solar panels</h2><div className="flex items-center gap-2">{statusTag(solar, state.solarPanels, solarPanelConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Solar panel count"><ResourceIcon item="solar-panel" size={17} /><span className="mono text-[13px]">{state.solarPanels}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Power generation · passive sunlight conversion · Solar panel</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={solar ? 'teal' : 'muted'}>{solar ? 'solar line' : 'research lock'}</Tag>{solarPanelConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
@@ -2063,7 +2063,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
            {constructionChips(solarPanelBuildCost, 'solar-panel')}
             <div className="mt-3 grid grid-cols-3 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Potential output</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{solarPanelPotentialPowerKwFor(state).toFixed(1)} kW</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">{solarPanelBasePowerKw} kW / panel</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Efficiency factor</div><div className="mono mt-1 text-[12px] text-[hsl(var(--primary))]">{(solarEfficiency * 100).toFixed(0)}%</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">accumulator-adjusted</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Net output</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{solarPanelNetPowerKwFor(state).toFixed(1)} kW</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">factory supply</div></div></div>
            <div className="mt-4 flex gap-2">{solar && state.solarPanels ? <><button onClick={() => notice(`solar panels are supplying ${solarPowerFor(state).toFixed(3)} MW net`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-solar"><Gauge size={13} /> inspect output</button><button onClick={() => buildPowerUnit('solarPanel')} className={`button-base flex-1 !py-2 ${solarPanelConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-solar-panel">{solarPanelConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('solarPanel')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-solar-panel">{solar ? <><Hammer size={13} /> construct solar panel</> : <><LockKeyhole size={13} /> requires Solar Energy</>}</button>}</div>
-            <BuildProgress items={solarPanelConstructionItems} label="Solar panel" />
+             <BuildProgress items={solarPanelConstructionItems} label="Solar panel" cancelConstruction={cancelConstruction} notice={notice} />
          </article>
            <article className={`rounded-xl border p-3.5 sm:p-4 ${accumulator ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-accumulators">
              <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="accumulator" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Accumulators</h2><div className="flex items-center gap-2">{statusTag(accumulator, state.accumulators, accumulatorConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Constructed accumulator count"><ResourceIcon item="accumulator" size={17} /><span className="mono text-[13px]">{Number.isInteger(accumulatorCount) ? fmt(accumulatorCount) : accumulatorCount.toFixed(2)}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Solar support · stored energy capacity · Accumulator</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={accumulator ? 'teal' : 'muted'}>{accumulator ? 'solar balancing' : 'research lock'}</Tag>{accumulatorConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
@@ -2072,7 +2072,7 @@ function PowerPage({ state, setState, enqueue, notice }: PageProps) {
             <p className="mt-3 text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">Accumulators store power generated by solar panels and provide it at night.</p>
              {constructionChips(accumulatorBuildCost, 'accumulator')}
              <div className="mt-4 flex gap-2">{accumulator && state.accumulators ? <><button onClick={() => notice(`${accumulatorCount} accumulators cover ${requiredAccumulators ? `${(accumulatorCoverage * 100).toFixed(0)}%` : '0%'} of solar support`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-accumulator"><Gauge size={13} /> inspect balance</button><button onClick={() => buildPowerUnit('accumulator')} className={`button-base flex-1 !py-2 ${accumulatorConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-accumulator">{accumulatorConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('accumulator')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-accumulator">{accumulator ? <><Hammer size={13} /> construct accumulator</> : <><LockKeyhole size={13} /> requires Electric Energy Accumulators</>}</button>}</div>
-             <BuildProgress items={accumulatorConstructionItems} label="Accumulator" />
+              <BuildProgress items={accumulatorConstructionItems} label="Accumulator" cancelConstruction={cancelConstruction} notice={notice} />
           </article>
       </div>
     </section>
@@ -2087,7 +2087,7 @@ function PowerDependencyTreePage({ state, notice }: PageProps) {
 }
 function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.8 2.8c.4 3-1.3 4.2-2.4 5.4-1 1-1.2 2.3-.6 3.3.4-1.3 1.5-2.3 2.8-2.7 2.6 2 3.8 4.3 3.2 7.1-.4 1.8-1.7 3.2-3.3 4.1 4.7-.8 7-4 6.2-8.4-.5-2.8-2.5-5.8-5.9-8.8ZM10 12c-3.7 1.4-5.4 4-4.6 6.6.6 2 2.3 3.4 4.5 4-1.2-1.2-1.5-2.6-.6-4.1.7-1.2 1.6-2.1 2.6-2.6-1.1-1-1.8-2.3-1.9-3.9Z"/></svg>; }
 
-function StoragePage({ state, setState, enqueue, notice }: PageProps) {
+function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: PageProps) {
   const storageUpgradeInProgress = state.queue.some((item) => item.action === 'upgrade' && (item.targetId === 'iron-chests' || item.targetId === 'steel-chests'));
   const storageUpgradeInProgressLabel = state.queue.some((item) => item.targetId === 'steel-chests') ? 'Steel Chests' : 'Iron Chests';
   const buildStorage = (key: TrackedKey) => {
@@ -2208,7 +2208,7 @@ function StoragePage({ state, setState, enqueue, notice }: PageProps) {
               <div className="min-w-0 flex-1"><Progress value={amount / capacity * 100} /></div>
               <span className="mono w-14 shrink-0 text-right text-[11px]" title="Total capacity">{fmt(capacity)}</span>
             </div>
-               {isBuilding && <BuildProgress items={constructionItems} label={`${fluid ? 'Storage tank' : steel ? 'Steel chest' : iron ? 'Iron chest' : 'Wooden box'} · ${meta[key].label}`} />}
+               {isBuilding && <BuildProgress items={constructionItems} label={`${fluid ? 'Storage tank' : steel ? 'Steel chest' : iron ? 'Iron chest' : 'Wooden box'} · ${meta[key].label}`} cancelConstruction={cancelConstruction} notice={notice} />}
           </section>;
         })}
       </div>
@@ -2549,7 +2549,7 @@ function UpgradesPage({ state, setState, notice }: PageProps) {
   </PageFrame>;
 }
 
-function SciencePage({ state, setState, enqueue, notice }: PageProps) {
+function SciencePage({ state, setState, enqueue, notice, cancelConstruction }: PageProps) {
   const activeResearch = activeResearchFor(state);
   const requiredScienceKeys = scienceRequirementKeysFor(activeResearch);
   const currentSpm = scienceCurrentSpmFor(state, requiredScienceKeys);
@@ -2581,7 +2581,7 @@ function SciencePage({ state, setState, enqueue, notice }: PageProps) {
            <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Construction</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><ResourceIcon item="ironPlate" size={17} /><strong>12</strong> iron plates</span><span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">+</span><span className="resource-chip"><ResourceIcon item="circuit" size={17} /><strong>4</strong> circuits</span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--primary)/.4)' }}><ResourceIcon item="lab" size={17} /><strong>1</strong> lab</span></div></div>
             <div className="mt-3 grid grid-cols-3 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">current usage</div><div className="mono mt-1 text-[13px] text-[hsl(var(--primary))]">{currentLabUsage.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">packs / min</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">peak usage</div><div className="mono mt-1 text-[13px] text-[hsl(var(--secondary))]">{peakLabUsage.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">packs / min</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">capacity</div><div className="mono mt-1 text-[13px]">{labRate.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">cycles / min</div></div></div>
             <div className="mt-4"><button onClick={buildLab} className={`button-base w-full !py-2 ${labIsBuilding ? 'button-build-active' : 'button-primary'}`} aria-label={state.labs ? 'Construct another science lab' : 'Construct science lab'} data-testid={state.labs ? 'button-build-more-lab' : 'button-build-lab'}>{labIsBuilding ? <><Check size={13} /> {state.labs ? 'queued · build another' : 'queued · build lab'}</> : <><Hammer size={13} /> {state.labs ? 'construct another lab' : 'construct lab'}</>}</button></div>
-            <BuildProgress items={labConstructionItems} label="Science lab" />
+             <BuildProgress items={labConstructionItems} label="Science lab" cancelConstruction={cancelConstruction} notice={notice} />
         </article>
         {scienceKeys.map((key) => {
           const recipe = scienceRecipeFor(key);
