@@ -101,6 +101,7 @@ type GameState = {
   milestoneNotifications: MilestoneKey[];
   unlockedMilestones: MilestoneKey[];
   produced: Record<string, number>;
+  manualOutputEvents: Record<TrackedKey, number>;
   rateHistory: RateSample[];
   machineVariants: MachineVariants;
   furnaceVariant: 'stone-furnace' | 'steel-furnace' | 'electric-furnace';
@@ -452,7 +453,7 @@ const initialState: GameState = {
   oilProcessingAdvanced: false,
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0,
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0,
   totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, tutorialVisible: true, welcomeSeen: false,
 };
 
@@ -945,7 +946,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
   const previousQueueById = new Map(previous.queue.map((item) => [item.id, item]));
   const state: GameState = {
     ...previous, raw: { ...previous.raw }, products: { ...previous.products }, miners: { ...previous.miners }, storage: { ...previous.storage }, storageBoxes: { ...previous.storageBoxes }, storageTanks: { ...previous.storageTanks },
-    assemblers: { ...previous.assemblers }, oilProcessingAdvanced: previous.oilProcessingAdvanced, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, accumulators: previous.accumulators, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress },
+    assemblers: { ...previous.assemblers }, oilProcessingAdvanced: previous.oilProcessingAdvanced, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, accumulators: previous.accumulators, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress }, manualOutputEvents: { ...previous.manualOutputEvents },
     researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])], milestoneNotifications: [...(previous.milestoneNotifications ?? [])], unlockedMilestones: [...(previous.unlockedMilestones ?? [])],
     rateHistory: previous.rateHistory ?? [],
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null,
@@ -1024,7 +1025,11 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     if (state.handcraft.seconds <= 0) {
       const recipe = recipeMap[state.handcraft.recipeKey];
       const outputs = recipeOutputs(recipe);
-      outputs.forEach(({ key: outputKey, amount }) => { addTracked(state, outputKey, amount, true); recordProduction(state, outputKey, amount, liveProduction, liveManualProduction); });
+       outputs.forEach(({ key: outputKey, amount }) => {
+         addTracked(state, outputKey, amount, true);
+         recordProduction(state, outputKey, amount, liveProduction, liveManualProduction);
+         state.manualOutputEvents[outputKey] = (state.manualOutputEvents[outputKey] ?? 0) + 1;
+       });
       state.totalOutput += outputs.reduce((sum, output) => sum + output.amount, 0);
       state.handcraft = null;
     }
@@ -1034,8 +1039,9 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     if (state.manualMining.seconds <= 0) {
       const resourceKey = state.manualMining.resourceKey;
       const amount = 1;
-      addTracked(state, resourceKey, amount, true);
-      recordProduction(state, resourceKey, amount, liveProduction, liveManualProduction);
+       addTracked(state, resourceKey, amount, true);
+       recordProduction(state, resourceKey, amount, liveProduction, liveManualProduction);
+       state.manualOutputEvents[resourceKey] = (state.manualOutputEvents[resourceKey] ?? 0) + 1;
       state.totalOutput += amount;
       state.manualMining = null;
     }
@@ -1240,6 +1246,7 @@ function loadState() {
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
       handcraft: parsed.handcraft ? { ...parsed.handcraft } : null,
       manualMining: parsed.manualMining ? { ...parsed.manualMining } : null,
+       manualOutputEvents: { ...initialState.manualOutputEvents, ...parsed.manualOutputEvents },
       produced: (() => {
         const produced = { ...initialState.produced, ...parsed.produced };
         if (parsed.produced?.researchPack !== undefined && parsed.produced?.productionPack === undefined) produced.productionPack = parsed.produced.researchPack;
@@ -1499,22 +1506,22 @@ function Header({ eyebrow, title, copy, action }: { eyebrow: string; title: stri
 }
 function SectionTitle({ children, detail }: { children: ReactNode; detail?: string }) { return <div className="mb-3 flex min-w-0 flex-wrap items-end justify-between gap-x-3 gap-y-1"><span className="eyebrow min-w-0">{children}</span>{detail && <span className="mono min-w-0 max-w-full text-right text-[10px] text-[hsl(var(--muted-foreground))]">{detail}</span>}</div>; }
 function Progress({ value, tone = 'teal', realtime = false }: { value: number; tone?: 'teal' | 'amber' | 'red'; realtime?: boolean }) { return <div className="progress-track"><div className={`progress-fill ${tone === 'amber' ? 'amber' : tone === 'red' ? 'red' : ''}`} style={{ width: `${Math.max(0, Math.min(100, value))}%`, transition: realtime ? 'none' : undefined }} /></div>; }
-function StoredQuantity({ value, children, className = '', title }: { value: number; children: ReactNode; className?: string; title?: string }) {
-  const previousValue = useRef(value);
+function StoredQuantity({ value, manualEvent = 0, children, className = '', title }: { value: number; manualEvent?: number; children: ReactNode; className?: string; title?: string }) {
+  const previousManualEvent = useRef(manualEvent);
   const [flashing, setFlashing] = useState(false);
   useEffect(() => {
-    const increased = value > previousValue.current + 0.000001;
-    previousValue.current = value;
-    if (!increased) return;
+    const completedManually = manualEvent !== previousManualEvent.current;
+    previousManualEvent.current = manualEvent;
+    if (!completedManually) return;
     setFlashing(true);
     const timeout = window.setTimeout(() => setFlashing(false), 120);
     return () => window.clearTimeout(timeout);
-  }, [value]);
+  }, [manualEvent]);
   return <span className={`${className} ${flashing ? 'quantity-increment-flash' : ''}`.trim()} title={title}>{children}</span>;
 }
-function CompactMetricsRow({ production, peakProduction, demand, peakConsumption, net, storage, capacity, peakWarning = false }: { production: number; peakProduction: number; demand: number; peakConsumption: number; net: number; storage: number; capacity: number; peakWarning?: boolean }) {
+function CompactMetricsRow({ production, peakProduction, demand, peakConsumption, net, storage, capacity, manualOutputEvent = 0, peakWarning = false }: { production: number; peakProduction: number; demand: number; peakConsumption: number; net: number; storage: number; capacity: number; manualOutputEvent?: number; peakWarning?: boolean }) {
   const rate = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
-  const metric = ({ label, value, tone, flashStorage }: { label: string; value: string; tone: string; flashStorage?: boolean }) => <div className="min-w-0 text-center" key={label} title={`${label}: ${value}`}><div className="truncate text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">{label}</div><div className={`mono mt-1 truncate text-[10px] font-semibold ${tone}`}>{flashStorage ? <StoredQuantity value={storage}>{value}</StoredQuantity> : value}</div></div>;
+  const metric = ({ label, value, tone, flashStorage }: { label: string; value: string; tone: string; flashStorage?: boolean }) => <div className="min-w-0 text-center" key={label} title={`${label}: ${value}`}><div className="truncate text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">{label}</div><div className={`mono mt-1 truncate text-[10px] font-semibold ${tone}`}>{flashStorage ? <StoredQuantity value={storage} manualEvent={manualOutputEvent}>{value}</StoredQuantity> : value}</div></div>;
   return <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] px-2 py-2" aria-label="Production metrics">
     <div className="grid grid-cols-3 gap-1">
       {[
@@ -2000,7 +2007,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
              <div className="flex items-center gap-2 text-[10px]"><ResourceIcon item="pumpjack" size={17} /><span className="font-semibold">Pumpjack output</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">rated flow</span></div>
              <div className="mono mt-2 text-[13px] text-[hsl(var(--secondary))]">50 crude oil / sec <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per pumpjack</span></div>
            </div>}
-           <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={productionRate - demandRate} storage={state.raw[key]} capacity={capFor(state, key)} peakWarning={key === 'coal' && peakProductionRate < peakDemandRate} />
+           <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={productionRate - demandRate} storage={state.raw[key]} capacity={capFor(state, key)} manualOutputEvent={state.manualOutputEvents[key] ?? 0} peakWarning={key === 'coal' && peakProductionRate < peakDemandRate} />
            <div className="mt-4 flex gap-2">
              {locked ? <button onClick={() => notice(`${info.needs} research required`)} className="button-base button-ghost flex-1 !py-2" data-testid={`button-locked-mining-${key}`}><LockKeyhole size={13} /> requires {info.needs}</button> : <>{manualCollectionControl}{buildControl}</>}
           </div>
@@ -2121,7 +2128,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
         </div>
         {autoCondition.label && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-auto-condition-${key}`}><div className="flex items-center justify-between gap-2 text-[10px]"><span className="eyebrow text-[hsl(var(--primary))]">Auto start / stop</span><Tag tone={autoCondition.met ? 'teal' : 'amber'}>{autoCondition.met ? 'running' : 'stopped'}</Tag></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Runs when <span className="font-semibold text-[hsl(var(--foreground))]">{autoCondition.label}</span>.</div></div>}
          {smelting && recipe.fuel && state.furnaceVariant !== 'electric-furnace' && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
-         <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} />
+         <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} manualOutputEvent={primaryOutput ? state.manualOutputEvents[primaryOutput.key] ?? 0 : 0} />
           <div className="mt-4 flex gap-2">{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-${count ? 'build-more' : 'build'}-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> {count ? 'queued · build another' : 'queued'}</> : <><Hammer size={13} /> {count ? 'construct another' : 'construct'}</>}</button></div>
            {isBuilding && <BuildProgress items={constructionItems} label={buildingLabel} cancelConstruction={cancelConstruction} notice={notice} />}
           {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} simulationSpeed={state.simulationSpeed} />}
@@ -2352,7 +2359,7 @@ function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: P
               </button>
             </div>
             <div className="mt-2 flex items-center gap-2" aria-label={`${meta[key].label}: ${fmt(amount)} in stock, capacity ${fmt(capacity)}`}>
-              <StoredQuantity value={amount} className="mono w-12 shrink-0 text-[11px]" title="Current stock">{fmt(amount)}</StoredQuantity>
+              <StoredQuantity value={amount} manualEvent={state.manualOutputEvents[key] ?? 0} className="mono w-12 shrink-0 text-[11px]" title="Current stock">{fmt(amount)}</StoredQuantity>
               <div className="min-w-0 flex-1"><Progress value={amount / capacity * 100} /></div>
               <span className="mono w-14 shrink-0 text-right text-[11px]" title="Total capacity">{fmt(capacity)}</span>
             </div>
@@ -2811,7 +2818,7 @@ function SciencePage({ state, setState, enqueue, notice, cancelConstruction }: P
            const recipeAriaLabel = `${ingredients} -> ${outputs} (${recipe.energyRequired}s)`;
            return <article className={`min-w-0 rounded-xl border p-3.5 sm:p-4 ${unlocked ? 'surface-soft' : 'locked-wash opacity-55 grayscale'}`} key={key} data-testid={`card-science-${key}`}>
              <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item={key} size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{meta[key].label}</h2>{unlocked ? <Tag><span className="status-dot status-running" /> unlocked</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>}</div><div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={recipeAriaLabel}>{recipe.ingredients.map((ingredient, index) => { const ingredientKey = keyForSource(ingredient.name); return <span className="inline-flex items-center gap-1" key={`${ingredient.name}-${index}`}><span className="mono">{amountLabel(materialAmount(ingredient))}</span><ResourceIcon item={ingredientKey} size={14} />{index < recipe.ingredients.length - 1 && <span aria-hidden="true">+</span>}</span>; })}<ArrowRight size={12} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />{recipeOutputs(recipe).map(({ key: outputKey, amount }, index) => <span className="inline-flex items-center gap-1" key={`${outputKey}-${index}`}><span className="mono">{amountLabel(amount)}</span><ResourceIcon item={outputKey} size={14} />{index < recipeOutputs(recipe).length - 1 && <span aria-hidden="true">+</span>}</span>)}<span className="mono ml-1 shrink-0">({recipe.energyRequired}s)</span></div></div></div>
-            <CompactMetricsRow production={currentProduction} peakProduction={productionCapacity} demand={currentConsumption} peakConsumption={peakConsumption} net={currentProduction - currentConsumption} storage={state.products[key] ?? 0} capacity={capFor(state, key)} />
+            <CompactMetricsRow production={currentProduction} peakProduction={productionCapacity} demand={currentConsumption} peakConsumption={peakConsumption} net={currentProduction - currentConsumption} storage={state.products[key] ?? 0} capacity={capFor(state, key)} manualOutputEvent={state.manualOutputEvents[key] ?? 0} />
              <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 text-[9px] text-[hsl(var(--muted-foreground))]"><span className="min-w-0 break-words">{required ? 'required by active research' : 'not required by active research'}</span><span className="min-w-0 break-words text-right"><span className="mono">{recipe.energyRequired}s</span> / cycle · <span className="mono">{amountLabel(recipeOutputs(recipe).reduce((total, output) => total + output.amount, 0))}</span> output</span></div>
           </article>;
         })}
