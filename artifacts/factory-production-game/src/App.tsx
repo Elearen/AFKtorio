@@ -1571,8 +1571,8 @@ function BuildProgress({ items, label, cancelConstruction, notice }: { items: Qu
       return amount > 0 ? `${Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2)} ${meta[cost.key]?.label.toLowerCase() ?? prettyLabel(cost.key).toLowerCase()}` : '';
     }).filter(Boolean).join(' + ')
     : '';
-  return <div className="construction-panel mt-3 rounded-lg p-3" aria-live="polite" data-testid={`panel-construction-${active.id}`}>
-     <div className="flex items-start justify-between gap-3">
+  return <div className="construction-panel mt-3 min-w-0 overflow-hidden rounded-lg p-3" aria-live="polite" data-testid={`panel-construction-${active.id}`}>
+     <div className="flex min-w-0 items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-2">
         <div className="construction-pulse mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md"><Hammer size={12} /></div>
         <div className="min-w-0">
@@ -1580,13 +1580,13 @@ function BuildProgress({ items, label, cancelConstruction, notice }: { items: Qu
           <div className="mt-1 truncate text-[10px] font-bold">{label}{items.length > 1 ? ` · ${items.length} queued` : ''}</div>
         </div>
       </div>
-       <div className="flex shrink-0 items-center gap-2">
-         <span className="mono text-[10px] text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(active.seconds)}</span>
+        <div className="flex min-w-0 max-w-[55%] items-start justify-end gap-2">
+          <span className="mono min-w-0 whitespace-normal break-words text-right text-[10px] leading-3 text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(active.seconds)}</span>
          {cancelConstruction && <button type="button" onClick={() => { cancelConstruction(active.id); notice?.(`${active.target} cancelled · materials refunded`); }} className="grid h-6 w-6 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label={`Cancel ${active.target}`} title="Cancel construction and refund materials" data-testid={`button-cancel-queue-${active.id}`}><X size={12} /></button>}
        </div>
     </div>
     <div className="mt-2"><Progress value={complete} tone="amber" realtime={active.progressStartedAt !== undefined && active.progressDurationMs !== undefined} /></div>
-    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{waitingForMaterials ? `${Math.floor(Math.max(0, complete))}% funded` : `${Math.floor(Math.max(0, complete))}% complete`}</span><span>{waitingForMaterials ? `needs ${missing}` : 'building now'}</span></div>
+     <div className="mt-1 flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-1 mono text-[9px] text-[hsl(var(--muted-foreground))]"><span className="shrink-0">{waitingForMaterials ? `${Math.floor(Math.max(0, complete))}% funded` : `${Math.floor(Math.max(0, complete))}% complete`}</span><span className="min-w-0 flex-1 break-words text-right">{waitingForMaterials ? `needs ${missing}` : 'building now'}</span></div>
   </div>;
 }
 function HandcraftProgress({ job, recipe, simulationSpeed }: { job: HandcraftJob; recipe: Recipe; simulationSpeed: number }) {
