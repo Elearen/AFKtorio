@@ -476,6 +476,7 @@ const rawInfo: Record<RawKey, { label: string; description: string; research?: R
 };
 
 const fmt = (n: number) => Math.floor(n).toLocaleString('en-US');
+const storedQuantityFlashDurationMs = 400;
 const duration = (n: number) => `${Math.floor(n / 60)}m ${String(Math.max(0, Math.floor(n % 60))).padStart(2, '0')}s`;
 const containerCountFor = (state: GameState, key: TrackedKey) => calculateStorageContainerCountFor(key, fluidKeys, state.storageBoxes, state.storageTanks);
 const storageBoxCapacityFor = (state: GameState) => state.storageBoxType === 'wooden'
@@ -1514,7 +1515,7 @@ function StoredQuantity({ value, manualEvent = 0, children, className = '', titl
     previousManualEvent.current = manualEvent;
     if (!completedManually) return;
     setFlashing(true);
-    const timeout = window.setTimeout(() => setFlashing(false), 120);
+    const timeout = window.setTimeout(() => setFlashing(false), storedQuantityFlashDurationMs);
     return () => window.clearTimeout(timeout);
   }, [manualEvent]);
   return <span className={`${className} ${flashing ? 'quantity-increment-flash' : ''}`.trim()} title={title}>{children}</span>;
