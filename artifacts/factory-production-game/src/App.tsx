@@ -22,7 +22,7 @@ import {
   steelChestUpgradeCostFor, steelChestUpgradeTimeFor,
   type StorageBoxType,
 } from './storageSystem';
-import { milestoneOrder, milestoneTitles, migrateMilestoneState, type MilestoneKey } from './milestoneSystem';
+import { milestoneOrder, milestoneTitles, migrateMilestoneState, SCIENCE_PACKS_MILESTONE_THRESHOLD, type MilestoneKey } from './milestoneSystem';
 import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
 import { formatWinDuration, winMetricsFor, type WinMetrics } from './endgameMetrics';
 import { primaryOutputFor } from './productionOutput';
@@ -311,6 +311,9 @@ const fluidKeys = new Set<TrackedKey>([
   'crudeOil',
   ...recipeCatalog.flatMap((recipe) => [...recipe.ingredients, ...recipe.results].filter((material) => material.type === 'fluid').map((material) => keyForSource(material.name))),
 ]);
+const sciencePackKeys = new Set<TrackedKey>(['automationPack', 'logisticsPack', 'chemicalPack', 'militaryPack', 'productionPack', 'utilityPack', 'spacePack']);
+const totalSciencePacksProducedFor = (produced: Record<string, number>) => Array.from(sciencePackKeys)
+  .reduce((total, key) => total + (produced[key] ?? 0), 0);
 const isFluidKey = (key: TrackedKey) => fluidKeys.has(key);
 const initialStorageState = createInitialStorageState(trackedKeys, fluidKeys);
 const emptyRateRecord = () => Object.fromEntries(trackedKeys.map((key) => [key, 0])) as Record<TrackedKey, number>;
@@ -631,6 +634,11 @@ const recordProduction = (state: GameState, key: TrackedKey, amount: number, pro
   if (manualProduction) manualProduction[key] = (manualProduction[key] ?? 0) + amount;
   if (firstSpaceSciencePack && unlockMilestone(state, 'space-science') && !state.milestoneNotifications.includes('space-science')) {
     state.milestoneNotifications.push('space-science');
+  }
+  if (totalSciencePacksProducedFor(state.produced) >= SCIENCE_PACKS_MILESTONE_THRESHOLD
+    && unlockMilestone(state, 'hundred-science-packs')
+    && !state.milestoneNotifications.includes('hundred-science-packs')) {
+    state.milestoneNotifications.push('hundred-science-packs');
   }
 };
 const researchTriggerProgress = (state: GameState, technology: TechnologyDefinition) => {
@@ -1144,6 +1152,7 @@ function loadState() {
       spidertronResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'spidertron'),
       gameCompleted: parsed.gameComplete === true || parsed.rocketLaunched === true,
       spaceScienceProduced: typeof parsed.produced?.spacePack === 'number' ? parsed.produced.spacePack : 0,
+      totalSciencePacksProduced: totalSciencePacksProducedFor(parsed.produced ?? {}),
       advancedOilProductionCompleted: parsed.oilProcessingAdvanced === true,
     });
     const state = {
@@ -2764,6 +2773,7 @@ function WelcomeModal({ onBegin, replay = false }: { onBegin: () => void; replay
 
 function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onDismiss: () => void }) {
   const isFirstLab = milestone === 'first-lab';
+  const isHundredSciencePacks = milestone === 'hundred-science-packs';
   const isTwentyOneLabs = milestone === 'twenty-one-labs';
   const isTurnLightsOn = milestone === 'turn-lights-on';
   const isAdvancedOilProduction = milestone === 'advanced-oil-production';
@@ -2773,6 +2783,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   const isSpaceScience = milestone === 'space-science';
   const image = isFirstLab
     ? 'first-lab-milestone.jpg'
+    : isHundredSciencePacks
+      ? '100-science-packs-milestone.jpg'
     : isTwentyOneLabs
       ? 'twenty-one-labs-milestone.jpg'
       : isTurnLightsOn
@@ -2790,6 +2802,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
           : 'sixty-furnaces-milestone.jpg';
   const imageAlt = isFirstLab
     ? 'Factory Planet laboratory and production machines beside a river'
+    : isHundredSciencePacks
+      ? 'A growing Factory Planet science production network in a mountain valley'
     : isTwentyOneLabs
       ? 'Factory Planet with more than twenty laboratories connected by production lines'
       : isTurnLightsOn
@@ -2815,9 +2829,13 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
          ? { width: 1536, height: 1024 }
       : isAdvancedOilProduction
         ? { width: 1536, height: 1024 }
+      : isHundredSciencePacks
+        ? { width: 1536, height: 1024 }
       : { width: 1122, height: 1402 };
   const message = isFirstLab
     ? 'You have constructed your first lab, well done. This is the first major step towards regaining the technology to travel off world.'
+    : isHundredSciencePacks
+      ? "You've produced 100 science packs, what a great start."
     : isTwentyOneLabs
       ? 'Over twenty labs! Your science production will be done in no time.'
       : isTurnLightsOn
