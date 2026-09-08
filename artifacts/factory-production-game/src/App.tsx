@@ -1376,7 +1376,7 @@ function UpgradeMetaGrid({ prerequisite, prerequisiteMet, machine, machineIcon }
     </div>
   </div>;
 }
-function UpgradeProgress({ count, label, seconds, total, progressStartedAt, progressDurationMs, testId }: { count: number; label: string; seconds: number; total: number; progressStartedAt?: number; progressDurationMs?: number; testId: string }) {
+function UpgradeProgress({ count, label, seconds, total, progressStartedAt, progressDurationMs, testId, cancelUpgrade }: { count: number; label: string; seconds: number; total: number; progressStartedAt?: number; progressDurationMs?: number; testId: string; cancelUpgrade?: () => void }) {
   const progress = useConstructionVisualProgress(
     `${testId}:${progressStartedAt ?? 'legacy'}`,
     progressStartedAt,
@@ -1386,7 +1386,7 @@ function UpgradeProgress({ count, label, seconds, total, progressStartedAt, prog
   return <div className="construction-panel mt-3 rounded-md p-2.5" aria-live="polite" data-testid={testId}>
     <div className="flex items-center justify-between gap-2">
       <div className="min-w-0 truncate text-[10px] font-bold">{count} {label} converting</div>
-      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{duration(seconds)}</span>
+       <div className="flex shrink-0 items-center gap-2"><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(seconds)}</span>{cancelUpgrade && <button type="button" onClick={cancelUpgrade} className="grid h-6 w-6 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label="Cancel upgrade" title="Cancel upgrade and refund materials" data-testid={`${testId}-cancel`}><X size={12} /></button>}</div>
     </div>
     <div className="mt-2"><Progress value={progress} tone="amber" realtime={progressStartedAt !== undefined && progressDurationMs !== undefined} /></div>
     <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(progress)}% complete</span><span>{total.toFixed(1)}s total</span></div>
@@ -2356,7 +2356,7 @@ function LogisticsPage({ notice }: PageProps) {
   return <PageFrame><Header eyebrow="Later-stage systems" title="Logistics" copy="The line is not ready for a freight network yet. These systems are mapped here so future expansion has a clear shape." action={<Tag tone="amber"><Clock3 size={11} /> coming later</Tag>} /><section className="surface rounded-xl p-4 sm:p-5"><div className="mb-5 flex items-start gap-3 rounded-xl border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-4"><div className="text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">Later-stage tab</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">These are intentionally visible but non-functional. No fake throughput, no pretend routing — just the systems waiting beyond the first efficient loop.</p></div></div><div className="grid gap-3 sm:grid-cols-2">{entries.map(({ title, copy, icon: Icon }) => <button onClick={() => notice(`${title} is planned for a later stage`)} className="locked-wash flex items-center gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left transition-colors hover:border-[hsl(var(--secondary)/.4)]" key={title} data-testid={`button-logistics-${title.toLowerCase().replace(' ', '-')}`}><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"><Icon size={17} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-[12px] font-bold">{title}<Tag tone="muted"><LockKeyhole size={9} /> later</Tag></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{copy}</p></div><ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" /></button>)}</div></section></PageFrame>;
 }
 
-function UpgradesPage({ state, setState, notice, constructionVisualTiming }: PageProps) {
+function UpgradesPage({ state, setState, notice, cancelConstruction, constructionVisualTiming }: PageProps) {
   const [upgradeFilter, setUpgradeFilter] = useState<UpgradeFilter>('available');
   const activeUpgrade = state.queue.find((item) => item.action === 'upgrade');
   const storageBoxCount = storageBoxCountFor(state);
@@ -2391,6 +2391,11 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
   const oilProcessingConversionCount = activeUpgrade?.machineCount ?? oilProcessingMachineCount;
   const oilProcessingUpgradeTotalSeconds = activeUpgrade?.targetId === OIL_PROCESSING_UPGRADE_ID ? activeUpgrade.total : oilProcessingUpgradeTimeFor(basicOilMachineCount);
   const oilProcessingPrerequisiteMet = state.research.includes('advanced-oil-processing');
+  const cancelActiveUpgrade = () => {
+    if (!activeUpgrade) return;
+    cancelConstruction(activeUpgrade.id);
+    notice(`${activeUpgrade.target} cancelled · materials refunded`);
+  };
   const startUpgrade = (upgrade: UpgradeDefinition) => {
     const jobId = `upgrade-${Date.now()}`;
     const result = beginUpgrade({
@@ -2591,7 +2596,7 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
           copy={item.copy}
           iconPair={<UpgradeIconPair from={<ResourceIcon item={fromMachine} size={26} />} to={<ResourceIcon item={toMachine} size={26} />} fromLabel={fromLabel} toLabel={item.newMachineLabel} />}
           flow={!complete ? <UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} /> : undefined}
-          progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId={`panel-upgrade-progress-${item.id}`} /> : undefined}
+          progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId={`panel-upgrade-progress-${item.id}`} cancelUpgrade={cancelActiveUpgrade} /> : undefined}
            meta={<UpgradeMetaGrid prerequisite={item.prerequisiteUpgrade ? `${item.prerequisiteTechnology} + ${upgradeMap[item.prerequisiteUpgrade].name}` : item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? toMachine : fromMachine} size={17} />} />}
           powerAdvisory={item.id === 'electric-mining-drill' && !complete && machineCount > 0 ? <UpgradePowerAdvisory testId="panel-upgrade-power-electric-miner" machineCount={machineCount} powerDrawKw={item.newMachinePowerDraw} state={state} /> : undefined}
           costPerItem={item.upgradeCostPerMachine}
@@ -2614,7 +2619,7 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
         copy="Replace every constructed Basic Oil Processing refinery with Advanced Oil Processing. The conversion is free and takes one second per refinery."
         iconPair={<UpgradeIconPair from={<UpgradeAssetIcon file="basic-oil-processing" size={28} />} to={<UpgradeAssetIcon file="advanced-oil-processing" size={28} />} fromLabel="Basic Oil Processing" toLabel="Advanced Oil Processing" />}
         flow={!oilProcessingUpgradeComplete ? <UpgradeFlow count={oilProcessingConversionCount} from="Basic Oil Processing" to="Advanced Oil Processing" /> : undefined}
-        progress={oilProcessingUpgradeQueued && activeUpgrade ? <UpgradeProgress count={oilProcessingConversionCount} label={oilProcessingConversionCount === 1 ? 'refinery' : 'refineries'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-advanced-oil-processing" /> : undefined}
+        progress={oilProcessingUpgradeQueued && activeUpgrade ? <UpgradeProgress count={oilProcessingConversionCount} label={oilProcessingConversionCount === 1 ? 'refinery' : 'refineries'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-advanced-oil-processing" cancelUpgrade={cancelActiveUpgrade} /> : undefined}
         meta={<UpgradeMetaGrid prerequisite="advanced-oil-processing" prerequisiteMet={oilProcessingPrerequisiteMet} machine="Oil Refinery" machineIcon={<UpgradeAssetIcon file={oilProcessingUpgradeComplete ? 'advanced-oil-processing' : 'basic-oil-processing'} size={17} />} />}
         costPerItem={[]}
         totalCost={[]}
@@ -2635,7 +2640,7 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
         copy="Convert every constructed stone furnace together. Steel Furnaces run at twice the speed and use half the coal per item."
         iconPair={<UpgradeIconPair from={<ResourceIcon item="stone-furnace" size={26} />} to={<ResourceIcon item="steel-furnace" size={26} />} fromLabel="Stone Furnace" toLabel="Steel Furnace" />}
         flow={!furnaceUpgradeComplete ? <UpgradeFlow count={furnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} from="Stone Furnace" to="Steel Furnace" /> : undefined}
-         progress={furnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'stone furnace' : 'stone furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-steel-furnaces" /> : undefined}
+         progress={furnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'stone furnace' : 'stone furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-steel-furnaces" cancelUpgrade={cancelActiveUpgrade} /> : undefined}
         meta={<UpgradeMetaGrid prerequisite={STEEL_FURNACE_PREREQUISITE_TECHNOLOGY} prerequisiteMet={furnaceUpgradePrerequisiteMet} machine={furnaceUpgradeComplete ? 'Steel Furnace' : 'Stone Furnace'} machineIcon={<ResourceIcon item={furnaceUpgradeComplete ? 'steel-furnace' : 'stone-furnace'} size={17} />} />}
         costPerItem={furnaceUpgradeCostPerFurnace}
         totalCost={furnaceUpgradeCosts}
@@ -2656,7 +2661,7 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
          copy="Convert every constructed Steel Furnace together. Electric Furnaces keep the same speed, remove coal consumption, and draw 180 kW each."
          iconPair={<UpgradeIconPair from={<ResourceIcon item="steel-furnace" size={26} />} to={<ResourceIcon item="electric-furnace" size={26} />} fromLabel="Steel Furnace" toLabel="Electric Furnace" />}
          flow={!electricFurnaceUpgradeComplete ? <UpgradeFlow count={electricFurnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} from="Steel Furnace" to="Electric Furnace" /> : undefined}
-         progress={electricFurnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'steel furnace' : 'steel furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-electric-furnaces" /> : undefined}
+          progress={electricFurnaceUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? furnaceCount} label={activeUpgrade.machineCount === 1 ? 'steel furnace' : 'steel furnaces'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-electric-furnaces" cancelUpgrade={cancelActiveUpgrade} /> : undefined}
          meta={<UpgradeMetaGrid prerequisite={`${ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY} + Steel Furnaces`} prerequisiteMet={electricFurnaceUpgradePrerequisiteMet} machine={electricFurnaceUpgradeComplete ? 'Electric Furnace' : 'Steel Furnace'} machineIcon={<ResourceIcon item={electricFurnaceUpgradeComplete ? 'electric-furnace' : 'steel-furnace'} size={17} />} />}
          powerAdvisory={!electricFurnaceUpgradeComplete && furnaceCount > 0 ? <UpgradePowerAdvisory testId="panel-upgrade-power-electric-furnaces" machineCount={electricFurnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount} powerDrawKw={electricFurnacePowerKw} state={state} /> : undefined}
          costPerItem={electricFurnaceUpgradeCostPerFurnace}
@@ -2678,7 +2683,7 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
         copy="Replace every constructed wooden chest with an Iron Chest. Fluid storage tanks are not affected."
         iconPair={<UpgradeIconPair from={<ResourceIcon item="wooden-chest" size={26} />} to={<ResourceIcon item="iron-chest" size={26} />} fromLabel="Wooden Chest" toLabel="Iron Chest" />}
         flow={!storageUpgradeComplete ? <UpgradeFlow count={storageUpgradeQueued ? activeUpgrade?.machineCount ?? storageBoxCount : storageBoxCount} from="Wooden Chest" to="Iron Chest" /> : undefined}
-         progress={storageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'wooden chest' : 'wooden chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-iron-chests" /> : undefined}
+          progress={storageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'wooden chest' : 'wooden chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-iron-chests" cancelUpgrade={cancelActiveUpgrade} /> : undefined}
         meta={<UpgradeMetaGrid prerequisiteMet={true} machine={storageUpgradeComplete ? 'Iron Chest' : 'Wooden Chest'} machineIcon={<ResourceIcon item={storageUpgradeComplete ? 'iron-chest' : 'wooden-chest'} size={17} />} />}
         costPerItem={[{ key: 'ironPlate', amount: ironChestUpgradeCostFor(1), source: 'products' }]}
         totalCost={storageUpgradeCosts}
@@ -2699,7 +2704,7 @@ function UpgradesPage({ state, setState, notice, constructionVisualTiming }: Pag
          copy="Replace every constructed Iron Chest with a Steel Chest. Fluid storage tanks are not affected."
          iconPair={<UpgradeIconPair from={<ResourceIcon item="iron-chest" size={26} />} to={<ResourceIcon item="steel-chest" size={26} />} fromLabel="Iron Chest" toLabel="Steel Chest" />}
          flow={!steelStorageUpgradeComplete ? <UpgradeFlow count={steelStorageUpgradeQueued ? activeUpgrade?.machineCount ?? storageBoxCount : storageBoxCount} from="Iron Chest" to="Steel Chest" /> : undefined}
-         progress={steelStorageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'iron chest' : 'iron chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-steel-chests" /> : undefined}
+          progress={steelStorageUpgradeQueued && activeUpgrade ? <UpgradeProgress count={activeUpgrade.machineCount ?? storageBoxCount} label={activeUpgrade.machineCount === 1 ? 'iron chest' : 'iron chests'} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId="panel-upgrade-progress-steel-chests" cancelUpgrade={cancelActiveUpgrade} /> : undefined}
          meta={<UpgradeMetaGrid prerequisite="Iron Chests upgrade" prerequisiteMet={storageUpgradeComplete} machine={steelStorageUpgradeComplete ? 'Steel Chest' : 'Iron Chest'} machineIcon={<ResourceIcon item={steelStorageUpgradeComplete ? 'steel-chest' : 'iron-chest'} size={17} />} />}
          costPerItem={[{ key: 'steel', amount: STORAGE_STEEL_BOX_COST, source: 'products' }]}
          totalCost={steelStorageUpgradeCosts}
