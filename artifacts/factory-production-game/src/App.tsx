@@ -3547,9 +3547,20 @@ function Game() {
   useEffect(() => {
     const targetId = focusTargetForLocation(location);
     if (!targetId) return;
-    const frame = window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-    });
+    let attempts = 0;
+    let frame = 0;
+    const scrollToTarget = () => {
+      const target = document.getElementById(targetId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (attempts < 12) {
+        attempts += 1;
+        frame = window.requestAnimationFrame(scrollToTarget);
+      }
+    };
+    frame = window.requestAnimationFrame(scrollToTarget);
     return () => window.cancelAnimationFrame(frame);
   }, [location]);
   let page: ReactNode;
