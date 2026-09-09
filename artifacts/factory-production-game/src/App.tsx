@@ -102,6 +102,8 @@ type GameState = {
   unlockedMilestones: MilestoneKey[];
   produced: Record<string, number>;
   manualOutputEvents: Record<TrackedKey, number>;
+  pausedRecipes: Record<string, boolean>;
+  pausedMining: Record<RawKey, boolean>;
   rateHistory: RateSample[];
   machineVariants: MachineVariants;
   furnaceVariant: 'stone-furnace' | 'steel-furnace' | 'electric-furnace';
@@ -453,7 +455,7 @@ const initialState: GameState = {
   oilProcessingAdvanced: false,
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0,
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0,
   totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, tutorialVisible: true, welcomeSeen: false,
 };
 
@@ -518,7 +520,7 @@ const assemblyMachinePowerFor = (state: GameState, recipe?: Recipe) => isOilRefi
 const miningMachineProductionSpeedFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillProductionSpeed : burnerMiningDrillProductionSpeed;
 const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillPowerKw : 0;
 const miningUsesStoredCoal = (state: GameState) => state.machineVariants.mining !== 'electric-mining-drill';
-const fueledBurnerMinerCount = (state: GameState) => miningUsesStoredCoal(state) ? fueledBurnerMinerKeys.reduce((total, key) => total + state.miners[key], 0) : 0;
+const fueledBurnerMinerCount = (state: GameState) => miningUsesStoredCoal(state) ? fueledBurnerMinerKeys.reduce((total, key) => total + (miningPausedFor(state, key) ? 0 : state.miners[key]), 0) : 0;
 const burnerMinerCoalRate = (state: GameState) => fueledBurnerMinerCount(state) * burnerMiningDrillCoalPerSecond;
 const powerFlowFor = (state: GameState, seconds = 1) => calculatePowerFlow({
   boilers: state.boilers,
@@ -554,10 +556,12 @@ const powerProductionFor = (state: GameState, seconds = 1) => powerFlowFor(state
 const electricPowerDraw = (state: GameState) => {
   const assemblerPower = Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => {
     const recipe = recipeMap[recipeKey];
-    return total + (recipe && !isSmeltingRecipe(recipe) ? count * assemblyMachinePowerFor(state, recipe) : 0);
+    return total + (recipe && !isSmeltingRecipe(recipe) && !recipePausedFor(state, recipeKey) ? count * assemblyMachinePowerFor(state, recipe) : 0);
   }, 0);
-  const furnacePower = state.furnaceVariant === 'electric-furnace' ? smeltingFurnaceCountFor(state) * electricFurnacePowerKw : 0;
-  const miningPower = state.machineVariants.mining === 'electric-mining-drill' ? burnerMinerCount(state) * miningMachinePowerFor(state) : 0;
+  const activeSmeltingFurnaceCount = Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => total + (recipePausedFor(state, recipeKey) ? 0 : state.assemblers[recipeKey] ?? 0), 0);
+  const furnacePower = state.furnaceVariant === 'electric-furnace' ? activeSmeltingFurnaceCount * electricFurnacePowerKw : 0;
+  const activeElectricMinerCount = burnerMinerKeys.reduce((total, key) => total + (miningPausedFor(state, key) ? 0 : state.miners[key]), 0);
+  const miningPower = state.machineVariants.mining === 'electric-mining-drill' ? activeElectricMinerCount * miningMachinePowerFor(state) : 0;
   return (state.labs * labPowerKw + assemblerPower + furnacePower + miningPower) / 1000;
 };
 const electricPowerRatioFor = (state: GameState, seconds = 1) => {
@@ -618,6 +622,8 @@ const productionMachineLoadDetailFor = (state: GameState) => [
   chemicalPlantCountFor(state) > 0 ? `${chemicalPlantPowerKw} kW per Chemical Plant` : '',
 ].filter(Boolean).join(' · ') || `${assemblyMachinePowerFor(state)} kW per assembly machine`;
 const quantityFor = (state: GameState, key: TrackedKey) => rawKeys.includes(key as RawKey) ? state.raw[key as RawKey] : state.products[key] ?? 0;
+const recipePausedFor = (state: GameState, recipeKey: string) => state.pausedRecipes?.[recipeKey] === true;
+const miningPausedFor = (state: GameState, key: RawKey) => state.pausedMining?.[key] === true;
 const hasInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>) => Object.entries(inputs).every(([key, value]) => quantityFor(state, key) >= (value ?? 0));
 const spendInputs = (state: GameState, inputs: Partial<Record<TrackedKey, number>>, consumption?: Record<TrackedKey, number>) => {
   Object.entries(inputs).forEach(([key, value]) => {
@@ -730,7 +736,7 @@ const recipeCycleRateFor = (state: GameState, recipe: Recipe) => cyclesPerMinute
   state.simulationSpeed,
   recipe.energyRequired,
   craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state, recipe), furnaceCraftingSpeedFor(state)),
-) * (recipeAutoStartStopConditionFor(state, recipe).met ? 1 : 0);
+) * (recipePausedFor(state, recipe.name) || !recipeAutoStartStopConditionFor(state, recipe).met ? 0 : 1);
 const miningOutputRateFor = (state: GameState, key: RawKey) => {
   const base = miningOutputPerSecondFor(key);
   const machineSpeedRatio = burnerMinerKeys.includes(key) ? miningMachineProductionSpeedFor(state) / burnerMiningDrillProductionSpeed : 1;
@@ -740,6 +746,7 @@ const miningBaseProductionRateFor = (state: GameState, key: RawKey) =>
   miningMachineCountFor(state, key) * miningOutputRateFor(state, key) * 60 * state.simulationSpeed;
 const coalAvailableAfterBoilersFor = (state: GameState) => Math.max(0, state.raw.coal - boilerCoalUsageFor(state));
 const miningProductionRateFor = (state: GameState, key: RawKey) => {
+  if (miningPausedFor(state, key)) return 0;
   if (key === 'coal') return Math.max(0, miningBaseProductionRateFor(state, key) - (miningUsesStoredCoal(state) ? state.miners.coal * burnerMiningDrillCoalPerSecond * 60 * state.simulationSpeed : 0));
   const fuelRatio = fueledBurnerMinerCount(state) ? Math.min(1, coalAvailableAfterBoilersFor(state) / Math.max(0.01, burnerMinerCoalRate(state) * 60 * state.simulationSpeed)) : 1;
   return miningBaseProductionRateFor(state, key) * (fueledBurnerMinerKeys.includes(key) ? fuelRatio : 1);
@@ -950,6 +957,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     assemblers: { ...previous.assemblers }, oilProcessingAdvanced: previous.oilProcessingAdvanced, boilers: previous.boilers, boilersEnabled: previous.boilersEnabled, steamEngines: previous.steamEngines, solarPanels: previous.solarPanels, accumulators: previous.accumulators, machineVariants: { ...previous.machineVariants }, miningProgress: { ...previous.miningProgress }, assemblyProgress: { ...previous.assemblyProgress }, manualOutputEvents: { ...previous.manualOutputEvents },
     researchProgress: { ...(previous.researchProgress ?? {}) }, autoResearch: [...(previous.autoResearch ?? [])], researchNotifications: [...(previous.researchNotifications ?? [])], milestoneNotifications: [...(previous.milestoneNotifications ?? [])], unlockedMilestones: [...(previous.unlockedMilestones ?? [])],
     rateHistory: previous.rateHistory ?? [],
+    pausedRecipes: { ...previous.pausedRecipes }, pausedMining: { ...previous.pausedMining },
     handcraft: previous.handcraft ? { ...previous.handcraft } : null, manualMining: previous.manualMining ? { ...previous.manualMining } : null,
     queue: previous.queue.map((item) => ({ ...item, costs: item.costs?.map((cost) => ({ ...cost })), reserved: item.reserved ? [...item.reserved] : undefined })),
     research: [...previous.research], produced: { ...previous.produced }, lastSeen: now,
@@ -984,7 +992,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
   }
   rawKeys.forEach((key) => {
     const count = miningMachineCountFor(state, key);
-    if (!count) return;
+    if (!count || miningPausedFor(state, key)) return;
     const minerSeconds = fueledBurnerMinerKeys.includes(key) ? operatingSeconds : seconds;
       const outputRate = key === 'coal' && miningUsesStoredCoal(state) ? miningOutputRateFor(state, key) - burnerMiningDrillCoalPerSecond : miningOutputRateFor(state, key);
     state.miningProgress[key] += count * outputRate * minerSeconds * speed * (offline ? 1 : miningStorageThrottleFor(state, key));
@@ -996,7 +1004,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
   });
   componentKeys.forEach((key) => {
     const count = state.assemblers[key] ?? 0;
-    if (!count) return;
+    if (!count || recipePausedFor(state, key)) return;
     const recipe = recipeMap[key];
     const machinePowerRatio = isSmeltingRecipe(recipe) && state.furnaceVariant !== 'electric-furnace' ? 1 : powerRatio;
     const storageThrottle = offline ? 1 : recipeStorageThrottleFor(state, recipe, machinePowerRatio);
@@ -1248,6 +1256,8 @@ function loadState() {
       handcraft: parsed.handcraft ? { ...parsed.handcraft } : null,
       manualMining: parsed.manualMining ? { ...parsed.manualMining } : null,
        manualOutputEvents: { ...initialState.manualOutputEvents, ...parsed.manualOutputEvents },
+       pausedRecipes: { ...initialState.pausedRecipes, ...parsed.pausedRecipes },
+       pausedMining: { ...initialState.pausedMining, ...parsed.pausedMining },
       produced: (() => {
         const produced = { ...initialState.produced, ...parsed.produced };
         if (parsed.produced?.researchPack !== undefined && parsed.produced?.productionPack === undefined) produced.productionPack = parsed.produced.researchPack;
@@ -1901,6 +1911,10 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
 }
 
 function MiningPage({ state, setState, enqueue, notice, cancelConstruction, constructionVisualTiming }: PageProps) {
+  const toggleMiningPause = (key: RawKey) => setState((s) => ({
+    ...s,
+    pausedMining: { ...s.pausedMining, [key]: !miningPausedFor(s, key) },
+  }));
   const tap = (key: RawKey) => {
     if (!manualMiningKeys.includes(key)) return notice(`${rawInfo[key].label} requires a machine`);
     if (state.manualMining) return notice(state.manualMining.resourceKey === key ? `already mining ${rawInfo[key].label.toLowerCase()}` : `finish mining ${rawInfo[state.manualMining.resourceKey].label.toLowerCase()} first`);
@@ -1941,6 +1955,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
         const coalSelfFueled = key === 'coal' && miningUsesStoredCoal(state);
         const coalElectric = key === 'coal' && !miningUsesStoredCoal(state);
         const usesFuel = isBurnerOre && !coalSelfFueled && miningUsesStoredCoal(state);
+         const paused = miningPausedFor(state, key);
         const fuelRate = usesFuel ? count * burnerMiningDrillCoalPerSecond : 0;
         const autonomous = count > 0;
         const productionRate = miningActualProductionRateFor(state, key);
@@ -1968,7 +1983,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
               <div className="flex items-start justify-between gap-2">
                 <h2 className="truncate text-[13px] font-extrabold">{info.label}</h2>
                   <div className="flex shrink-0 items-center gap-2">
-                  {locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <Tag><span className="status-dot status-running" /> auto</Tag> : <Tag tone="amber">manual</Tag>}
+                  {locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <button type="button" onClick={() => { toggleMiningPause(key); notice(paused ? `${info.label} mining resumed` : `${info.label} mining paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : 'tag-running'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${info.label} mining`} title={paused ? 'Resume automatic mining' : 'Pause automatic mining'} data-testid={`button-toggle-pause-mining-${key}`}>{paused ? 'PAUSED' : <><span className="status-dot status-running" /> auto</>}</button> : <Tag tone="amber">manual</Tag>}
                   {!manualOnly && <div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${machineLabel} count`}>
                     <MiningBuildingIcon resource={key} machineVariant={state.machineVariants.mining} />
                     <span className="mono text-[13px]">{count}</span>
@@ -2054,6 +2069,10 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
     });
     notice(`handcrafting ${prettyLabel(outputs[0]?.key ?? recipe.name)}`);
   };
+  const toggleRecipePause = (key: ComponentKey) => setState((s) => ({
+    ...s,
+    pausedRecipes: { ...s.pausedRecipes, [key]: !recipePausedFor(s, key) },
+  }));
   const buildProductionUnit = (key: ComponentKey) => {
     const recipe = recipeMap[key];
     if (isSmeltingRecipe(recipe)) {
@@ -2099,6 +2118,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
       const netRate = productionRate - demandRate;
       const smelting = isSmeltingRecipe(recipe);
        const autoCondition = recipeAutoStartStopConditionFor(state, recipe);
+       const paused = recipePausedFor(state, key);
        const building = productionBuildingFor(state, recipe);
        const buildingLabel = smelting ? currentFurnaceLabel : productionMachineLabelFor(state, recipe);
       const buildingAction: QueueItem['action'] = smelting ? 'furnace' : 'assembler';
@@ -2114,7 +2134,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
         <div className="flex items-start gap-3">
           <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
           <div className="min-w-0 flex-1">
-             <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <Tag tone={autoCondition.met ? 'teal' : 'amber'}>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</Tag> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
+              <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <button type="button" onClick={() => { toggleRecipePause(key); notice(paused ? `${prettyLabel(key)} resumed` : `${prettyLabel(key)} paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : autoCondition.met ? 'tag-running' : 'tag-starved'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${prettyLabel(key)}`} title={paused ? 'Resume automatic production' : 'Pause automatic production'} data-testid={`button-toggle-pause-production-${key}`}>{paused ? 'PAUSED' : <>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</>}</button> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
             <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle · {buildingLabel}</div>
              <div className="mt-1 flex flex-wrap gap-1"><Tag tone={recipeScienceChainFor(recipe, spaceScienceUnlocked) === 'Core' ? 'teal' : 'muted'}>{recipeScienceChainFor(recipe, spaceScienceUnlocked)}</Tag>{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
           </div>
@@ -2127,7 +2147,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
             {outputs.map(({ key: outputKey, amount }, index) => <span className="resource-chip" style={{ borderColor: `${meta[outputKey].color}66` }} key={`${outputKey}-${index}`}><ResourceIcon item={outputKey} size={17} /><strong>{amountLabel(amount)}</strong> {meta[outputKey].short}</span>)}
           </div>
         </div>
-        {autoCondition.label && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-auto-condition-${key}`}><div className="flex items-center justify-between gap-2 text-[10px]"><span className="eyebrow text-[hsl(var(--primary))]">Auto start / stop</span><Tag tone={autoCondition.met ? 'teal' : 'amber'}>{autoCondition.met ? 'running' : 'stopped'}</Tag></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Runs when <span className="font-semibold text-[hsl(var(--foreground))]">{autoCondition.label}</span>.</div></div>}
+         {autoCondition.label && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-auto-condition-${key}`}><div className="flex items-center justify-between gap-2 text-[10px]"><span className="eyebrow text-[hsl(var(--primary))]">Auto start / stop</span><Tag tone={paused ? 'amber' : autoCondition.met ? 'teal' : 'amber'}>{paused ? 'paused' : autoCondition.met ? 'running' : 'stopped'}</Tag></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{paused ? 'Paused manually. Click PAUSED above to resume.' : <>Runs when <span className="font-semibold text-[hsl(var(--foreground))]">{autoCondition.label}</span>.</>}</div></div>}
          {smelting && recipe.fuel && state.furnaceVariant !== 'electric-furnace' && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
          <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} manualOutputEvent={primaryOutput ? state.manualOutputEvents[primaryOutput.key] ?? 0 : 0} />
           <div className="mt-4 flex gap-2">{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-${count ? 'build-more' : 'build'}-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> {count ? 'queued · build another' : 'queued'}</> : <><Hammer size={13} /> {count ? 'construct another' : 'construct'}</>}</button></div>
