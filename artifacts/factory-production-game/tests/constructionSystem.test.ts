@@ -4,6 +4,7 @@ import {
   activateReadyConstruction,
   constructionRequestReady,
   constructionCanBeFullyFunded,
+  constructionDurationFor,
   constructionTickCountFor,
   constructionVisualDurationMsFor,
   constructionVisualProgressFor,
@@ -178,4 +179,12 @@ test('construction visual timing starts at zero and ends on the simulation compl
   assert.equal(constructionVisualProgressFor(1000, 1000, 9250), 0);
   assert.equal(constructionVisualProgressFor(10250, 1000, 9250), 100);
   assert.equal(constructionVisualProgressFor(11000, 1000, 9250), 100);
+});
+
+test('construction batches use worker robot speed while preserving single-building time', () => {
+  assert.equal(constructionDurationFor(10, 1, 0), 10);
+  assert.equal(constructionDurationFor(10, 10, 0), 100);
+  assert.equal(constructionDurationFor(10, 10, 1), 50);
+  assert.equal(constructionDurationFor(10, 100, 9), 250);
+  assert.equal(constructionDurationFor(10, 1, 100), 10);
 });

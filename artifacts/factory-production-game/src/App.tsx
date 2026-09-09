@@ -6,7 +6,7 @@ import { technologyCatalog, type TechnologyDefinition } from './technologyCatalo
 import { technologyOrder } from './technologyOrder';
 import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
 import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, electricFurnaceCraftingSpeed, electricFurnacePowerKw, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
-import { activateReadyConstruction, constructionCanBeFullyFunded, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
+import { activateReadyConstruction, constructionCanBeFullyFunded, constructionDurationFor, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import {
   OIL_PROCESSING_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
@@ -86,6 +86,7 @@ type GameState = {
   oilProcessingAdvanced: boolean;
   labs: number;
   labSpeedLevel: number;
+  workerRobotSpeedLevel: number;
   boilers: number;
   boilersEnabled: boolean;
   steamEngines: number;
@@ -461,7 +462,7 @@ const initialState: GameState = {
   oilProcessingAdvanced: false,
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0,
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
   totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, tutorialVisible: true, welcomeSeen: false,
 };
 
@@ -713,6 +714,7 @@ const researchTriggerMet = (state: GameState, technology: TechnologyDefinition) 
 const markResearchComplete = (state: GameState, technology: TechnologyDefinition) => {
   if (state.research.includes(technology.name)) return;
   state.research.push(technology.name);
+  if (technology.name.startsWith('worker-robots-speed-')) state.workerRobotSpeedLevel += 1;
   if (!state.researchNotifications.includes(technology.name)) state.researchNotifications.push(technology.name);
   const researchMilestone = technology.name === 'rocket-silo'
     ? 'rocket-silo'
@@ -1228,6 +1230,10 @@ function loadState() {
       return total + (typeof count === 'number' && Number.isFinite(count) ? Math.max(0, count) : 0);
     }, 0);
     const normalizedResearch = Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key)))));
+    const researchedWorkerRobotSpeedLevels = normalizedResearch.filter((key) => key.startsWith('worker-robots-speed-')).length;
+    const savedWorkerRobotSpeedLevel = typeof parsed.workerRobotSpeedLevel === 'number' && Number.isFinite(parsed.workerRobotSpeedLevel)
+      ? Math.max(0, Math.floor(parsed.workerRobotSpeedLevel))
+      : 0;
     const migratedMilestones = migrateMilestoneState({
       welcomeSeen: parsed.welcomeSeen,
       unlockedMilestones: parsed.unlockedMilestones,
@@ -1262,6 +1268,7 @@ function loadState() {
       assemblers: { ...initialState.assemblers, ...parsed.assemblers },
       labs: savedLabCount,
       accumulators: savedAccumulatorCount,
+       workerRobotSpeedLevel: Math.max(researchedWorkerRobotSpeedLevels, savedWorkerRobotSpeedLevel),
       boilersEnabled: parsed.boilersEnabled !== false,
       miningProgress: { ...initialState.miningProgress, ...parsed.miningProgress },
       assemblyProgress: { ...initialState.assemblyProgress, ...parsed.assemblyProgress },
@@ -3357,7 +3364,7 @@ function Game() {
     if (action === 'rocketSilo' && !canBuildRocketSilo(s.rocketSiloBuilt, s.queue.some((item) => item.action === 'rocketSilo'))) return s;
     if (action === 'rocketParts' && (!s.rocketSiloBuilt || s.rocketPartsBuilt >= ROCKET_PART_TARGET || s.queue.some((item) => item.action === 'rocketParts'))) return s;
     const quantity = normalizeConstructionBatchSize(requestedQuantity);
-    const totalSeconds = seconds * quantity;
+    const totalSeconds = constructionDurationFor(seconds, quantity, s.workerRobotSpeedLevel);
     const requestCosts = costs?.map((cost) => ({ ...cost, amount: cost.amount * quantity }));
     const affordable = !requestCosts?.length || constructionCanBeFullyFunded({ raw: s.raw, products: s.products }, requestCosts);
     if (!affordable && hasWaitingConstruction(s.queue, action, targetId)) return s;

@@ -34,6 +34,21 @@ export const constructionRequestReady = (item: ConstructionQueueItem) =>
 export const constructionTickCountFor = (total: number) =>
   Math.max(1, Math.ceil(Math.max(0, total) - EPSILON));
 
+export const constructionDurationFor = (
+  singleBuildingSeconds: number,
+  quantity: number,
+  workerRobotSpeedLevel: number,
+) => {
+  const singleBuildingTime = Math.max(0, singleBuildingSeconds);
+  const buildingQuantity = Math.max(1, quantity);
+  const speedLevel = Math.max(0, workerRobotSpeedLevel);
+  const workerRobotDivisor = Math.sqrt(speedLevel) + 1;
+  return Math.max(
+    singleBuildingTime,
+    buildingQuantity * singleBuildingTime / workerRobotDivisor,
+  );
+};
+
 export const constructionVisualDurationMsFor = (total: number, millisecondsUntilNextTick: number) =>
   Math.max(0, millisecondsUntilNextTick) + Math.max(0, constructionTickCountFor(total) - 1) * 1000;
 
