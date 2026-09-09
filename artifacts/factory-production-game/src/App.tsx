@@ -8,6 +8,7 @@ import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForR
 import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, electricFurnaceCraftingSpeed, electricFurnacePowerKw, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, constructionCanBeFullyFunded, constructionDurationFor, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
+import { miningPowerRatioFor } from './miningSystem';
 import {
   OIL_PROCESSING_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
   migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeInstalledFor, upgradeMap,
@@ -973,6 +974,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
   const speed = state.simulationSpeed;
   const powerFlow = powerFlowFor(state, seconds);
   const powerRatio = electricPowerRatioFor(state, seconds);
+  const miningPowerRatio = miningPowerRatioFor(state.machineVariants.mining, powerRatio);
   if (powerFlow.boilerCoalConsumed > 0) {
     state.raw.coal = Math.max(0, state.raw.coal - powerFlow.boilerCoalConsumed);
     liveConsumption.coal += powerFlow.boilerCoalConsumed;
@@ -1003,7 +1005,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     if (!count || miningPausedFor(state, key)) return;
     const minerSeconds = fueledBurnerMinerKeys.includes(key) ? operatingSeconds : seconds;
       const outputRate = key === 'coal' && miningUsesStoredCoal(state) ? miningOutputRateFor(state, key) - burnerMiningDrillCoalPerSecond : miningOutputRateFor(state, key);
-    state.miningProgress[key] += count * outputRate * minerSeconds * speed * (offline ? 1 : miningStorageThrottleFor(state, key));
+    state.miningProgress[key] += count * outputRate * minerSeconds * speed * (offline ? 1 : miningStorageThrottleFor(state, key)) * miningPowerRatio;
     while (state.miningProgress[key] >= 1) {
       const accepted = addTracked(state, key, 1);
       if (accepted < 1 - 0.000001) { state.miningProgress[key] = 0; break; }
