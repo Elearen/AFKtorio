@@ -1200,7 +1200,7 @@ function loadState() {
     if (!parsed) return { state: initialState, away: 0, recovered: 0 };
     const savedRateHistory = parsed.rateHistory ?? [];
     const hasRateSourceData = savedRateHistory.every((sample) => sample.manualProduction !== undefined);
-    const migratedUpgradeState = migrateMachineUpgradeState({ machineVariants: parsed.machineVariants, queue: parsed.queue });
+    const migratedUpgradeState = migrateMachineUpgradeState({ machineVariants: parsed.machineVariants, labSpeedLevel: parsed.labSpeedLevel, queue: parsed.queue });
     const savedLabCount = typeof parsed.labs === 'number' && Number.isFinite(parsed.labs) ? Math.max(0, Math.floor(parsed.labs)) : initialState.labs;
     const savedAccumulatorCount = typeof parsed.accumulators === 'number' && Number.isFinite(parsed.accumulators) ? Math.max(0, Math.floor(parsed.accumulators)) : initialState.accumulators;
     const normalizedStorage = (() => {
