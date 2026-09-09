@@ -28,7 +28,7 @@ import { formatWinDuration, winMetricsFor, type WinMetrics } from './endgameMetr
 import { primaryOutputFor } from './productionOutput';
 import { prioritizeDisplayOrder } from './displayOrder';
 import {
-  Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
+  Activity, ArrowRight, BatteryCharging, Bot, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
   Info, Layers3, Lightbulb, LockKeyhole, Pickaxe, Plus, Power, Rocket,
   RotateCcw, Save, Settings2, ShieldAlert, Sparkles, Sun, Trash2,
@@ -1227,6 +1227,7 @@ function loadState() {
       const count = parsed.assemblers?.[recipeKey];
       return total + (typeof count === 'number' && Number.isFinite(count) ? Math.max(0, count) : 0);
     }, 0);
+    const normalizedResearch = Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key)))));
     const migratedMilestones = migrateMilestoneState({
       welcomeSeen: parsed.welcomeSeen,
       unlockedMilestones: parsed.unlockedMilestones,
@@ -1269,7 +1270,7 @@ function loadState() {
        manualOutputEvents: { ...initialState.manualOutputEvents, ...parsed.manualOutputEvents },
        pausedRecipes: { ...initialState.pausedRecipes, ...parsed.pausedRecipes },
        pausedMining: { ...initialState.pausedMining, ...parsed.pausedMining },
-      constructionBatchSize: normalizeConstructionBatchSize(parsed.constructionBatchSize),
+       constructionBatchSize: normalizedResearch.includes('construction-robotics') ? normalizeConstructionBatchSize(parsed.constructionBatchSize) : 1,
       produced: (() => {
         const produced = { ...initialState.produced, ...parsed.produced };
         if (parsed.produced?.researchPack !== undefined && parsed.produced?.productionPack === undefined) produced.productionPack = parsed.produced.researchPack;
@@ -1294,7 +1295,7 @@ function loadState() {
         const costs = legacyUpgradeCostsFor(item as QueueItem);
         return costs ? { ...normalizedItem, costs, reserved: costs.map((cost) => cost.amount) } : normalizedItem;
       }) as QueueItem[]),
-      research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
+       research: normalizedResearch,
       currentResearch: parsed.currentResearch ? normalizeResearchKey(String(parsed.currentResearch)) : initialState.currentResearch,
       researchSelected: parsed.researchSelected === true,
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
@@ -1525,13 +1526,14 @@ function Shell({ children, state }: { children: ReactNode; state: GameState }) {
   </div>;
 }
 
-function ConstructionBatchToggle({ value, onChange }: { value: ConstructionBatchSize; onChange: (value: ConstructionBatchSize) => void }) {
-  const currentIndex = constructionBatchSizes.indexOf(value);
+function ConstructionBatchToggle({ value, onChange, enabled }: { value: ConstructionBatchSize; onChange: (value: ConstructionBatchSize) => void; enabled: boolean }) {
+  const currentValue = enabled ? value : 1;
+  const currentIndex = constructionBatchSizes.indexOf(currentValue);
   const nextValue = constructionBatchSizes[(currentIndex + 1) % constructionBatchSizes.length] ?? constructionBatchSizes[0];
-  return <button type="button" onClick={() => onChange(nextValue)} className="button-base button-primary !px-3 !py-2 text-[10px] whitespace-nowrap" aria-label={`Build ${value} at a time. Tap to switch to Build ${nextValue}`} title={`Tap to switch to Build ${nextValue}`} data-testid="button-construction-batch"><Hammer size={13} /> Build x{value}</button>;
+  return <button type="button" disabled={!enabled} onClick={() => { if (enabled) onChange(nextValue); }} className={`button-base !px-3 !py-2 text-[10px] whitespace-nowrap ${enabled ? 'button-primary' : 'button-ghost cursor-not-allowed opacity-70'}`} aria-label={enabled ? `Build ${currentValue} at a time. Tap to switch to Build ${nextValue}` : 'Build x1. Unlock Construction Robotics to change the build quantity'} title={enabled ? `Tap to switch to Build ${nextValue}` : 'Unlock Construction Robotics to change the build quantity'} data-testid="button-construction-batch">{enabled && <Bot size={13} />} Build x{currentValue}</button>;
 }
-function Header({ eyebrow, title, copy, action, constructionBatchSize, onConstructionBatchSizeChange }: { eyebrow: string; title: string; copy: string; action?: ReactNode; constructionBatchSize?: ConstructionBatchSize; onConstructionBatchSizeChange?: (value: ConstructionBatchSize) => void }) {
-  return <div className="mb-6 enter"><div className="eyebrow flex items-center gap-2 text-[hsl(var(--primary))]"><span className="h-px w-5 bg-[hsl(var(--primary))]" />{eyebrow}</div><div className="flex items-center justify-between gap-3"><h1 className="mt-2 min-w-0 text-[clamp(1.65rem,4vw,2.5rem)] font-extrabold tracking-[-.04em]">{title}</h1>{constructionBatchSize !== undefined && onConstructionBatchSizeChange && <ConstructionBatchToggle value={constructionBatchSize} onChange={onConstructionBatchSizeChange} />}</div><div className="mt-1 flex flex-col items-start gap-3"><p className="max-w-2xl text-[12px] text-[hsl(var(--muted-foreground))]">{copy}</p>{action && <div className="flex flex-wrap items-center justify-start gap-2">{action}</div>}</div></div>;
+function Header({ eyebrow, title, copy, action, constructionBatchSize, onConstructionBatchSizeChange, constructionRoboticsUnlocked = false }: { eyebrow: string; title: string; copy: string; action?: ReactNode; constructionBatchSize?: ConstructionBatchSize; onConstructionBatchSizeChange?: (value: ConstructionBatchSize) => void; constructionRoboticsUnlocked?: boolean }) {
+  return <div className="mb-6 enter"><div className="eyebrow flex items-center gap-2 text-[hsl(var(--primary))]"><span className="h-px w-5 bg-[hsl(var(--primary))]" />{eyebrow}</div><div className="flex items-center justify-between gap-3"><h1 className="mt-2 min-w-0 text-[clamp(1.65rem,4vw,2.5rem)] font-extrabold tracking-[-.04em]">{title}</h1>{constructionBatchSize !== undefined && onConstructionBatchSizeChange && <ConstructionBatchToggle value={constructionBatchSize} onChange={onConstructionBatchSizeChange} enabled={constructionRoboticsUnlocked} />}</div><div className="mt-1 flex flex-col items-start gap-3"><p className="max-w-2xl text-[12px] text-[hsl(var(--muted-foreground))]">{copy}</p>{action && <div className="flex flex-wrap items-center justify-start gap-2">{action}</div>}</div></div>;
 }
 function SectionTitle({ children, detail }: { children: ReactNode; detail?: string }) { return <div className="mb-3 flex min-w-0 flex-wrap items-end justify-between gap-x-3 gap-y-1"><span className="eyebrow min-w-0">{children}</span>{detail && <span className="mono min-w-0 max-w-full text-right text-[10px] text-[hsl(var(--muted-foreground))]">{detail}</span>}</div>; }
 function Progress({ value, tone = 'teal', realtime = false }: { value: number; tone?: 'teal' | 'amber' | 'red'; realtime?: boolean }) { return <div className="progress-track"><div className={`progress-fill ${tone === 'amber' ? 'amber' : tone === 'red' ? 'red' : ''}`} style={{ width: `${Math.max(0, Math.min(100, value))}%`, transition: realtime ? 'none' : undefined }} /></div>; }
@@ -1962,7 +1964,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
     enqueue('miner', `${rawInfo[key].label} ${miningMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key, machineCosts, constructionBatchSize);
   };
   return <PageFrame>
-    <Header eyebrow="Raw material control" title="Mining" copy={miningUsesStoredCoal(state) ? "Tap the ground to start. Build burner mining drills to make the ore lines autonomous. Wood remains manual-only, and coal drills offset their own fuel use against the coal they produce." : "Electric mining is online. Your upgraded drills run without coal while wood remains manual-only."} constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} action={<Tag><Pickaxe size={11} /> 8 resource sections</Tag>} />
+    <Header eyebrow="Raw material control" title="Mining" copy={miningUsesStoredCoal(state) ? "Tap the ground to start. Build burner mining drills to make the ore lines autonomous. Wood remains manual-only, and coal drills offset their own fuel use against the coal they produce." : "Electric mining is online. Your upgraded drills run without coal while wood remains manual-only."} constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} constructionRoboticsUnlocked={state.research.includes('construction-robotics')} action={<Tag><Pickaxe size={11} /> 8 resource sections</Tag>} />
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {rawKeys.map((key) => {
         const info = rawInfo[key];
@@ -2108,7 +2110,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
     enqueue('assembler', `${prettyLabel(key)} ${productionMachineLabelFor(state, recipe).toLowerCase()}`, machine.energyRequired, key, machineCosts, constructionBatchSize);
   };
   return <PageFrame>
-    <Header eyebrow="Recipe catalog" title="Production" copy="The attached recipe definitions drive every card below. Search the full line, inspect item and fluid flows, then run recipes manually or with the appropriate production building." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} action={<Tag><Cog size={11} /> {recipeCatalog.length} recipes loaded</Tag>} />
+    <Header eyebrow="Recipe catalog" title="Production" copy="The attached recipe definitions drive every card below. Search the full line, inspect item and fluid flows, then run recipes manually or with the appropriate production building." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} constructionRoboticsUnlocked={state.research.includes('construction-robotics')} action={<Tag><Cog size={11} /> {recipeCatalog.length} recipes loaded</Tag>} />
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
       <div className="flex flex-col gap-2 sm:flex-row">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search recipes, items, or fluids" className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search recipes" data-testid="input-search-recipes" />
@@ -2223,7 +2225,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
       ? <Tag tone="red"><TriangleAlert size={10} /> steam-limited</Tag>
       : statusTag(true, state.steamEngines, steamEngineConstructionItems.length);
   return <PageFrame>
-    <Header eyebrow="Energy network" title="Power" copy="Boilers convert available coal and water into virtual steam. Steam engines consume that steam, so every live rate scales to its limiting input." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{powerLabel(production)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} />
+    <Header eyebrow="Energy network" title="Power" copy="Boilers convert available coal and water into virtual steam. Steam engines consume that steam, so every live rate scales to its limiting input." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} constructionRoboticsUnlocked={state.research.includes('construction-robotics')} action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{powerLabel(production)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} />
     <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
       <div className="surface rounded-xl p-4"><div className="eyebrow">Production</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(production)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">current generation</div></div>
       <div className="surface rounded-xl p-4"><div className="eyebrow">Peak potential</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(potential)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">available at full input</div></div>
@@ -2411,9 +2413,9 @@ function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: P
   </PageFrame>;
 }
 
-function LogisticsPage({ notice, constructionBatchSize, setConstructionBatchSize }: PageProps) {
+function LogisticsPage({ state, notice, constructionBatchSize, setConstructionBatchSize }: PageProps) {
   const entries = [{ title: 'Inserters', copy: 'Short-range item handoff between machines.', icon: ArrowRight }, { title: 'Conveyor belts', copy: 'Continuous item movement across production blocks.', icon: MoveRight }, { title: 'Power lines', copy: 'Extend a power bus beyond the starter block.', icon: Zap }, { title: 'Transport robots', copy: 'On-demand routing for a distributed factory.', icon: Truck }, { title: 'Trains', copy: 'Long-haul bulk transport between distant sectors.', icon: Truck }];
-  return <PageFrame><Header eyebrow="Later-stage systems" title="Logistics" copy="The line is not ready for a freight network yet. These systems are mapped here so future expansion has a clear shape." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} action={<Tag tone="amber"><Clock3 size={11} /> coming later</Tag>} /><section className="surface rounded-xl p-4 sm:p-5"><div className="mb-5 flex items-start gap-3 rounded-xl border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-4"><div className="text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">Later-stage tab</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">These are intentionally visible but non-functional. No fake throughput, no pretend routing — just the systems waiting beyond the first efficient loop.</p></div></div><div className="grid gap-3 sm:grid-cols-2">{entries.map(({ title, copy, icon: Icon }) => <button onClick={() => notice(`${title} is planned for a later stage`)} className="locked-wash flex items-center gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left transition-colors hover:border-[hsl(var(--secondary)/.4)]" key={title} data-testid={`button-logistics-${title.toLowerCase().replace(' ', '-')}`}><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"><Icon size={17} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-[12px] font-bold">{title}<Tag tone="muted"><LockKeyhole size={9} /> later</Tag></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{copy}</p></div><ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" /></button>)}</div></section></PageFrame>;
+  return <PageFrame><Header eyebrow="Later-stage systems" title="Logistics" copy="The line is not ready for a freight network yet. These systems are mapped here so future expansion has a clear shape." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} constructionRoboticsUnlocked={state.research.includes('construction-robotics')} action={<Tag tone="amber"><Clock3 size={11} /> coming later</Tag>} /><section className="surface rounded-xl p-4 sm:p-5"><div className="mb-5 flex items-start gap-3 rounded-xl border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-4"><div className="text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">Later-stage tab</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">These are intentionally visible but non-functional. No fake throughput, no pretend routing — just the systems waiting beyond the first efficient loop.</p></div></div><div className="grid gap-3 sm:grid-cols-2">{entries.map(({ title, copy, icon: Icon }) => <button onClick={() => notice(`${title} is planned for a later stage`)} className="locked-wash flex items-center gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left transition-colors hover:border-[hsl(var(--secondary)/.4)]" key={title} data-testid={`button-logistics-${title.toLowerCase().replace(' ', '-')}`}><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"><Icon size={17} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-[12px] font-bold">{title}<Tag tone="muted"><LockKeyhole size={9} /> later</Tag></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{copy}</p></div><ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" /></button>)}</div></section></PageFrame>;
 }
 
 function UpgradesPage({ state, setState, notice, cancelConstruction, constructionVisualTiming }: PageProps) {
@@ -2823,7 +2825,7 @@ function SciencePage({ state, setState, enqueue, notice, cancelConstruction, con
   const peakLabUsage = activeResearch ? activeResearch.scienceCosts.reduce((total, cost) => total + scienceLabRateFor(state, activeResearch, false) * cost.amount, 0) : 0;
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   return <PageFrame>
-    <Header eyebrow="Research fuel" title="Science" copy="Labs consume every science pack required by the active research. SPM is limited by lab capacity and the tightest available pack line." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><FlaskConical size={17} className="text-[hsl(var(--primary))]" /><span className="mono text-[15px]">{currentSpm.toFixed(1)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">SPM</span></span></div>} />
+    <Header eyebrow="Research fuel" title="Science" copy="Labs consume every science pack required by the active research. SPM is limited by lab capacity and the tightest available pack line." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} constructionRoboticsUnlocked={state.research.includes('construction-robotics')} action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><FlaskConical size={17} className="text-[hsl(var(--primary))]" /><span className="mono text-[15px]">{currentSpm.toFixed(1)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">SPM</span></span></div>} />
     <section className="surface mb-5 rounded-xl p-4 sm:p-5">
        <div className="mb-5 flex items-center justify-between gap-3"><SectionTitle detail={activeResearch ? `${requiredScienceKeys.length} pack types required` : 'select research to run labs'}>Science throughput</SectionTitle></div>
        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
