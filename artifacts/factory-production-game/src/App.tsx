@@ -2246,7 +2246,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
                const ingredientTarget = ingredientNavigationFor(materialKey);
                const chipClass = `resource-chip${ingredientShortfall ? ' input-shortfall' : ''}${ingredientTarget ? ' recipe-ingredient-link' : ''}`;
                return ingredientTarget
-                 ? <button type="button" className={chipClass} title={`Open ${meta[materialKey].label} source`} aria-label={`Open ${meta[materialKey].label} source`} onClick={() => openIngredient(materialKey)} data-testid={`link-ingredient-${materialKey}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</button>
+                 ? <button type="button" className={chipClass} title={`Open ${meta[materialKey].label} source`} aria-label={`Open ${meta[materialKey].label} source`} onClick={() => openIngredient(materialKey)} data-testid={`link-ingredient-${materialKey}-${index}`} key={`${material.name}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</button>
                  : <span className={chipClass} key={`${material.name}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</span>;
              })}
             <ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" />
