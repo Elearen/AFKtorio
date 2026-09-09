@@ -3395,7 +3395,9 @@ function Game() {
     const inventory = refundConstructionMaterials({ raw: s.raw, products: s.products }, item);
     return { ...s, raw: inventory.raw, products: inventory.products, queue: s.queue.filter((queueItem) => queueItem.id !== id) };
   });
-  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize: state.constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: value })), saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
+  const constructionRoboticsUnlocked = state.research.includes('construction-robotics');
+  const constructionBatchSize = constructionRoboticsUnlocked ? state.constructionBatchSize : 1;
+  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 })), saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
   const pageKey = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;
