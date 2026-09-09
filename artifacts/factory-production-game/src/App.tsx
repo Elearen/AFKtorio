@@ -4,7 +4,7 @@ import { recipeCatalog, recipeScienceChainFor, type RecipeCatalogEntry, type Rec
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
-import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
+import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, spaceScienceRecipeMachineCountAfterUnlock, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
 import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, electricFurnaceCraftingSpeed, electricFurnacePowerKw, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, constructionCanBeFullyFunded, constructionDurationFor, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
@@ -1279,7 +1279,13 @@ function loadState() {
       furnaceVariant,
       oilProcessingAdvanced: parsed.oilProcessingAdvanced === true,
       miners: { ...initialState.miners, ...parsed.miners },
-      assemblers: { ...initialState.assemblers, ...parsed.assemblers },
+       assemblers: (() => {
+         const assemblers = { ...initialState.assemblers, ...parsed.assemblers };
+         if (normalizedResearch.includes('space-science-pack')) {
+           assemblers['space-science-pack'] = spaceScienceRecipeMachineCountAfterUnlock(assemblers['space-science-pack'] ?? 0);
+         }
+         return assemblers;
+       })(),
       labs: savedLabCount,
       accumulators: savedAccumulatorCount,
        workerRobotSpeedLevel: Math.max(researchedWorkerRobotSpeedLevels, savedWorkerRobotSpeedLevel),
@@ -3452,7 +3458,16 @@ function Game() {
     setEndgameModal('game-complete');
   };
   const finishGame = () => {
-    setState((s) => ({ ...s, gameComplete: true, research: unlockSpaceScienceAfterLaunch(s.research), researchNotifications: queueSpaceScienceNotification(s.researchNotifications) }));
+    setState((s) => ({
+      ...s,
+      gameComplete: true,
+      research: unlockSpaceScienceAfterLaunch(s.research),
+      assemblers: {
+        ...s.assemblers,
+        'space-science-pack': spaceScienceRecipeMachineCountAfterUnlock(s.assemblers['space-science-pack'] ?? 0),
+      },
+      researchNotifications: queueSpaceScienceNotification(s.researchNotifications),
+    }));
     setEndgameModal(null);
   };
   const cancelConstruction = (id: string) => setState((s) => {

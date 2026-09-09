@@ -9,6 +9,7 @@ import {
   rocketPartCountAfterConstruction,
   ROCKET_PART_TARGET,
   scaleRocketCosts,
+  spaceScienceRecipeMachineCountAfterUnlock,
   unlockSpaceScienceAfterLaunch,
 } from '../src/rocketSiloSystem.js';
 
@@ -50,6 +51,12 @@ test('rocket part batch uses the recipe cost and time for exactly 100 parts', ()
 test('launch completion unlocks Space Science exactly once', () => {
   assert.deepEqual(unlockSpaceScienceAfterLaunch(['rocket-silo']), ['rocket-silo', 'space-science-pack']);
   assert.deepEqual(unlockSpaceScienceAfterLaunch(['rocket-silo', 'space-science-pack']), ['rocket-silo', 'space-science-pack']);
+});
+
+test('Space Science unlock starts with one Rocket Silo assigned to its recipe', () => {
+  assert.equal(spaceScienceRecipeMachineCountAfterUnlock(0), 1);
+  assert.equal(spaceScienceRecipeMachineCountAfterUnlock(1), 1);
+  assert.equal(spaceScienceRecipeMachineCountAfterUnlock(3), 3);
 });
 
 test('closing launch statistics queues the Space Science completion notification once', () => {
