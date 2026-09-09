@@ -3547,21 +3547,21 @@ function Game() {
   useEffect(() => {
     const targetId = focusTargetForLocation(location);
     if (!targetId) return;
-    let attempts = 0;
-    let frame = 0;
+    const retryDelays = [0, 80, 180, 350, 700, 1200];
+    const timers: number[] = [];
     const scrollToTarget = () => {
       const target = document.getElementById(targetId);
       if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const headerHeight = document.querySelector('.app-header')?.getBoundingClientRect().height ?? 0;
+        const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - headerHeight - 12);
+        window.scrollTo(0, top);
         return;
       }
-      if (attempts < 12) {
-        attempts += 1;
-        frame = window.requestAnimationFrame(scrollToTarget);
-      }
     };
-    frame = window.requestAnimationFrame(scrollToTarget);
-    return () => window.cancelAnimationFrame(frame);
+    retryDelays.forEach((delay) => {
+      timers.push(window.setTimeout(scrollToTarget, delay));
+    });
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [location]);
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;
