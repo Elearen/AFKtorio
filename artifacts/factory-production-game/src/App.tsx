@@ -344,6 +344,12 @@ const recipeProductKeysForDisplay = (recipe: Recipe) => recipeOutputs(recipe)
   .map((output) => output.key)
   .sort((a, b) => tierForProduct(a) - tierForProduct(b));
 const orderedRecipeCatalog = prioritizeDisplayOrder(recipeCatalog, recipeProductKeysForDisplay, orderedTrackedKeys);
+type IngredientNavigationTarget = { href: '/mining' | '/production'; targetId: string };
+const ingredientNavigationFor = (key: TrackedKey): IngredientNavigationTarget | null => {
+  if (rawKeys.includes(key as RawKey)) return { href: '/mining', targetId: `mining-${key}` };
+  const producer = orderedRecipeCatalog.find((recipe) => recipe.results.some((material) => keyForSource(material.name) === key));
+  return producer ? { href: '/production', targetId: `production-${producer.name}` } : null;
+};
 const scienceKeyForRecipe = Object.fromEntries(
   Object.entries(scienceRecipeKeys).map(([key, recipeName]) => [recipeName, key]),
 ) as Record<string, ScienceKey>;
@@ -475,6 +481,11 @@ const nav = [
   ['research', '/research', Layers3], ['settings', '/settings', Settings2],
 ] as const;
 const tabLabel = (key: string) => key === 'factory' ? 'Dashboard' : key === 'mining' ? 'Mining / Raw' : key.charAt(0).toUpperCase() + key.slice(1);
+const routePathFor = (location: string) => location.split(/[?#]/, 1)[0];
+const focusTargetForLocation = (location: string) => {
+  const query = location.split('?')[1]?.split('#', 1)[0] ?? '';
+  return new URLSearchParams(query).get('focus');
+};
 
 const rawInfo: Record<RawKey, { label: string; description: string; research?: ResearchKey; needs?: string }> = {
   iron: { label: 'Iron', description: 'Reliable ferrous feedstock for the first production tier.' },
@@ -1768,7 +1779,7 @@ function RocketEndgameCard({ state, enqueue, notice, cancelConstruction }: Pick<
     enqueue('rocketParts', `Rocket Parts · ${ROCKET_PART_TARGET}`, rocketPartBatchTimeFor(rocketPartRecipe), 'rocket-part', rocketPartBatchCost);
     notice(`${ROCKET_PART_TARGET} rocket parts queued`);
   };
-  return <article className="relative overflow-hidden rounded-xl border-[3px] border-transparent p-4 shadow-lg sm:p-5 md:col-span-2 xl:col-span-3" style={{ background: 'linear-gradient(145deg, hsl(35 24% 16%), hsl(216 25% 12%)) padding-box, repeating-linear-gradient(135deg, #f5b52e 0 11px, #15181a 11px 22px) border-box' }} data-testid="card-win-factory-planet">
+  return <article id="production-rocket-part" className="relative scroll-mt-24 overflow-hidden rounded-xl border-[3px] border-transparent p-4 shadow-lg sm:p-5 md:col-span-2 xl:col-span-3" style={{ background: 'linear-gradient(145deg, hsl(35 24% 16%), hsl(216 25% 12%)) padding-box, repeating-linear-gradient(135deg, #f5b52e 0 11px, #15181a 11px 22px) border-box' }} data-testid="card-win-factory-planet">
     <div className="relative z-10">
     <div className="flex items-start gap-3">
       <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[hsl(var(--primary)/.55)] bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Rocket size={22} /></div>
@@ -2057,7 +2068,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
         const buildControl = manualOnly ? null : <button onClick={() => build(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${constructionBatchSize} ${machineLabel} for ${info.label}`} data-testid={count ? `button-build-more-${key}` : `button-build-miner-${key}`}>
            {isBuilding ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct' : `construct ${constructionBatchSize}`} <MiningBuildingIcon resource={key} machineVariant={state.machineVariants.mining} size={13} /></>}
         </button>;
-        return <section className={`surface rounded-xl p-4 ${locked ? 'locked-wash opacity-75' : ''}`} key={key} data-testid={`section-mining-${key}`}>
+        return <section id={`mining-${key}`} className={`surface scroll-mt-24 rounded-xl p-4 ${locked ? 'locked-wash opacity-75' : ''}`} key={key} data-testid={`section-mining-${key}`}>
           <div className="flex items-start gap-3">
             <div className="resource-orb">{<ResourceIcon item={key} size={29} />}</div>
             <div className="min-w-0 flex-1">
@@ -2121,14 +2132,16 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
+  const [location, navigate] = useLocation();
+  const focusTarget = focusTargetForLocation(location);
   const automationUnlocked = state.research.includes('automation');
   const currentFurnaceLabel = furnaceLabelFor(state);
   const spaceScienceUnlocked = spaceScienceUnlockedFor(state);
   const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
   const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => !['pumpjack', 'rocket-silo', 'rocket-part'].includes(recipe.name) && recipeIsUnlocked(recipe, state)).filter((recipe) => {
     const matchesQuery = !query.trim() || `${recipe.name} ${recipe.category}`.toLowerCase().includes(query.trim().toLowerCase());
-    return matchesQuery && (category === 'all' || recipe.category === category) && (scienceFilter === 'all' || recipeScienceChainFor(recipe, spaceScienceUnlocked) === scienceFilter);
-  }), [category, query, scienceFilter, state]);
+     return matchesQuery && (category === 'all' || recipe.category === category) && (scienceFilter === 'all' || focusTarget === `production-${recipe.name}` || recipeScienceChainFor(recipe, spaceScienceUnlocked) === scienceFilter);
+   }), [category, focusTarget, query, scienceFilter, state]);
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   const handcraft = (key: ComponentKey) => {
     const recipe = recipeMap[key];
@@ -2154,6 +2167,10 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
     ...s,
     pausedRecipes: { ...s.pausedRecipes, [key]: !recipePausedFor(s, key) },
   }));
+  const openIngredient = (materialKey: TrackedKey) => {
+    const target = ingredientNavigationFor(materialKey);
+    if (target) navigate(`${target.href}?focus=${encodeURIComponent(target.targetId)}`);
+  };
   const buildProductionUnit = (key: ComponentKey) => {
     const recipe = recipeMap[key];
     if (isSmeltingRecipe(recipe)) {
@@ -2211,7 +2228,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
       const handcraftControl = automatedOnly
         ? <button disabled className="button-base flex-1 !py-2 button-ghost cursor-not-allowed opacity-70" aria-label={`${prettyLabel(key)} is automated only`} title={`Automated only — construct a ${buildingLabel} to produce ${prettyLabel(key)}`} data-testid={`button-handcraft-production-${key}`}><LockKeyhole size={13} />automated only</button>
         : <button onClick={() => handcraft(key)} className={`button-base flex-1 !py-2 ${count ? 'button-ghost' : 'button-primary'}`} aria-label={`Handcraft ${prettyLabel(key)}`} title={handcraftJob ? `Handcrafting ${prettyLabel(key)}` : handcraftBusy ? 'Another item is being handcrafted' : `Handcraft ${prettyLabel(key)}`} data-testid={`button-handcraft-production-${key}`}>{handcraftJob ? <><Clock3 size={13} /> {handcraftJob.seconds.toFixed(2)}s</> : handcraftBusy ? <Clock3 size={13} /> : <><Plus size={13} />handcraft</>}</button>;
-       return <section className="surface rounded-xl p-4" key={key} data-testid={`section-production-${key}`}>
+        return <section id={`production-${key}`} className="surface scroll-mt-24 rounded-xl p-4" key={key} data-testid={`section-production-${key}`}>
         <div className="flex items-start gap-3">
           <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
           <div className="min-w-0 flex-1">
@@ -2223,7 +2240,15 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
         <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
           <div className="eyebrow mb-2">Recipe</div>
           <div className="flex flex-wrap items-center gap-1.5">
-             {recipe.ingredients.map((material, index) => { const materialKey = keyForSource(material.name); const ingredientShortfall = quantityFor(state, materialKey) < materialAmount(material); return <span className={`resource-chip${ingredientShortfall ? ' input-shortfall' : ''}`} key={`${material.name}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</span>; })}
+             {recipe.ingredients.map((material, index) => {
+               const materialKey = keyForSource(material.name);
+               const ingredientShortfall = quantityFor(state, materialKey) < materialAmount(material);
+               const ingredientTarget = ingredientNavigationFor(materialKey);
+               const chipClass = `resource-chip${ingredientShortfall ? ' input-shortfall' : ''}${ingredientTarget ? ' recipe-ingredient-link' : ''}`;
+               return ingredientTarget
+                 ? <button type="button" className={chipClass} title={`Open ${meta[materialKey].label} source`} aria-label={`Open ${meta[materialKey].label} source`} onClick={() => openIngredient(materialKey)} data-testid={`link-ingredient-${materialKey}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</button>
+                 : <span className={chipClass} key={`${material.name}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</span>;
+             })}
             <ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" />
             {outputs.map(({ key: outputKey, amount }, index) => <span className="resource-chip" style={{ borderColor: `${meta[outputKey].color}66` }} key={`${outputKey}-${index}`}><ResourceIcon item={outputKey} size={17} /><strong>{amountLabel(amount)}</strong> {meta[outputKey].short}</span>)}
           </div>
@@ -3518,7 +3543,15 @@ function Game() {
   const constructionRoboticsUnlocked = state.research.includes('construction-robotics');
   const constructionBatchSize = constructionRoboticsUnlocked ? state.constructionBatchSize : 1;
   const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 })), saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
-  const pageKey = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
+  const pageKey = nav.find(([key, path]) => path === routePathFor(location))?.[0] ?? 'factory';
+  useEffect(() => {
+    const targetId = focusTargetForLocation(location);
+    if (!targetId) return;
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [location]);
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;
   else if (pageKey === 'production') page = <ProductionPage {...props} />;
