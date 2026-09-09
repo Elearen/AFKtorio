@@ -756,10 +756,10 @@ const miningOutputRateFor = (state: GameState, key: RawKey) => {
 const miningBaseProductionRateFor = (state: GameState, key: RawKey) =>
   miningMachineCountFor(state, key) * miningOutputRateFor(state, key) * 60 * state.simulationSpeed;
 const coalAvailableForBurnerMinersFor = (state: GameState) => Math.max(0, state.raw.coal);
-const miningProductionRateFor = (state: GameState, key: RawKey) => {
+const miningProductionRateFor = (state: GameState, key: RawKey, burnerCoalAvailable?: number) => {
   if (miningPausedFor(state, key)) return 0;
   if (key === 'coal') return Math.max(0, miningBaseProductionRateFor(state, key) - (miningUsesStoredCoal(state) ? state.miners.coal * burnerMiningDrillCoalPerSecond * 60 * state.simulationSpeed : 0));
-  const fuelRatio = burnerMinerFuelRatioFor(coalAvailableForBurnerMinersFor(state), fueledBurnerMinerCount(state));
+  const fuelRatio = burnerMinerFuelRatioFor(burnerCoalAvailable ?? coalAvailableForBurnerMinersFor(state), fueledBurnerMinerCount(state));
   return miningBaseProductionRateFor(state, key) * (fueledBurnerMinerKeys.includes(key) ? fuelRatio : 1);
 };
 const inputFlowPerSecondFor = (state: GameState, key: RawKey) => miningProductionRateFor(state, key) / 60;
@@ -807,14 +807,14 @@ const storageConstrainedFor = (state: GameState, key: TrackedKey) => {
   const capacity = capFor(state, key);
   return capacity > 0 && quantityFor(state, key) >= capacity * 0.95;
 };
-const miningActualProductionRateFor = (state: GameState, key: RawKey) => {
-  const peakRate = miningProductionRateFor(state, key);
+const miningActualProductionRateFor = (state: GameState, key: RawKey, burnerCoalAvailable?: number) => {
+  const peakRate = miningProductionRateFor(state, key, burnerCoalAvailable);
   const requiredRate = demandRateFor(state, key);
   return bufferedActualRateFor(peakRate, quantityFor(state, key), capFor(state, key), requiredRate);
 };
-const miningStorageThrottleFor = (state: GameState, key: RawKey) => {
-  const peakRate = miningProductionRateFor(state, key);
-  return peakRate > 0 ? miningActualProductionRateFor(state, key) / peakRate : 0;
+const miningStorageThrottleFor = (state: GameState, key: RawKey, burnerCoalAvailable?: number) => {
+  const peakRate = miningProductionRateFor(state, key, burnerCoalAvailable);
+  return peakRate > 0 ? miningActualProductionRateFor(state, key, burnerCoalAvailable) / peakRate : 0;
 };
 const peakProductionRateFor = (state: GameState, key: TrackedKey) => {
   let rate = rawKeys.includes(key as RawKey) ? miningProductionRateFor(state, key as RawKey) : 0;
