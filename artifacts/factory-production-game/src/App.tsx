@@ -2223,7 +2223,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
         <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
           <div className="eyebrow mb-2">Recipe</div>
           <div className="flex flex-wrap items-center gap-1.5">
-            {recipe.ingredients.map((material, index) => { const materialKey = keyForSource(material.name); return <span className="resource-chip" key={`${material.name}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</span>; })}
+             {recipe.ingredients.map((material, index) => { const materialKey = keyForSource(material.name); const ingredientShortfall = quantityFor(state, materialKey) < materialAmount(material); return <span className={`resource-chip${ingredientShortfall ? ' input-shortfall' : ''}`} key={`${material.name}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</span>; })}
             <ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" />
             {outputs.map(({ key: outputKey, amount }, index) => <span className="resource-chip" style={{ borderColor: `${meta[outputKey].color}66` }} key={`${outputKey}-${index}`}><ResourceIcon item={outputKey} size={17} /><strong>{amountLabel(amount)}</strong> {meta[outputKey].short}</span>)}
           </div>
