@@ -161,12 +161,12 @@ const orderedTechnologyCatalog = [...normalizedTechnologyCatalog].sort((a, b) =>
 const technologyPrerequisitesMet = (state: GameState, technology: TechnologyDefinition) => technology.prerequisites.every((prerequisite) => state.research.includes(prerequisite));
 const autoResearchTargetFor = (state: GameState) => {
   const selected = new Set(state.autoResearch ?? []);
-  for (const technology of orderedTechnologyCatalog) {
-    if (technology.researchTrigger || !selected.has(technology.name) || state.research.includes(technology.name)) continue;
-    if (!technologyPrerequisitesMet(state, technology)) return undefined;
-    return technology;
-  }
-  return undefined;
+  return orderedTechnologyCatalog.find((technology) =>
+    !technology.researchTrigger
+    && selected.has(technology.name)
+    && !state.research.includes(technology.name)
+    && technologyPrerequisitesMet(state, technology),
+  );
 };
 const activeResearchFor = (state: GameState) => {
   if ((state.autoResearch ?? []).length) return autoResearchTargetFor(state);
