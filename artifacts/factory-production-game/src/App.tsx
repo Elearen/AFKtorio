@@ -1538,6 +1538,24 @@ function Shell({ children, state }: { children: ReactNode; state: GameState }) {
   useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = scrollPositions.current[active] ?? 0;
   }, [active]);
+  useEffect(() => {
+    const targetId = focusTargetForLocation(location);
+    if (!targetId) return;
+    const retryDelays = [0, 80, 180, 350, 700, 1200];
+    const timers: number[] = [];
+    const scrollToTarget = () => {
+      const container = contentRef.current;
+      const target = document.getElementById(targetId);
+      if (!container || !target) return;
+      const top = Math.max(0, target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 12);
+      container.scrollTop = top;
+      container.scrollTo(0, top);
+    };
+    retryDelays.forEach((delay) => {
+      timers.push(window.setTimeout(scrollToTarget, delay));
+    });
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [location]);
   const navigationAlertDescription = (key: string) => key === 'power' && lowPower
     ? 'Low power alert: generation is below factory draw.'
     : key === 'mining' && lowFuel
@@ -3544,32 +3562,6 @@ function Game() {
   const constructionBatchSize = constructionRoboticsUnlocked ? state.constructionBatchSize : 1;
   const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 })), saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
   const pageKey = nav.find(([key, path]) => path === routePathFor(location))?.[0] ?? 'factory';
-  useEffect(() => {
-    const targetId = focusTargetForLocation(location);
-    if (!targetId) return;
-    const retryDelays = [0, 80, 180, 350, 700, 1200];
-    const timers: number[] = [];
-    const scrollToTarget = () => {
-      const target = document.getElementById(targetId);
-      if (target) {
-        const scrollContainer = document.querySelector('main');
-        if (scrollContainer instanceof HTMLElement) {
-          const containerTop = scrollContainer.getBoundingClientRect().top;
-          const top = Math.max(0, target.getBoundingClientRect().top - containerTop + scrollContainer.scrollTop - 12);
-          scrollContainer.scrollTo(0, top);
-        } else {
-          const headerHeight = document.querySelector('.app-header')?.getBoundingClientRect().height ?? 0;
-          const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - headerHeight - 12);
-          window.scrollTo(0, top);
-        }
-        return;
-      }
-    };
-    retryDelays.forEach((delay) => {
-      timers.push(window.setTimeout(scrollToTarget, delay));
-    });
-    return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [location]);
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;
   else if (pageKey === 'production') page = <ProductionPage {...props} />;

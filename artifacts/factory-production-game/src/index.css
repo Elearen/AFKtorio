@@ -136,8 +136,7 @@ button { cursor: pointer; }
 .resource-chip { display: inline-flex; align-items: center; gap: 7px; border: 1px solid hsl(0 0% 8%); border-radius: 2px; padding: 5px 8px; background: hsl(0 0% 13% / .82); color: hsl(var(--muted-foreground)); font-size: 10px; box-shadow: inset 0 1px hsl(0 0% 100% / .04); }
 .resource-chip strong { color: hsl(var(--foreground)); font-family: var(--app-font-mono); font-weight: 500; }
 .resource-chip.input-shortfall { border-color: hsl(0 42% 38% / .72); background: hsl(0 38% 18% / .94); }
-.recipe-ingredient-link { cursor: pointer; font-family: inherit; font-size: 10px; font-weight: 400; line-height: normal; text-align: left; transition: border-color .15s ease, filter .15s ease; }
-.recipe-ingredient-link:hover, .recipe-ingredient-link:focus-visible { border-color: hsl(var(--primary) / .7); filter: brightness(1.12); outline: none; }
+.recipe-ingredient-link { cursor: pointer; font-family: inherit; font-size: 10px; font-weight: 400; line-height: normal; text-align: left; outline: none; -webkit-tap-highlight-color: transparent; }
 .progress-track { height: 7px; border: 1px solid hsl(0 0% 7%); border-radius: 2px; background: hsl(0 0% 10%); overflow: hidden; box-shadow: inset 0 1px hsl(0 0% 0% / .5); }
 .progress-fill { height: 100%; border-radius: 1px; background: linear-gradient(90deg, hsl(88 36% 39%), hsl(88 50% 56%)); transition: width 1s linear; will-change: width; }
 .progress-fill.amber { background: linear-gradient(90deg, hsl(40 72% 39%), hsl(40 96% 61%)); }
