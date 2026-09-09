@@ -1588,6 +1588,37 @@ function PowerMetrics({ production, peakProduction, productionUnit, consumption,
     ].map(metric)}
   </div>;
 }
+function PowerRateSummary({ unitLabel, rows }: { unitLabel: string; rows: Array<{ label: string; perBuilding: number; total: number; tone: string }> }) {
+  const formatRate = (value: number) => value >= 10 ? value.toFixed(1) : value.toFixed(2);
+  return <div className="mt-3 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
+    <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="eyebrow">Current flow</div>
+      <div className="text-[8px] text-[hsl(var(--muted-foreground))]">{unitLabel}</div>
+    </div>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5">
+      <div />
+      <div className="text-right text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">each</div>
+      <div className="text-right text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">total</div>
+      {rows.map(({ label, perBuilding, total, tone }) => <React.Fragment key={label}>
+        <div className="text-[10px] text-[hsl(var(--muted-foreground))]">{label}</div>
+        <div className={`mono text-right text-[11px] ${tone}`}>{formatRate(perBuilding)}</div>
+        <div className={`mono text-right text-[11px] font-semibold ${tone}`}>{formatRate(total)}</div>
+      </React.Fragment>)}
+    </div>
+  </div>;
+}
+function SteamUtilisation({ percent }: { percent: number }) {
+  const boundedPercent = Math.max(0, Math.min(100, percent));
+  return <div className="mt-3 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
+    <div className="flex items-center justify-between gap-2">
+      <div className="eyebrow">Steam utilisation</div>
+      <div className="mono text-[13px] font-semibold text-[hsl(var(--secondary))]">{boundedPercent.toFixed(0)}%</div>
+    </div>
+    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[hsl(var(--border))]" role="progressbar" aria-label="Steam utilisation" aria-valuemin={0} aria-valuemax={100} aria-valuenow={boundedPercent}>
+      <div className="h-full rounded-full bg-[hsl(var(--secondary))] transition-[width]" style={{ width: `${boundedPercent}%` }} />
+    </div>
+  </div>;
+}
 const visualProgressFor = (seconds: number, total: number, leadSeconds = 0) =>
   Math.max(0, Math.min(100, (1 - Math.max(0, seconds - Math.max(0, leadSeconds)) / Math.max(0.0001, total)) * 100));
 function useConstructionVisualProgress(key: string, startedAt: number | undefined, durationMs: number | undefined, fallback: number) {
@@ -2202,6 +2233,14 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
   const boilerCoalStatus = boilerInputStatusFor(state, 'coal');
   const boilerWaterStatus = boilerInputStatusFor(state, 'water');
   const steamEngineSteamStatus = steamEngineInputStatusFor(state);
+  const powerFlow = powerFlowFor(state);
+  const boilerCount = Math.max(1, state.boilers);
+  const steamEngineCount = Math.max(1, state.steamEngines);
+  const boilerCoalRate = powerFlow.boilerCoalConsumed;
+  const boilerWaterRate = powerFlow.boilerWaterConsumed;
+  const boilerSteamRate = powerFlow.steamProduced;
+  const steamEngineSteamRate = powerFlow.steamConsumed;
+  const steamEngineUtilisation = state.steamEngines > 0 && steam ? powerFlow.steamEngineRatio * 100 : 0;
   const boilerInputRatio = boilerOperatingRatioFor(state);
   const boilerConstructionItems = state.queue.filter((item) => item.action === 'boiler');
   const steamEngineConstructionItems = state.queue.filter((item) => item.action === 'steamEngine');
@@ -2244,10 +2283,9 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <article className={`rounded-xl border p-3.5 sm:p-4 ${steam ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-boiler">
           <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="boiler" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Boiler</h2><div className="flex items-center gap-2">{boilerStatusTag}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Boiler count"><ResourceIcon item="boiler" size={17} /><span className="mono text-[13px]">{state.boilers}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Crafting · fuel and water to steam · Boiler</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={steam && boilersEnabled ? 'teal' : 'muted'}>{steam ? boilersEnabled ? 'steam line · enabled' : 'steam line · disabled' : 'research lock'}</Tag>{boilerConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
-            <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Rated process · each boiler</div><div className="grid grid-cols-3 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Water usage</div><div className="mono mt-1 text-[12px] text-[hsl(var(--primary))]">{boilerWaterPerSecond.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">water / sec</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Coal usage</div><div className="mono mt-1 text-[12px] text-[hsl(var(--primary))]">{boilerCoalPerSecond.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / sec</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Steam output</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{boilerSteamPerSecond.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">steam / sec</div></div></div><div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Live production below is capped by whichever input has the smaller funded rate.</div></div>
+             <PowerRateSummary unitLabel="per second" rows={[{ label: 'Coal', perBuilding: boilerCoalRate / boilerCount, total: boilerCoalRate, tone: 'text-[hsl(var(--primary))]' }, { label: 'Water', perBuilding: boilerWaterRate / boilerCount, total: boilerWaterRate, tone: 'text-[hsl(var(--primary))]' }, { label: 'Steam', perBuilding: boilerSteamRate / boilerCount, total: boilerSteamRate, tone: 'text-[hsl(var(--secondary))]' }]} />
            <div className="mt-2 grid gap-2 sm:grid-cols-2"><SupplyStatus label="Coal input" status={boilerCoalStatus} testId="status-power-boiler-coal" /><SupplyStatus label="Water input" status={boilerWaterStatus} testId="status-power-boiler-water" /></div>
           {constructionChips(boilerBuildCost, 'boiler')}
-          <PowerMetrics production={boilerSteamRateFor(state)} peakProduction={boilerPeakSteamRateFor(state)} productionUnit="steam / min" consumption={boilerCoalUsageFor(state) + boilerWaterUsageFor(state)} peakConsumption={boilerPeakCoalUsageFor(state) + boilerPeakWaterUsageFor(state)} consumptionUnit="inputs / min" />
            {steam && state.boilers > 0 && <button onClick={toggleBoilers} className={`button-base mt-4 w-full !py-2 ${boilersEnabled ? 'button-ghost' : 'button-primary'}`} aria-pressed={boilersEnabled} data-testid="button-toggle-boilers"><Power size={13} /> {boilersEnabled ? 'disable boiler production' : 'enable boiler production'}</button>}
             <div className="mt-4 flex gap-2">{steam && state.boilers ? <><button onClick={() => notice(`boilers are producing ${boilerSteamRateFor(state).toFixed(1)} steam / min`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-boiler"><Gauge size={13} /> inspect live rate</button><button onClick={() => buildPowerUnit('boiler')} className={`button-base flex-1 !py-2 ${boilerConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-boiler">{boilerConstructionItems.length ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> construct {constructionBatchSize} <ResourceIcon item="boiler" size={13} /></>}</button></> : <button onClick={() => buildPowerUnit('boiler')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-boiler">{steam ? <><Hammer size={13} /> construct {constructionBatchSize} <ResourceIcon item="boiler" size={13} /></> : <><LockKeyhole size={13} /> requires Steam Power</>}</button>}</div>
             <BuildProgress items={boilerConstructionItems} label="Boiler" cancelConstruction={cancelConstruction} notice={notice} />
