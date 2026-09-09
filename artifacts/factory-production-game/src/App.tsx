@@ -210,6 +210,8 @@ const researchRequirementLabel = (technology: TechnologyDefinition, cost: Techno
         : cost.amount;
   return `${meta[keyForSource(cost.pack)]?.label ?? prettyLabel(cost.pack)} · ${quantity}`;
 };
+const researchCostAmountFor = (technology: TechnologyDefinition, cost: TechnologyDefinition['scienceCosts'][number]) =>
+  cost.amount * researchUnitsFor(technology);
 const manualMiningKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal', 'wood'];
 const burnerMinerKeys: RawKey[] = ['iron', 'copper', 'stone', 'coal'];
 const burnerMiningDrillRecipe = recipeMap['burner-mining-drill'];
@@ -3027,15 +3029,53 @@ function ResearchPage({ state, setState, notice }: PageProps) {
   const activeResearchRate = activeResearchIsLabDriven ? scienceLabRateFor(state, activeResearch) : 0;
   const activeResearchProgress = activeResearch ? researchProgressFor(state, activeResearch) : 0;
   const activeResearchTotal = activeResearch ? researchUnitsFor(activeResearch) : 0;
+  const activeResearchPercent = activeResearch ? researchProgressPercentFor(state, activeResearch) : 0;
   const activeResearchEta = activeResearchIsLabDriven && activeResearchRate > 0 ? Math.max(0, activeResearchTotal - activeResearchProgress) / activeResearchRate * 60 : null;
   return <PageFrame>
     <Header eyebrow="Technology control" title="Research" copy="Select a technology to research with your labs, or mark several for auto research. Checked technologies run one at a time from the top of this official catalog." action={<Tag><Lightbulb size={11} /> {technologyCatalog.length} technologies · {state.research.length} complete</Tag>} />
     <section className="surface mb-5 rounded-xl border-[hsl(var(--secondary)/.45)] bg-[linear-gradient(100deg,hsl(88_25%_16%/.86),hsl(216_25%_13%/.96))] p-4 sm:p-5" data-testid="panel-current-research">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-       <div className="min-w-0"><div className="eyebrow flex items-center gap-2 text-[hsl(var(--secondary))]"><span className="status-dot status-running mini-pulse" /> currently researching</div><div className="mt-2 truncate text-base font-extrabold">{activeResearch ? prettyLabel(activeResearch.name) : 'No active technology'}</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{activeResearch?.researchTrigger ? 'Waiting for its production trigger.' : activeResearch ? `${fmt(activeResearchProgress)} / ${researchUnitsLabelFor(activeResearch)} research units complete.` : 'Select a technology or enable auto research to start a lab target.'}</div></div>
-        <div className="grid grid-cols-2 gap-2 sm:min-w-[260px]"><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Research rate</div><div className="mono mt-1 text-lg text-[hsl(var(--secondary))]">{activeResearchIsLabDriven ? `${activeResearchRate.toFixed(1)} / min` : '—'}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{activeResearch?.researchTrigger ? 'production trigger' : activeResearch ? 'lab units per minute' : 'no active lab target'}</div></div><div className="surface-soft rounded-lg p-3"><div className="eyebrow">Estimated time</div><div className="mono mt-1 text-lg text-[hsl(var(--primary))]">{activeResearchEta === null ? '—' : duration(activeResearchEta)}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{activeResearchEta === null ? (activeResearch?.researchTrigger ? 'waiting for trigger' : 'waiting for science') : 'until completion'}</div></div></div>
-      </div>
-      {activeResearchIsLabDriven && <div className="mt-4"><Progress value={activeResearchProgress / activeResearchTotal * 100} tone="teal" /></div>}
+      {activeResearch ? <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl border border-[hsl(var(--secondary)/.5)] bg-[hsl(216_25%_10%/.86)] p-1 shadow-[0_0_24px_hsl(var(--secondary)/.12)]">
+            <ResearchArt technology={activeResearch} accent={accentFor(activeResearch.name)} />
+          </div>
+          <div className="min-w-0 sm:hidden">
+            <div className="eyebrow flex items-center gap-2 text-[hsl(var(--secondary))]"><span className="status-dot status-running mini-pulse" /> currently researching</div>
+            <h2 className="mt-1 text-base font-extrabold leading-5">{prettyLabel(activeResearch.name)}</h2>
+          </div>
+        </div>
+        <div className="min-w-0">
+          <div className="hidden items-start justify-between gap-3 sm:flex">
+            <div className="min-w-0">
+              <div className="eyebrow flex items-center gap-2 text-[hsl(var(--secondary))]"><span className="status-dot status-running mini-pulse" /> currently researching</div>
+              <h2 className="mt-1 truncate text-lg font-extrabold">{prettyLabel(activeResearch.name)}</h2>
+            </div>
+            <Tag><span className="status-dot status-running mini-pulse" /> active</Tag>
+          </div>
+          <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{activeResearch.researchTrigger ? 'Waiting for its production trigger.' : `${fmt(activeResearchProgress)} / ${researchUnitsLabelFor(activeResearch)} research units complete.`}</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="surface-soft rounded-lg p-3">
+              <div className="flex items-center justify-between gap-2"><div className="eyebrow">Progress</div><div className="mono text-sm font-bold text-[hsl(var(--secondary))]">{activeResearchPercent.toFixed(1)}%</div></div>
+              <div className="mt-2"><Progress value={activeResearchPercent} tone="teal" /></div>
+              <div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{fmt(activeResearchProgress)} / {fmt(activeResearchTotal)} units complete</div>
+            </div>
+            <div className="surface-soft rounded-lg p-3">
+              <div className="eyebrow">Total cost</div>
+              {activeResearch.scienceCosts.length ? <div className="mt-2 flex flex-wrap gap-1.5">{activeResearch.scienceCosts.map((cost) => {
+                const costKey = keyForSource(cost.pack);
+                return <span className="resource-chip !px-1.5 !py-1" key={cost.pack} title={researchRequirementLabel(activeResearch, cost)} aria-label={researchRequirementLabel(activeResearch, cost)}><ResourceIcon item={costKey} size={16} /><span className="mono text-[10px]">{fmt(researchCostAmountFor(activeResearch, cost))}</span></span>;
+              })}</div> : <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">{activeResearch.researchTrigger ? 'Production trigger' : 'No science packs required'}</div>}
+            </div>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="surface-soft rounded-lg p-3"><div className="eyebrow">Research rate</div><div className="mono mt-1 text-lg text-[hsl(var(--secondary))]">{activeResearchIsLabDriven ? `${activeResearchRate.toFixed(1)} / min` : '—'}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{activeResearch.researchTrigger ? 'production trigger' : 'lab units per minute'}</div></div>
+            <div className="surface-soft rounded-lg p-3"><div className="eyebrow">Estimated time</div><div className="mono mt-1 text-lg text-[hsl(var(--primary))]">{activeResearchEta === null ? '—' : duration(activeResearchEta)}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{activeResearchEta === null ? (activeResearch.researchTrigger ? 'waiting for trigger' : 'waiting for science') : 'until completion'}</div></div>
+          </div>
+        </div>
+      </div> : <div className="flex items-center gap-3">
+        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_25%_10%/.8)] text-[hsl(var(--muted-foreground))]"><FlaskConical size={26} /></div>
+        <div className="min-w-0"><div className="eyebrow flex items-center gap-2 text-[hsl(var(--muted-foreground))]"><span className="status-dot status-starved" /> research queue</div><div className="mt-1 text-base font-extrabold">No active technology</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Select a technology or enable auto research to start a lab target.</div></div>
+      </div>}
     </section>
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search technologies, prerequisites, or effects" className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search technologies" data-testid="input-search-technologies" />
