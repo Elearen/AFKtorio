@@ -43,10 +43,10 @@ type ResearchKey = string;
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type UpgradeFilter = 'completed' | 'available' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
-type ConstructionBatchSize = 1 | 10 | 100;
-const constructionBatchSizes = [1, 10, 100] as const;
+type ConstructionBatchSize = 1 | 5 | 10 | 25 | 100;
+const constructionBatchSizes = [1, 5, 10, 25, 100] as const;
 const normalizeConstructionBatchSize = (value: unknown): ConstructionBatchSize =>
-  value === 100 ? 100 : value === 10 ? 10 : 1;
+  value === 100 ? 100 : value === 25 ? 25 : value === 10 ? 10 : value === 5 ? 5 : 1;
 type UnitStatus = 'running' | 'starved' | 'blocked';
 const defaultTechnologyResearchTime = 30;
 type SupplyStatusTone = 'teal' | 'amber' | 'red' | 'muted';
