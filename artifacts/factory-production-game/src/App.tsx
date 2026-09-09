@@ -3052,7 +3052,6 @@ function ResearchPage({ state, setState, notice }: PageProps) {
             </div>
             <Tag><span className="status-dot status-running mini-pulse" /> active</Tag>
           </div>
-          <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{activeResearch.researchTrigger ? 'Waiting for its production trigger.' : `${fmt(activeResearchProgress)} / ${researchUnitsLabelFor(activeResearch)} research units complete.`}</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <div className="surface-soft rounded-lg p-3">
               <div className="flex items-center justify-between gap-2"><div className="eyebrow">Progress</div><div className="mono text-sm font-bold text-[hsl(var(--secondary))]">{activeResearchPercent.toFixed(1)}%</div></div>
@@ -3068,8 +3067,8 @@ function ResearchPage({ state, setState, notice }: PageProps) {
             </div>
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <div className="surface-soft rounded-lg p-3"><div className="eyebrow">Research rate</div><div className="mono mt-1 text-lg text-[hsl(var(--secondary))]">{activeResearchIsLabDriven ? `${activeResearchRate.toFixed(1)} / min` : '—'}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{activeResearch.researchTrigger ? 'production trigger' : 'lab units per minute'}</div></div>
-            <div className="surface-soft rounded-lg p-3"><div className="eyebrow">Estimated time</div><div className="mono mt-1 text-lg text-[hsl(var(--primary))]">{activeResearchEta === null ? '—' : duration(activeResearchEta)}</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">{activeResearchEta === null ? (activeResearch.researchTrigger ? 'waiting for trigger' : 'waiting for science') : 'until completion'}</div></div>
+            <div className="surface-soft rounded-lg p-3"><div className="eyebrow">Research rate</div><div className="mono mt-1 text-lg text-[hsl(var(--secondary))]">{activeResearchIsLabDriven ? `${activeResearchRate.toFixed(1)} / min` : '—'}</div></div>
+            <div className="surface-soft rounded-lg p-3"><div className="eyebrow">Estimated time</div><div className="mono mt-1 text-lg text-[hsl(var(--primary))]">{activeResearchEta === null ? '—' : duration(activeResearchEta)}</div></div>
           </div>
         </div>
       </div> : <div className="flex items-center gap-3">
