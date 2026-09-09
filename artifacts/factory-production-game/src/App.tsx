@@ -973,6 +973,17 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     queue: previous.queue.map((item) => ({ ...item, costs: item.costs?.map((cost) => ({ ...cost })), reserved: item.reserved ? [...item.reserved] : undefined })),
     research: [...previous.research], produced: { ...previous.produced }, lastSeen: now,
   };
+  activateReadyConstruction(state.queue);
+  const completedMiningItems = state.queue.filter((item) =>
+    activeConstructionIds.has(item.id)
+    && item.started !== false
+    && item.seconds <= seconds
+    && item.action === 'miner'
+    && (item.targetId ?? item.target) !== 'wood',
+  );
+  completedMiningItems.forEach((item) => {
+    state.miners[(item.targetId ?? item.target) as RawKey] += item.quantity ?? 1;
+  });
   const speed = state.simulationSpeed;
   const powerFlow = powerFlowFor(state, seconds);
   const powerRatio = electricPowerRatioFor(state, seconds);
@@ -1094,7 +1105,6 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     state.currentResearch = autoResearchTargetFor(state)?.name ?? currentResearch.name;
     researchTargetsProcessed += 1;
   }
-  activateReadyConstruction(state.queue);
   state.queue.forEach((item) => {
     if (item.started === false || item.progressStartedAt !== undefined) return;
     const wasWaiting = previousQueueById.get(item.id)?.started === false;
@@ -1106,7 +1116,6 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
   state.queue = state.queue.map((item) => !activeConstructionIds.has(item.id) || item.started === false ? item : ({ ...item, seconds: Math.max(0, item.seconds - seconds) })).filter((item) => item.started === false || !activeConstructionIds.has(item.id) || item.seconds > 0);
   completed.forEach((item) => {
     const quantity = item.quantity ?? 1;
-    if (item.action === 'miner' && (item.targetId ?? item.target) !== 'wood') state.miners[(item.targetId ?? item.target) as RawKey] += quantity;
     if (item.action === 'pump') state.pumps += quantity;
     if (item.action === 'pumpjack') { state.pumpjacks += quantity; recordProduction(state, 'pumpjack', quantity); }
     if (item.action === 'uraniumMiner') { state.uraniumMiners += quantity; recordProduction(state, 'uranium-miner', quantity); }
