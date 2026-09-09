@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type ReactNode, type SetStateAction } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type ReactNode, type SetStateAction } from 'react';
 import { Link, Router as WouterRouter, useLocation } from 'wouter';
 import { recipeCatalog, recipeScienceChainFor, type RecipeCatalogEntry, type RecipeMaterial, type RecipeScienceChain } from './recipeCatalog';
 import { tierProductCatalog } from './productTierCatalog';
@@ -1599,11 +1599,11 @@ function PowerRateSummary({ unitLabel, rows }: { unitLabel: string; rows: Array<
       <div />
       <div className="text-right text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">each</div>
       <div className="text-right text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">total</div>
-      {rows.map(({ label, perBuilding, total, tone }) => <React.Fragment key={label}>
+      {rows.map(({ label, perBuilding, total, tone }) => <Fragment key={label}>
         <div className="text-[10px] text-[hsl(var(--muted-foreground))]">{label}</div>
         <div className={`mono text-right text-[11px] ${tone}`}>{formatRate(perBuilding)}</div>
         <div className={`mono text-right text-[11px] font-semibold ${tone}`}>{formatRate(total)}</div>
-      </React.Fragment>)}
+      </Fragment>)}
     </div>
   </div>;
 }
@@ -2292,10 +2292,10 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
         </article>
         <article className={`rounded-xl border p-3.5 sm:p-4 ${steam ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-steam-engine">
           <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="steam-engine" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Steam engine</h2><div className="flex items-center gap-2">{steamEngineStatusTag}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Steam engine count"><ResourceIcon item="steam-engine" size={17} /><span className="mono text-[13px]">{state.steamEngines}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Power generation · steam to electricity · Steam engine</p><div className="mt-1 flex flex-wrap gap-1">{steam ? steamEngineStatusTag : <Tag tone="muted">research lock</Tag>}{steamEngineConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
-             <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Rated conversion · each engine</div><div className="grid grid-cols-2 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Steam usage</div><div className="mono mt-1 text-[12px] text-[hsl(var(--primary))]">{steamEngineSteamPerSecond.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">steam / sec</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Power output</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{(steamEnginePowerMw * 1000).toFixed(0)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">kW</div></div></div><div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Live power below is capped by the steam actually produced by the boiler line.</div></div>
+              <PowerRateSummary unitLabel="per second" rows={[{ label: 'Steam', perBuilding: steamEngineSteamRate / steamEngineCount, total: steamEngineSteamRate, tone: 'text-[hsl(var(--primary))]' }]} />
            <div className="mt-2"><SupplyStatus label="Steam input" status={steamEngineSteamStatus} testId="status-power-steam-engine-steam" /></div>
           {constructionChips(steamEngineBuildCost, 'steam-engine')}
-          <PowerMetrics production={steamEnginePowerFor(state)} peakProduction={steamEnginePeakPowerFor(state)} productionUnit="MW" consumption={steamEngineSteamUsageFor(state)} peakConsumption={steamEnginePeakSteamUsageFor(state)} consumptionUnit="steam / min" />
+           <SteamUtilisation percent={steamEngineUtilisation} />
             <div className="mt-4 flex gap-2">{steam && state.steamEngines ? <><button onClick={() => notice(`steam engines are producing ${steamEnginePowerFor(state).toFixed(1)} MW`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-steam-engine"><Gauge size={13} /> inspect live rate</button><button onClick={() => buildPowerUnit('steamEngine')} className={`button-base flex-1 !py-2 ${steamEngineConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-steam-engine">{steamEngineConstructionItems.length ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> construct {constructionBatchSize} <ResourceIcon item="steam-engine" size={13} /></>}</button></> : <button onClick={() => buildPowerUnit('steamEngine')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-steam-engine">{steam ? <><Hammer size={13} /> construct {constructionBatchSize} <ResourceIcon item="steam-engine" size={13} /></> : <><LockKeyhole size={13} /> requires Steam Power</>}</button>}</div>
            <BuildProgress items={steamEngineConstructionItems} label="Steam engine" cancelConstruction={cancelConstruction} notice={notice} />
         </article>
