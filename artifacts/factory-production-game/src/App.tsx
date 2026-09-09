@@ -2719,7 +2719,14 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
           flow={!complete ? <UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} /> : undefined}
           progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId={`panel-upgrade-progress-${item.id}`} cancelUpgrade={cancelActiveUpgrade} /> : undefined}
            meta={<UpgradeMetaGrid prerequisite={item.prerequisiteUpgrade ? `${item.prerequisiteTechnology} + ${upgradeMap[item.prerequisiteUpgrade].name}` : item.prerequisiteTechnology} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? toMachine : fromMachine} size={17} />} />}
-          powerAdvisory={item.id === 'electric-mining-drill' && !complete && machineCount > 0 ? <UpgradePowerAdvisory testId="panel-upgrade-power-electric-miner" machineCount={machineCount} powerDrawKw={item.newMachinePowerDraw} state={state} /> : undefined}
+          powerAdvisory={!complete && machineCount > 0 && (item.id === 'electric-mining-drill' || item.id === 'assembly-machine-2' || item.id === 'assembly-machine-3')
+            ? <UpgradePowerAdvisory
+              testId={`panel-upgrade-power-${item.id}`}
+              machineCount={machineCount}
+              powerDrawKw={item.newMachinePowerDraw}
+              state={state}
+            />
+            : undefined}
           costPerItem={item.upgradeCostPerMachine}
           totalCost={totalCosts}
           timePerMachine={item.upgradeTimePerMachine}
