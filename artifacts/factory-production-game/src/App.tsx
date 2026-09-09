@@ -43,6 +43,10 @@ type ResearchKey = string;
 type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type UpgradeFilter = 'completed' | 'available' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
+type ConstructionBatchSize = 1 | 10 | 100;
+const constructionBatchSizes = [1, 10, 100] as const;
+const normalizeConstructionBatchSize = (value: unknown): ConstructionBatchSize =>
+  value === 100 ? 100 : value === 10 ? 10 : 1;
 type UnitStatus = 'running' | 'starved' | 'blocked';
 const defaultTechnologyResearchTime = 30;
 type SupplyStatusTone = 'teal' | 'amber' | 'red' | 'muted';
@@ -55,6 +59,7 @@ type QueueItem = {
   targetId?: string;
   seconds: number;
   total: number;
+  quantity?: ConstructionBatchSize;
   machineCount?: number;
   costs?: BuildMaterialCost[];
   reserved?: number[];
@@ -104,6 +109,7 @@ type GameState = {
   manualOutputEvents: Record<TrackedKey, number>;
   pausedRecipes: Record<string, boolean>;
   pausedMining: Record<RawKey, boolean>;
+  constructionBatchSize: ConstructionBatchSize;
   rateHistory: RateSample[];
   machineVariants: MachineVariants;
   furnaceVariant: 'stone-furnace' | 'steel-furnace' | 'electric-furnace';
@@ -455,7 +461,7 @@ const initialState: GameState = {
   oilProcessingAdvanced: false,
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0,
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0,
   totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, tutorialVisible: true, welcomeSeen: false,
 };
 
@@ -1093,31 +1099,34 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
   const completed = state.queue.filter((item) => activeConstructionIds.has(item.id) && item.started !== false && item.seconds <= seconds);
   state.queue = state.queue.map((item) => !activeConstructionIds.has(item.id) || item.started === false ? item : ({ ...item, seconds: Math.max(0, item.seconds - seconds) })).filter((item) => item.started === false || !activeConstructionIds.has(item.id) || item.seconds > 0);
   completed.forEach((item) => {
-    if (item.action === 'miner' && (item.targetId ?? item.target) !== 'wood') state.miners[(item.targetId ?? item.target) as RawKey] += 1;
-    if (item.action === 'pump') state.pumps += 1;
-    if (item.action === 'pumpjack') { state.pumpjacks += 1; recordProduction(state, 'pumpjack', 1); }
-    if (item.action === 'uraniumMiner') { state.uraniumMiners += 1; recordProduction(state, 'uranium-miner', 1); }
+    const quantity = item.quantity ?? 1;
+    if (item.action === 'miner' && (item.targetId ?? item.target) !== 'wood') state.miners[(item.targetId ?? item.target) as RawKey] += quantity;
+    if (item.action === 'pump') state.pumps += quantity;
+    if (item.action === 'pumpjack') { state.pumpjacks += quantity; recordProduction(state, 'pumpjack', quantity); }
+    if (item.action === 'uraniumMiner') { state.uraniumMiners += quantity; recordProduction(state, 'uranium-miner', quantity); }
      if (item.action === 'assembler' || item.action === 'furnace') {
-       state.assemblers[(item.targetId ?? item.target) as ComponentKey] += 1;
-       if (item.action === 'furnace' && smeltingFurnaceCountFor(state) === 60) {
+      const previousFurnaceCount = smeltingFurnaceCountFor(state);
+      state.assemblers[(item.targetId ?? item.target) as ComponentKey] += quantity;
+      if (item.action === 'furnace' && previousFurnaceCount < 60 && smeltingFurnaceCountFor(state) >= 60) {
          if (unlockMilestone(state, 'sixty-furnaces') && !state.milestoneNotifications.includes('sixty-furnaces')) state.milestoneNotifications.push('sixty-furnaces');
        }
      }
     if (item.action === 'lab') {
-      const isFirstLab = state.labs === 0;
-      state.labs += 1;
-      recordProduction(state, 'lab', 1, liveProduction);
+      const previousLabCount = state.labs;
+      const isFirstLab = previousLabCount === 0;
+      state.labs += quantity;
+      recordProduction(state, 'lab', quantity, liveProduction);
        if (isFirstLab) {
          if (unlockMilestone(state, 'first-lab') && !state.milestoneNotifications.includes('first-lab')) state.milestoneNotifications.push('first-lab');
        }
-       if (state.labs === 21) {
+      if (previousLabCount < 21 && state.labs >= 21) {
          if (unlockMilestone(state, 'twenty-one-labs') && !state.milestoneNotifications.includes('twenty-one-labs')) state.milestoneNotifications.push('twenty-one-labs');
        }
     }
-    if (item.action === 'boiler') state.boilers += 1;
-    if (item.action === 'steamEngine') state.steamEngines += 1;
-    if (item.action === 'solarPanel') state.solarPanels += 1;
-    if (item.action === 'accumulator') state.accumulators += 1;
+    if (item.action === 'boiler') state.boilers += quantity;
+    if (item.action === 'steamEngine') state.steamEngines += quantity;
+    if (item.action === 'solarPanel') state.solarPanels += quantity;
+    if (item.action === 'accumulator') state.accumulators += quantity;
     if (item.action === 'rocketSilo') {
       state.rocketSiloBuilt = true;
       recordProduction(state, 'rocket-silo', 1, liveProduction);
@@ -1137,14 +1146,16 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     }
     if (item.action === 'storage') {
       const key = item.targetId ?? item.target;
-      const completedStorage = completeStorageConstruction({
-        storage: state.storage,
-        storageBoxes: state.storageBoxes,
-        storageTanks: state.storageTanks,
-      }, key, fluidKeys, storageBoxCapacityFor(state));
-      state.storage = completedStorage.storage;
-      state.storageBoxes = completedStorage.storageBoxes;
-      state.storageTanks = completedStorage.storageTanks;
+      for (let index = 0; index < quantity; index += 1) {
+        const completedStorage = completeStorageConstruction({
+          storage: state.storage,
+          storageBoxes: state.storageBoxes,
+          storageTanks: state.storageTanks,
+        }, key, fluidKeys, storageBoxCapacityFor(state));
+        state.storage = completedStorage.storage;
+        state.storageBoxes = completedStorage.storageBoxes;
+        state.storageTanks = completedStorage.storageTanks;
+      }
     }
     if (item.action === 'upgrade') {
       const upgradeId = item.targetId ?? item.target;
@@ -1258,6 +1269,7 @@ function loadState() {
        manualOutputEvents: { ...initialState.manualOutputEvents, ...parsed.manualOutputEvents },
        pausedRecipes: { ...initialState.pausedRecipes, ...parsed.pausedRecipes },
        pausedMining: { ...initialState.pausedMining, ...parsed.pausedMining },
+      constructionBatchSize: normalizeConstructionBatchSize(parsed.constructionBatchSize),
       produced: (() => {
         const produced = { ...initialState.produced, ...parsed.produced };
         if (parsed.produced?.researchPack !== undefined && parsed.produced?.productionPack === undefined) produced.productionPack = parsed.produced.researchPack;
@@ -1278,8 +1290,9 @@ function loadState() {
       machineVariants: migratedUpgradeState.machineVariants,
       labSpeedLevel: migratedUpgradeState.labSpeedLevel,
       queue: normalizeConstructionQueue(migratedUpgradeState.queue.map((item) => {
+        const normalizedItem = { ...item, quantity: normalizeConstructionBatchSize((item as Partial<QueueItem>).quantity) };
         const costs = legacyUpgradeCostsFor(item as QueueItem);
-        return costs ? { ...item, costs, reserved: costs.map((cost) => cost.amount) } : item;
+        return costs ? { ...normalizedItem, costs, reserved: costs.map((cost) => cost.amount) } : normalizedItem;
       }) as QueueItem[]),
       research: Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key))))),
       currentResearch: parsed.currentResearch ? normalizeResearchKey(String(parsed.currentResearch)) : initialState.currentResearch,
@@ -1512,8 +1525,16 @@ function Shell({ children, state }: { children: ReactNode; state: GameState }) {
   </div>;
 }
 
-function Header({ eyebrow, title, copy, action }: { eyebrow: string; title: string; copy: string; action?: ReactNode }) {
-  return <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end enter"><div><div className="eyebrow flex items-center gap-2 text-[hsl(var(--primary))]"><span className="h-px w-5 bg-[hsl(var(--primary))]" />{eyebrow}</div><h1 className="mt-2 text-[clamp(1.65rem,4vw,2.5rem)] font-extrabold tracking-[-.04em]">{title}</h1><p className="mt-1 max-w-2xl text-[12px] text-[hsl(var(--muted-foreground))]">{copy}</p></div>{action}</div>;
+function ConstructionBatchToggle({ value, onChange }: { value: ConstructionBatchSize; onChange: (value: ConstructionBatchSize) => void }) {
+  return <div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-2.5 py-2" role="group" aria-label="Construction batch size">
+    <span className="eyebrow whitespace-nowrap">Build</span>
+    <div className="flex gap-1">
+      {constructionBatchSizes.map((size) => <button key={size} type="button" onClick={() => onChange(size)} className={`button-base !px-2 !py-1.5 text-[9px] ${value === size ? 'button-primary' : 'button-ghost'}`} aria-pressed={value === size} aria-label={`Construct ${size} building${size === 1 ? '' : 's'} at a time`} data-testid={`button-construction-batch-${size}`}>{size}</button>)}
+    </div>
+  </div>;
+}
+function Header({ eyebrow, title, copy, action, constructionBatchSize, onConstructionBatchSizeChange }: { eyebrow: string; title: string; copy: string; action?: ReactNode; constructionBatchSize?: ConstructionBatchSize; onConstructionBatchSizeChange?: (value: ConstructionBatchSize) => void }) {
+  return <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end enter"><div><div className="eyebrow flex items-center gap-2 text-[hsl(var(--primary))]"><span className="h-px w-5 bg-[hsl(var(--primary))]" />{eyebrow}</div><h1 className="mt-2 text-[clamp(1.65rem,4vw,2.5rem)] font-extrabold tracking-[-.04em]">{title}</h1><p className="mt-1 max-w-2xl text-[12px] text-[hsl(var(--muted-foreground))]">{copy}</p></div><div className="flex flex-wrap items-center justify-end gap-2">{constructionBatchSize !== undefined && onConstructionBatchSizeChange && <ConstructionBatchToggle value={constructionBatchSize} onChange={onConstructionBatchSizeChange} />}{action}</div></div>;
 }
 function SectionTitle({ children, detail }: { children: ReactNode; detail?: string }) { return <div className="mb-3 flex min-w-0 flex-wrap items-end justify-between gap-x-3 gap-y-1"><span className="eyebrow min-w-0">{children}</span>{detail && <span className="mono min-w-0 max-w-full text-right text-[10px] text-[hsl(var(--muted-foreground))]">{detail}</span>}</div>; }
 function Progress({ value, tone = 'teal', realtime = false }: { value: number; tone?: 'teal' | 'amber' | 'red'; realtime?: boolean }) { return <div className="progress-track"><div className={`progress-fill ${tone === 'amber' ? 'amber' : tone === 'red' ? 'red' : ''}`} style={{ width: `${Math.max(0, Math.min(100, value))}%`, transition: realtime ? 'none' : undefined }} /></div>; }
@@ -1585,6 +1606,7 @@ function useConstructionVisualProgress(key: string, startedAt: number | undefine
 }
 function BuildProgress({ items, label, cancelConstruction, notice }: { items: QueueItem[]; label: string; cancelConstruction?: (id: string) => void; notice?: (message: string) => void }) {
   const active = items[0];
+  const activeQuantity = active?.quantity ?? 1;
   const waitingForMaterials = active?.started === false;
   const fallbackProgress = waitingForMaterials
     ? Math.min(...(active?.costs ?? []).map((cost, index) => (active?.reserved?.[index] ?? 0) / Math.max(0.0001, cost.amount) * 100), 0)
@@ -1608,7 +1630,7 @@ function BuildProgress({ items, label, cancelConstruction, notice }: { items: Qu
         <div className="construction-pulse mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md"><Hammer size={12} /></div>
         <div className="min-w-0">
           <div className="eyebrow text-[hsl(var(--primary))]">{waitingForMaterials ? 'Materials requested' : 'Construction in progress'}</div>
-          <div className="mt-1 truncate text-[10px] font-bold">{label}{items.length > 1 ? ` · ${items.length} queued` : ''}</div>
+           <div className="mt-1 truncate text-[10px] font-bold">{label}{activeQuantity > 1 ? ` · batch of ${activeQuantity}` : ''}{items.length > 1 ? ` · ${items.length} queued` : ''}</div>
         </div>
       </div>
         <div className="flex min-w-0 max-w-[55%] items-start justify-end gap-2">
@@ -1910,7 +1932,7 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
   </PageFrame>;
 }
 
-function MiningPage({ state, setState, enqueue, notice, cancelConstruction, constructionVisualTiming }: PageProps) {
+function MiningPage({ state, setState, enqueue, notice, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize }: PageProps) {
   const toggleMiningPause = (key: RawKey) => setState((s) => ({
     ...s,
     pausedMining: { ...s.pausedMining, [key]: !miningPausedFor(s, key) },
@@ -1931,19 +1953,19 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
   };
   const build = (key: RawKey) => {
     if (key === 'wood') return notice('Wood can only be collected manually');
-    if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); enqueue('pump', 'Water pump', waterPumpBuildSeconds, undefined, waterPumpBuildCost); return; }
+    if (key === 'water') { if (!state.research.includes('steam-power')) return notice('Steam Power required'); enqueue('pump', 'Water pump', waterPumpBuildSeconds, undefined, waterPumpBuildCost, constructionBatchSize); return; }
     if (key === 'crudeOil') {
       if (!state.research.includes('oil-gathering')) return notice('Oil Gathering required');
-      enqueue('pumpjack', 'Crude oil pumpjack', pumpjackRecipe.energyRequired, undefined, pumpjackBuildCost);
+      enqueue('pumpjack', 'Crude oil pumpjack', pumpjackRecipe.energyRequired, undefined, pumpjackBuildCost, constructionBatchSize);
       return;
     }
-    if (key === 'uranium') { if (!state.research.includes('uranium-mining')) return notice('Uranium Mining required'); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90, undefined, [{ key: 'steel', amount: 20, source: 'products' }, { key: 'circuit', amount: 8, source: 'products' }]); return; }
+    if (key === 'uranium') { if (!state.research.includes('uranium-mining')) return notice('Uranium Mining required'); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90, undefined, [{ key: 'steel', amount: 20, source: 'products' }, { key: 'circuit', amount: 8, source: 'products' }], constructionBatchSize); return; }
     const machineCosts = miningMachineBuildCostFor(state);
     const machine = miningMachineRecipeFor(state);
-    enqueue('miner', `${rawInfo[key].label} ${miningMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key, machineCosts);
+    enqueue('miner', `${rawInfo[key].label} ${miningMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key, machineCosts, constructionBatchSize);
   };
   return <PageFrame>
-    <Header eyebrow="Raw material control" title="Mining" copy={miningUsesStoredCoal(state) ? "Tap the ground to start. Build burner mining drills to make the ore lines autonomous. Wood remains manual-only, and coal drills offset their own fuel use against the coal they produce." : "Electric mining is online. Your upgraded drills run without coal while wood remains manual-only."} action={<Tag><Pickaxe size={11} /> 8 resource sections</Tag>} />
+    <Header eyebrow="Raw material control" title="Mining" copy={miningUsesStoredCoal(state) ? "Tap the ground to start. Build burner mining drills to make the ore lines autonomous. Wood remains manual-only, and coal drills offset their own fuel use against the coal they produce." : "Electric mining is online. Your upgraded drills run without coal while wood remains manual-only."} constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} action={<Tag><Pickaxe size={11} /> 8 resource sections</Tag>} />
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {rawKeys.map((key) => {
         const info = rawInfo[key];
@@ -1973,8 +1995,8 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
         const manualCollectionControl = <button onClick={() => tap(key)} disabled={!manualCollectionAvailable} className={`button-base flex-1 !py-2 ${manualCollectionAvailable ? count ? 'button-ghost' : 'button-primary' : 'button-ghost opacity-60'}`} aria-label={manualCollectionAvailable ? `Collect ${info.label} manually` : `${info.label} requires a machine`} title={manualCollectionAvailable ? 'Collect manually' : 'This material requires a machine'} data-testid={`button-tap-${key}`}>
           {!manualCollectionAvailable ? <><LockKeyhole size={13} /> machine only</> : manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} /> collect manually</>}
         </button>;
-        const buildControl = manualOnly ? null : <button onClick={() => build(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${machineLabel} for ${info.label}`} data-testid={count ? `button-build-more-${key}` : `button-build-miner-${key}`}>
-          {isBuilding ? <><Check size={13} /> {count ? 'queued · build another' : 'queued'}</> : <><Hammer size={13} /> {count ? 'construct another' : 'construct'}</>}
+        const buildControl = manualOnly ? null : <button onClick={() => build(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${constructionBatchSize} ${machineLabel} for ${info.label}`} data-testid={count ? `button-build-more-${key}` : `button-build-miner-${key}`}>
+          {isBuilding ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct' : `construct ${constructionBatchSize}`}</>}
         </button>;
         return <section className={`surface rounded-xl p-4 ${locked ? 'locked-wash opacity-75' : ''}`} key={key} data-testid={`section-mining-${key}`}>
           <div className="flex items-start gap-3">
@@ -2036,7 +2058,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
   </PageFrame>;
 }
 
-function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, constructionVisualTiming }: PageProps) {
+function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize }: PageProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
@@ -2078,7 +2100,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
     if (isSmeltingRecipe(recipe)) {
        if (state.queue.some((item) => item.action === 'upgrade' && (item.targetId === 'steel-furnaces' || item.targetId === ELECTRIC_FURNACE_UPGRADE_ID))) return notice('finish the furnace conversion before building more furnaces');
       const furnaceRecipe = furnaceBuildRecipeFor(state);
-      enqueue('furnace', `${prettyLabel(key)} ${currentFurnaceLabel.toLowerCase()}`, furnaceRecipe.energyRequired, key, recipeBuildCosts(furnaceRecipe));
+      enqueue('furnace', `${prettyLabel(key)} ${currentFurnaceLabel.toLowerCase()}`, furnaceRecipe.energyRequired, key, recipeBuildCosts(furnaceRecipe), constructionBatchSize);
       return;
     }
     if (key === 'basic-oil-processing' && state.oilProcessingAdvanced) return notice('Advanced Oil Processing is already installed');
@@ -2086,10 +2108,10 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
     if (!automationUnlocked) return notice('Automation technology required');
      const machineCosts = productionMachineBuildCostFor(state, recipe);
     const machine = productionMachineRecipeFor(state, recipe);
-    enqueue('assembler', `${prettyLabel(key)} ${productionMachineLabelFor(state, recipe).toLowerCase()}`, machine.energyRequired, key, machineCosts);
+    enqueue('assembler', `${prettyLabel(key)} ${productionMachineLabelFor(state, recipe).toLowerCase()}`, machine.energyRequired, key, machineCosts, constructionBatchSize);
   };
   return <PageFrame>
-    <Header eyebrow="Recipe catalog" title="Production" copy="The attached recipe definitions drive every card below. Search the full line, inspect item and fluid flows, then run recipes manually or with the appropriate production building." action={<Tag><Cog size={11} /> {recipeCatalog.length} recipes loaded</Tag>} />
+    <Header eyebrow="Recipe catalog" title="Production" copy="The attached recipe definitions drive every card below. Search the full line, inspect item and fluid flows, then run recipes manually or with the appropriate production building." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} action={<Tag><Cog size={11} /> {recipeCatalog.length} recipes loaded</Tag>} />
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
       <div className="flex flex-col gap-2 sm:flex-row">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search recipes, items, or fluids" className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search recipes" data-testid="input-search-recipes" />
@@ -2130,7 +2152,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
       const handcraftControl = automatedOnly
         ? <button disabled className="button-base flex-1 !py-2 button-ghost cursor-not-allowed opacity-70" aria-label={`${prettyLabel(key)} is automated only`} title={`Automated only — construct a ${buildingLabel} to produce ${prettyLabel(key)}`} data-testid={`button-handcraft-production-${key}`}><LockKeyhole size={13} />automated only</button>
         : <button onClick={() => handcraft(key)} className={`button-base flex-1 !py-2 ${count ? 'button-ghost' : 'button-primary'}`} aria-label={`Handcraft ${prettyLabel(key)}`} title={handcraftJob ? `Handcrafting ${prettyLabel(key)}` : handcraftBusy ? 'Another item is being handcrafted' : `Handcraft ${prettyLabel(key)}`} data-testid={`button-handcraft-production-${key}`}>{handcraftJob ? <><Clock3 size={13} /> {handcraftJob.seconds.toFixed(2)}s</> : handcraftBusy ? <Clock3 size={13} /> : <><Plus size={13} />handcraft</>}</button>;
-      return <section className="surface rounded-xl p-4" key={key} data-testid={`section-production-${key}`}>
+       return <section className="surface rounded-xl p-4" key={key} data-testid={`section-production-${key}`}>
         <div className="flex items-start gap-3">
           <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
           <div className="min-w-0 flex-1">
@@ -2150,7 +2172,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
          {autoCondition.label && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-auto-condition-${key}`}><div className="flex items-center justify-between gap-2 text-[10px]"><span className="eyebrow text-[hsl(var(--primary))]">Auto start / stop</span><Tag tone={paused ? 'amber' : autoCondition.met ? 'teal' : 'amber'}>{paused ? 'paused' : autoCondition.met ? 'running' : 'stopped'}</Tag></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{paused ? 'Paused manually. Click PAUSED above to resume.' : <>Runs when <span className="font-semibold text-[hsl(var(--foreground))]">{autoCondition.label}</span>.</>}</div></div>}
          {smelting && recipe.fuel && state.furnaceVariant !== 'electric-furnace' && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
          <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} manualOutputEvent={primaryOutput ? state.manualOutputEvents[primaryOutput.key] ?? 0 : 0} />
-          <div className="mt-4 flex gap-2">{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-${count ? 'build-more' : 'build'}-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> {count ? 'queued · build another' : 'queued'}</> : <><Hammer size={13} /> {count ? 'construct another' : 'construct'}</>}</button></div>
+           <div className="mt-4 flex gap-2">{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${constructionBatchSize} ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-${count ? 'build-more' : 'build'}-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct' : `construct ${constructionBatchSize}`}</>}</button></div>
            {isBuilding && <BuildProgress items={constructionItems} label={buildingLabel} cancelConstruction={cancelConstruction} notice={notice} />}
           {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} simulationSpeed={state.simulationSpeed} />}
       </section>;
@@ -2159,7 +2181,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
   </PageFrame>;
 }
 
-function PowerPage({ state, setState, enqueue, notice, cancelConstruction }: PageProps) {
+function PowerPage({ state, setState, enqueue, notice, cancelConstruction, constructionBatchSize, setConstructionBatchSize }: PageProps) {
   const steam = state.research.includes('steam-power');
   const solar = state.research.includes('solar-energy');
   const accumulator = recipeIsUnlocked(accumulatorRecipe, state);
@@ -2187,7 +2209,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction }: Pag
     if (!unlocked) return notice(isSolarPanel ? 'Solar Energy required' : isAccumulator ? 'Electric Energy Accumulators required' : 'Steam Power required');
     const costs = isSolarPanel ? solarPanelBuildCost : isAccumulator ? accumulatorBuildCost : unit === 'boiler' ? boilerBuildCost : steamEngineBuildCost;
     const recipe = isSolarPanel ? solarPanelRecipe : isAccumulator ? accumulatorRecipe : unit === 'boiler' ? boilerRecipe : steamEngineRecipe;
-    enqueue(unit, isSolarPanel ? 'Solar panel' : isAccumulator ? 'Accumulator' : unit === 'boiler' ? 'Boiler' : 'Steam engine', recipe.energyRequired, undefined, costs);
+    enqueue(unit, isSolarPanel ? 'Solar panel' : isAccumulator ? 'Accumulator' : unit === 'boiler' ? 'Boiler' : 'Steam engine', recipe.energyRequired, undefined, costs, constructionBatchSize);
   };
   const constructionChips = (costs: BuildMaterialCost[], output: string) => <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Construction</div><div className="flex flex-wrap items-center gap-1.5">{costs.map(({ key, amount }, index) => <span className="contents" key={`${key}-${index}`}><span className="resource-chip" title={`${fmt(amount)} ${meta[key]?.short ?? prettyLabel(key)}`} aria-label={`${fmt(amount)} ${meta[key]?.short ?? prettyLabel(key)}`}><ResourceIcon item={key} size={17} /><strong className="mono">{fmt(amount)}</strong></span>{index < costs.length - 1 && <span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">+</span>}</span>)}<ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" aria-hidden="true" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--primary)/.4)' }} title={`1 ${prettyLabel(output)}`} aria-label={`1 ${prettyLabel(output)}`}><ResourceIcon item={output} size={17} /><strong className="mono">1</strong></span></div></div>;
   const statusTag = (unlocked: boolean, count: number, queued: number) => unlocked ? count ? <Tag><span className="status-dot status-running" /> auto</Tag> : queued > 0 ? <Tag tone="amber"><Clock3 size={10} /> queued</Tag> : <Tag tone="amber">offline</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>;
@@ -2204,7 +2226,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction }: Pag
       ? <Tag tone="red"><TriangleAlert size={10} /> steam-limited</Tag>
       : statusTag(true, state.steamEngines, steamEngineConstructionItems.length);
   return <PageFrame>
-    <Header eyebrow="Energy network" title="Power" copy="Boilers convert available coal and water into virtual steam. Steam engines consume that steam, so every live rate scales to its limiting input." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{powerLabel(production)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} />
+    <Header eyebrow="Energy network" title="Power" copy="Boilers convert available coal and water into virtual steam. Steam engines consume that steam, so every live rate scales to its limiting input." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{powerLabel(production)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} />
     <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
       <div className="surface rounded-xl p-4"><div className="eyebrow">Production</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(production)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">current generation</div></div>
       <div className="surface rounded-xl p-4"><div className="eyebrow">Peak potential</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(potential)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">available at full input</div></div>
@@ -2221,7 +2243,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction }: Pag
           {constructionChips(boilerBuildCost, 'boiler')}
           <PowerMetrics production={boilerSteamRateFor(state)} peakProduction={boilerPeakSteamRateFor(state)} productionUnit="steam / min" consumption={boilerCoalUsageFor(state) + boilerWaterUsageFor(state)} peakConsumption={boilerPeakCoalUsageFor(state) + boilerPeakWaterUsageFor(state)} consumptionUnit="inputs / min" />
            {steam && state.boilers > 0 && <button onClick={toggleBoilers} className={`button-base mt-4 w-full !py-2 ${boilersEnabled ? 'button-ghost' : 'button-primary'}`} aria-pressed={boilersEnabled} data-testid="button-toggle-boilers"><Power size={13} /> {boilersEnabled ? 'disable boiler production' : 'enable boiler production'}</button>}
-           <div className="mt-4 flex gap-2">{steam && state.boilers ? <><button onClick={() => notice(`boilers are producing ${boilerSteamRateFor(state).toFixed(1)} steam / min`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-boiler"><Gauge size={13} /> inspect live rate</button><button onClick={() => buildPowerUnit('boiler')} className={`button-base flex-1 !py-2 ${boilerConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-boiler">{boilerConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('boiler')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-boiler">{steam ? <><Hammer size={13} /> construct boiler</> : <><LockKeyhole size={13} /> requires Steam Power</>}</button>}</div>
+           <div className="mt-4 flex gap-2">{steam && state.boilers ? <><button onClick={() => notice(`boilers are producing ${boilerSteamRateFor(state).toFixed(1)} steam / min`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-boiler"><Gauge size={13} /> inspect live rate</button><button onClick={() => buildPowerUnit('boiler')} className={`button-base flex-1 !py-2 ${boilerConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-boiler">{boilerConstructionItems.length ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> construct {constructionBatchSize}</>}</button></> : <button onClick={() => buildPowerUnit('boiler')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-boiler">{steam ? <><Hammer size={13} /> construct {constructionBatchSize}</> : <><LockKeyhole size={13} /> requires Steam Power</>}</button>}</div>
             <BuildProgress items={boilerConstructionItems} label="Boiler" cancelConstruction={cancelConstruction} notice={notice} />
         </article>
         <article className={`rounded-xl border p-3.5 sm:p-4 ${steam ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-steam-engine">
@@ -2230,7 +2252,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction }: Pag
            <div className="mt-2"><SupplyStatus label="Steam input" status={steamEngineSteamStatus} testId="status-power-steam-engine-steam" /></div>
           {constructionChips(steamEngineBuildCost, 'steam-engine')}
           <PowerMetrics production={steamEnginePowerFor(state)} peakProduction={steamEnginePeakPowerFor(state)} productionUnit="MW" consumption={steamEngineSteamUsageFor(state)} peakConsumption={steamEnginePeakSteamUsageFor(state)} consumptionUnit="steam / min" />
-          <div className="mt-4 flex gap-2">{steam && state.steamEngines ? <><button onClick={() => notice(`steam engines are producing ${steamEnginePowerFor(state).toFixed(1)} MW`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-steam-engine"><Gauge size={13} /> inspect live rate</button><button onClick={() => buildPowerUnit('steamEngine')} className={`button-base flex-1 !py-2 ${steamEngineConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-steam-engine">{steamEngineConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('steamEngine')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-steam-engine">{steam ? <><Hammer size={13} /> construct steam engine</> : <><LockKeyhole size={13} /> requires Steam Power</>}</button>}</div>
+           <div className="mt-4 flex gap-2">{steam && state.steamEngines ? <><button onClick={() => notice(`steam engines are producing ${steamEnginePowerFor(state).toFixed(1)} MW`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-steam-engine"><Gauge size={13} /> inspect live rate</button><button onClick={() => buildPowerUnit('steamEngine')} className={`button-base flex-1 !py-2 ${steamEngineConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-steam-engine">{steamEngineConstructionItems.length ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> construct {constructionBatchSize}</>}</button></> : <button onClick={() => buildPowerUnit('steamEngine')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-steam-engine">{steam ? <><Hammer size={13} /> construct {constructionBatchSize}</> : <><LockKeyhole size={13} /> requires Steam Power</>}</button>}</div>
            <BuildProgress items={steamEngineConstructionItems} label="Steam engine" cancelConstruction={cancelConstruction} notice={notice} />
         </article>
           <article className={`rounded-xl border p-3.5 sm:p-4 ${solar ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-solar">
@@ -2238,7 +2260,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction }: Pag
             <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Passive generation · separate power build path</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><Sun size={16} /><strong>sunlight</strong></span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--secondary)/.4)' }}><Zap size={16} /><strong>{solarPanelBasePowerKw}</strong> kW base / panel</span></div><div className="mt-2 text-[9px] text-[hsl(var(--muted-foreground))]">Craft Solar Panels in Production for normal item storage; this card builds panels directly into the power network.</div></div>
            {constructionChips(solarPanelBuildCost, 'solar-panel')}
             <div className="mt-3 grid grid-cols-3 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Potential output</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{solarPanelPotentialPowerKwFor(state).toFixed(1)} kW</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">{solarPanelBasePowerKw} kW / panel</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Efficiency factor</div><div className="mono mt-1 text-[12px] text-[hsl(var(--primary))]">{(solarEfficiency * 100).toFixed(0)}%</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">accumulator-adjusted</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">Net output</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{solarPanelNetPowerKwFor(state).toFixed(1)} kW</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">factory supply</div></div></div>
-           <div className="mt-4 flex gap-2">{solar && state.solarPanels ? <><button onClick={() => notice(`solar panels are supplying ${solarPowerFor(state).toFixed(3)} MW net`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-solar"><Gauge size={13} /> inspect output</button><button onClick={() => buildPowerUnit('solarPanel')} className={`button-base flex-1 !py-2 ${solarPanelConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-solar-panel">{solarPanelConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('solarPanel')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-solar-panel">{solar ? <><Hammer size={13} /> construct solar panel</> : <><LockKeyhole size={13} /> requires Solar Energy</>}</button>}</div>
+            <div className="mt-4 flex gap-2">{solar && state.solarPanels ? <><button onClick={() => notice(`solar panels are supplying ${solarPowerFor(state).toFixed(3)} MW net`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-solar"><Gauge size={13} /> inspect output</button><button onClick={() => buildPowerUnit('solarPanel')} className={`button-base flex-1 !py-2 ${solarPanelConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-solar-panel">{solarPanelConstructionItems.length ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> construct {constructionBatchSize}</>}</button></> : <button onClick={() => buildPowerUnit('solarPanel')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-solar-panel">{solar ? <><Hammer size={13} /> construct {constructionBatchSize}</> : <><LockKeyhole size={13} /> requires Solar Energy</>}</button>}</div>
              <BuildProgress items={solarPanelConstructionItems} label="Solar panel" cancelConstruction={cancelConstruction} notice={notice} />
          </article>
            <article className={`rounded-xl border p-3.5 sm:p-4 ${accumulator ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-accumulators">
@@ -2247,7 +2269,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction }: Pag
             <div className="mt-3 grid grid-cols-3 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">ACCUMULATORS REQUIRED</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{requiredAccumulators}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">accumulators</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">ENERGY STORAGE CAPACITY</div><div className="mono mt-1 text-[12px] text-[hsl(var(--primary))]">{(accumulatorCoverage * 100).toFixed(0)}%</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">of required</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">SOLAR PANEL UTILISATION</div><div className="mono mt-1 text-[12px] text-[hsl(var(--secondary))]">{(solarEfficiency * 100).toFixed(0)}%</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">current output</div></div></div>
             <p className="mt-3 text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">Accumulators store power generated by solar panels and provide it at night.</p>
              {constructionChips(accumulatorBuildCost, 'accumulator')}
-             <div className="mt-4 flex gap-2">{accumulator && state.accumulators ? <><button onClick={() => notice(`${accumulatorCount} accumulators cover ${requiredAccumulators ? `${(accumulatorCoverage * 100).toFixed(0)}%` : '0%'} of solar support`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-accumulator"><Gauge size={13} /> inspect balance</button><button onClick={() => buildPowerUnit('accumulator')} className={`button-base flex-1 !py-2 ${accumulatorConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-accumulator">{accumulatorConstructionItems.length ? <><Check size={13} /> queued · build another</> : <><Hammer size={13} /> construct another</>}</button></> : <button onClick={() => buildPowerUnit('accumulator')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-accumulator">{accumulator ? <><Hammer size={13} /> construct accumulator</> : <><LockKeyhole size={13} /> requires Electric Energy Accumulators</>}</button>}</div>
+             <div className="mt-4 flex gap-2">{accumulator && state.accumulators ? <><button onClick={() => notice(`${accumulatorCount} accumulators cover ${requiredAccumulators ? `${(accumulatorCoverage * 100).toFixed(0)}%` : '0%'} of solar support`)} className="button-base button-ghost flex-1 !py-2" data-testid="button-inspect-power-accumulator"><Gauge size={13} /> inspect balance</button><button onClick={() => buildPowerUnit('accumulator')} className={`button-base flex-1 !py-2 ${accumulatorConstructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid="button-build-more-accumulator">{accumulatorConstructionItems.length ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> construct {constructionBatchSize}</>}</button></> : <button onClick={() => buildPowerUnit('accumulator')} className="button-base button-primary flex-1 !py-2" data-testid="button-build-accumulator">{accumulator ? <><Hammer size={13} /> construct {constructionBatchSize}</> : <><LockKeyhole size={13} /> requires Electric Energy Accumulators</>}</button>}</div>
               <BuildProgress items={accumulatorConstructionItems} label="Accumulator" cancelConstruction={cancelConstruction} notice={notice} />
           </article>
       </div>
@@ -2392,9 +2414,9 @@ function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: P
   </PageFrame>;
 }
 
-function LogisticsPage({ notice }: PageProps) {
+function LogisticsPage({ notice, constructionBatchSize, setConstructionBatchSize }: PageProps) {
   const entries = [{ title: 'Inserters', copy: 'Short-range item handoff between machines.', icon: ArrowRight }, { title: 'Conveyor belts', copy: 'Continuous item movement across production blocks.', icon: MoveRight }, { title: 'Power lines', copy: 'Extend a power bus beyond the starter block.', icon: Zap }, { title: 'Transport robots', copy: 'On-demand routing for a distributed factory.', icon: Truck }, { title: 'Trains', copy: 'Long-haul bulk transport between distant sectors.', icon: Truck }];
-  return <PageFrame><Header eyebrow="Later-stage systems" title="Logistics" copy="The line is not ready for a freight network yet. These systems are mapped here so future expansion has a clear shape." action={<Tag tone="amber"><Clock3 size={11} /> coming later</Tag>} /><section className="surface rounded-xl p-4 sm:p-5"><div className="mb-5 flex items-start gap-3 rounded-xl border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-4"><div className="text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">Later-stage tab</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">These are intentionally visible but non-functional. No fake throughput, no pretend routing — just the systems waiting beyond the first efficient loop.</p></div></div><div className="grid gap-3 sm:grid-cols-2">{entries.map(({ title, copy, icon: Icon }) => <button onClick={() => notice(`${title} is planned for a later stage`)} className="locked-wash flex items-center gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left transition-colors hover:border-[hsl(var(--secondary)/.4)]" key={title} data-testid={`button-logistics-${title.toLowerCase().replace(' ', '-')}`}><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"><Icon size={17} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-[12px] font-bold">{title}<Tag tone="muted"><LockKeyhole size={9} /> later</Tag></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{copy}</p></div><ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" /></button>)}</div></section></PageFrame>;
+  return <PageFrame><Header eyebrow="Later-stage systems" title="Logistics" copy="The line is not ready for a freight network yet. These systems are mapped here so future expansion has a clear shape." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} action={<Tag tone="amber"><Clock3 size={11} /> coming later</Tag>} /><section className="surface rounded-xl p-4 sm:p-5"><div className="mb-5 flex items-start gap-3 rounded-xl border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-4"><div className="text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">Later-stage tab</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">These are intentionally visible but non-functional. No fake throughput, no pretend routing — just the systems waiting beyond the first efficient loop.</p></div></div><div className="grid gap-3 sm:grid-cols-2">{entries.map(({ title, copy, icon: Icon }) => <button onClick={() => notice(`${title} is planned for a later stage`)} className="locked-wash flex items-center gap-3 rounded-xl border border-[hsl(var(--border))] p-4 text-left transition-colors hover:border-[hsl(var(--secondary)/.4)]" key={title} data-testid={`button-logistics-${title.toLowerCase().replace(' ', '-')}`}><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"><Icon size={17} /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2 text-[12px] font-bold">{title}<Tag tone="muted"><LockKeyhole size={9} /> later</Tag></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{copy}</p></div><ChevronRight size={15} className="text-[hsl(var(--muted-foreground))]" /></button>)}</div></section></PageFrame>;
 }
 
 function UpgradesPage({ state, setState, notice, cancelConstruction, constructionVisualTiming }: PageProps) {
@@ -2791,20 +2813,20 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
   </PageFrame>;
 }
 
-function SciencePage({ state, setState, enqueue, notice, cancelConstruction }: PageProps) {
+function SciencePage({ state, setState, enqueue, notice, cancelConstruction, constructionBatchSize, setConstructionBatchSize }: PageProps) {
   const activeResearch = activeResearchFor(state);
   const requiredScienceKeys = scienceRequirementKeysFor(activeResearch);
   const currentSpm = scienceCurrentSpmFor(state, requiredScienceKeys);
   const peakSpm = sciencePeakSpmFor(state, requiredScienceKeys);
   const labRate = scienceLabRateFor(state, activeResearch);
-  const buildLab = () => { enqueue('lab', 'Science lab', labRecipe.energyRequired, undefined, [{ key: 'ironPlate', amount: 12, source: 'products' }, { key: 'circuit', amount: 4, source: 'products' }]); };
+  const buildLab = () => { enqueue('lab', 'Science lab', labRecipe.energyRequired, undefined, [{ key: 'ironPlate', amount: 12, source: 'products' }, { key: 'circuit', amount: 4, source: 'products' }], constructionBatchSize); };
   const labConstructionItems = state.queue.filter((item) => item.action === 'lab');
   const labIsBuilding = labConstructionItems.length > 0;
   const currentLabUsage = requiredScienceKeys.reduce((total, key) => total + demandRateFor(state, key), 0);
   const peakLabUsage = activeResearch ? activeResearch.scienceCosts.reduce((total, cost) => total + scienceLabRateFor(state, activeResearch, false) * cost.amount, 0) : 0;
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   return <PageFrame>
-    <Header eyebrow="Research fuel" title="Science" copy="Labs consume every science pack required by the active research. SPM is limited by lab capacity and the tightest available pack line." action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><FlaskConical size={17} className="text-[hsl(var(--primary))]" /><span className="mono text-[15px]">{currentSpm.toFixed(1)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">SPM</span></span></div>} />
+    <Header eyebrow="Research fuel" title="Science" copy="Labs consume every science pack required by the active research. SPM is limited by lab capacity and the tightest available pack line." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><FlaskConical size={17} className="text-[hsl(var(--primary))]" /><span className="mono text-[15px]">{currentSpm.toFixed(1)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">SPM</span></span></div>} />
     <section className="surface mb-5 rounded-xl p-4 sm:p-5">
        <div className="mb-5 flex items-center justify-between gap-3"><SectionTitle detail={activeResearch ? `${requiredScienceKeys.length} pack types required` : 'select research to run labs'}>Science throughput</SectionTitle></div>
        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -2822,7 +2844,7 @@ function SciencePage({ state, setState, enqueue, notice, cancelConstruction }: P
             <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="lab" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Science labs</h2><div className="flex items-center gap-2">{state.labs ? <Tag><span className="status-dot status-running" /> auto</Tag> : labIsBuilding ? <Tag tone="amber"><Clock3 size={10} /> queued</Tag> : <Tag tone="amber">offline</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title="Science lab count"><ResourceIcon item="lab" size={17} /><span className="mono text-[13px]">{state.labs}</span></div></div></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Research facility · {activeResearch ? `${activeResearch.time ?? 5}s cycle` : 'standby'} · Science lab</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={activeResearch ? 'teal' : 'amber'}>{activeResearch ? 'active research' : 'select research'}</Tag>{labIsBuilding && <Tag tone="muted">construction queued</Tag>}</div></div></div>
            <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Construction</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><ResourceIcon item="ironPlate" size={17} /><strong>12</strong> iron plates</span><span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">+</span><span className="resource-chip"><ResourceIcon item="circuit" size={17} /><strong>4</strong> circuits</span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--primary)/.4)' }}><ResourceIcon item="lab" size={17} /><strong>1</strong> lab</span></div></div>
             <div className="mt-3 grid grid-cols-3 gap-2"><div className="data-row rounded-lg p-2.5"><div className="eyebrow">current usage</div><div className="mono mt-1 text-[13px] text-[hsl(var(--primary))]">{currentLabUsage.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">packs / min</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">peak usage</div><div className="mono mt-1 text-[13px] text-[hsl(var(--secondary))]">{peakLabUsage.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">packs / min</div></div><div className="data-row rounded-lg p-2.5"><div className="eyebrow">capacity</div><div className="mono mt-1 text-[13px]">{labRate.toFixed(1)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">cycles / min</div></div></div>
-            <div className="mt-4"><button onClick={buildLab} className={`button-base w-full !py-2 ${labIsBuilding ? 'button-build-active' : 'button-primary'}`} aria-label={state.labs ? 'Construct another science lab' : 'Construct science lab'} data-testid={state.labs ? 'button-build-more-lab' : 'button-build-lab'}>{labIsBuilding ? <><Check size={13} /> {state.labs ? 'queued · build another' : 'queued · build lab'}</> : <><Hammer size={13} /> {state.labs ? 'construct another lab' : 'construct lab'}</>}</button></div>
+             <div className="mt-4"><button onClick={buildLab} className={`button-base w-full !py-2 ${labIsBuilding ? 'button-build-active' : 'button-primary'}`} aria-label={`${state.labs ? 'Construct another' : 'Construct'} ${constructionBatchSize} science labs`} data-testid={state.labs ? 'button-build-more-lab' : 'button-build-lab'}>{labIsBuilding ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct lab' : `construct ${constructionBatchSize}`}</>}</button></div>
              <BuildProgress items={labConstructionItems} label="Science lab" cancelConstruction={cancelConstruction} notice={notice} />
         </article>
         {scienceKeys.map((key) => {
@@ -3285,7 +3307,7 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
   </PageFrame>;
 }
 
-type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => void; cancelConstruction: (id: string) => void; constructionVisualTiming: (total: number) => Pick<QueueItem, 'progressStartedAt' | 'progressDurationMs'>; saveNow: () => void; reset: () => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
+type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[], quantity?: ConstructionBatchSize) => void; cancelConstruction: (id: string) => void; constructionVisualTiming: (total: number) => Pick<QueueItem, 'progressStartedAt' | 'progressDurationMs'>; constructionBatchSize: ConstructionBatchSize; setConstructionBatchSize: (value: ConstructionBatchSize) => void; saveNow: () => void; reset: () => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
 
 function PageFrame({ children }: { children: ReactNode }) { return <div className="mx-auto max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 md:px-8 md:pb-10">{children}</div>; }
 
@@ -3332,24 +3354,27 @@ function Game() {
       progressDurationMs: constructionVisualDurationMsFor(total, Math.max(0, nextSimulationAtRef.current - progressStartedAt)),
     };
   };
-  const enqueue = (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[]) => setState((s) => {
+  const enqueue = (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[], requestedQuantity: ConstructionBatchSize = 1) => setState((s) => {
     if (action === 'rocketSilo' && !canBuildRocketSilo(s.rocketSiloBuilt, s.queue.some((item) => item.action === 'rocketSilo'))) return s;
     if (action === 'rocketParts' && (!s.rocketSiloBuilt || s.rocketPartsBuilt >= ROCKET_PART_TARGET || s.queue.some((item) => item.action === 'rocketParts'))) return s;
-    const requestCosts = costs?.map((cost) => ({ ...cost }));
+    const quantity = normalizeConstructionBatchSize(requestedQuantity);
+    const totalSeconds = seconds * quantity;
+    const requestCosts = costs?.map((cost) => ({ ...cost, amount: cost.amount * quantity }));
     const affordable = !requestCosts?.length || constructionCanBeFullyFunded({ raw: s.raw, products: s.products }, requestCosts);
     if (!affordable && hasWaitingConstruction(s.queue, action, targetId)) return s;
     const raw = { ...s.raw };
     const products = { ...s.products };
     const reserved = requestCosts?.length ? reserveConstructionMaterials({ raw, products }, requestCosts) : undefined;
     const started = !requestCosts?.length || reserved?.every((amount, index) => amount >= requestCosts[index].amount - 0.000001);
-    const visualTiming = started ? constructionVisualTiming(seconds) : {};
+    const visualTiming = started ? constructionVisualTiming(totalSeconds) : {};
     const item: QueueItem = {
       id: `${action}-${targetId ?? target}-${Date.now()}-${s.queue.length}`,
       action,
       target,
       targetId,
-      seconds: started ? seconds : 0,
-      total: seconds,
+      seconds: started ? totalSeconds : 0,
+      total: totalSeconds,
+      quantity,
       costs: requestCosts,
       reserved,
       started,
@@ -3371,7 +3396,7 @@ function Game() {
     const inventory = refundConstructionMaterials({ raw: s.raw, products: s.products }, item);
     return { ...s, raw: inventory.raw, products: inventory.products, queue: s.queue.filter((queueItem) => queueItem.id !== id) };
   });
-  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
+  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize: state.constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: value })), saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
   const pageKey = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;
