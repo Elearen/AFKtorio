@@ -755,11 +755,11 @@ const miningOutputRateFor = (state: GameState, key: RawKey) => {
 };
 const miningBaseProductionRateFor = (state: GameState, key: RawKey) =>
   miningMachineCountFor(state, key) * miningOutputRateFor(state, key) * 60 * state.simulationSpeed;
-const coalAvailableAfterBoilersFor = (state: GameState) => Math.max(0, state.raw.coal - boilerCoalUsageFor(state));
+const coalAvailableForBurnerMinersFor = (state: GameState) => Math.max(0, state.raw.coal);
 const miningProductionRateFor = (state: GameState, key: RawKey) => {
   if (miningPausedFor(state, key)) return 0;
   if (key === 'coal') return Math.max(0, miningBaseProductionRateFor(state, key) - (miningUsesStoredCoal(state) ? state.miners.coal * burnerMiningDrillCoalPerSecond * 60 * state.simulationSpeed : 0));
-  const fuelRatio = burnerMinerFuelRatioFor(coalAvailableAfterBoilersFor(state), fueledBurnerMinerCount(state));
+  const fuelRatio = burnerMinerFuelRatioFor(coalAvailableForBurnerMinersFor(state), fueledBurnerMinerCount(state));
   return miningBaseProductionRateFor(state, key) * (fueledBurnerMinerKeys.includes(key) ? fuelRatio : 1);
 };
 const inputFlowPerSecondFor = (state: GameState, key: RawKey) => miningProductionRateFor(state, key) / 60;
@@ -985,6 +985,13 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     state.miners[(item.targetId ?? item.target) as RawKey] += item.quantity ?? 1;
   });
   const speed = state.simulationSpeed;
+  const burnerCoalAtTickStart = state.raw.coal;
+  const operatingSeconds = burnerOperatingSeconds(state, seconds);
+  if (fueledBurnerMinerCount(state)) {
+    const coalConsumed = burnerMinerCoalRate(state) * operatingSeconds * speed;
+    state.raw.coal = Math.max(0, state.raw.coal - coalConsumed);
+    liveConsumption.coal += coalConsumed;
+  }
   const powerFlow = powerFlowFor(state, seconds);
   const powerRatio = electricPowerRatioFor(state, seconds);
   const miningPowerRatio = miningPowerRatioFor(state.machineVariants.mining, powerRatio);
@@ -1007,18 +1014,12 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     && !state.milestoneNotifications.includes('turn-lights-on')) {
     state.milestoneNotifications.push('turn-lights-on');
   }
-  const operatingSeconds = burnerOperatingSeconds(state, seconds);
-  if (fueledBurnerMinerCount(state)) {
-    const coalConsumed = burnerMinerCoalRate(state) * operatingSeconds * speed;
-    state.raw.coal = Math.max(0, state.raw.coal - coalConsumed);
-    liveConsumption.coal += coalConsumed;
-  }
   rawKeys.forEach((key) => {
     const count = miningMachineCountFor(state, key);
     if (!count || miningPausedFor(state, key)) return;
     const minerSeconds = fueledBurnerMinerKeys.includes(key) ? operatingSeconds : seconds;
       const outputRate = key === 'coal' && miningUsesStoredCoal(state) ? miningOutputRateFor(state, key) - burnerMiningDrillCoalPerSecond : miningOutputRateFor(state, key);
-    state.miningProgress[key] += count * outputRate * minerSeconds * speed * (offline ? 1 : miningStorageThrottleFor(state, key)) * miningPowerRatio;
+    state.miningProgress[key] += count * outputRate * minerSeconds * speed * (offline ? 1 : miningStorageThrottleFor(state, key, burnerCoalAtTickStart)) * miningPowerRatio;
     while (state.miningProgress[key] >= 1) {
       const accepted = addTracked(state, key, 1);
       if (accepted < 1 - 0.000001) { state.miningProgress[key] = 0; break; }
