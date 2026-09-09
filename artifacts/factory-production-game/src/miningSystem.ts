@@ -5,3 +5,6 @@ export const miningPowerRatioFor = (variant: string, powerRatio: number) => {
 
 export const burnerMinerNeedsFuel = (stored: number, capacity: number, demandRate: number) =>
   !(capacity > 0 && stored >= capacity * 0.95 && demandRate <= 0);
+
+export const burnerMinerFuelRatioFor = (availableCoal: number, minerCount: number) =>
+  minerCount > 0 ? (availableCoal > 0 ? 1 : 0) : 1;
