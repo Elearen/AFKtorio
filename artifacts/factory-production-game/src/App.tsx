@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type ReactNode, type SetStateAction } from 'react';
-import { Link, Router as WouterRouter, useLocation } from 'wouter';
+import { Link, Router as WouterRouter, useLocation, useSearch } from 'wouter';
 import { recipeCatalog, recipeScienceChainFor, type RecipeCatalogEntry, type RecipeMaterial, type RecipeScienceChain } from './recipeCatalog';
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
@@ -482,10 +482,7 @@ const nav = [
 ] as const;
 const tabLabel = (key: string) => key === 'factory' ? 'Dashboard' : key === 'mining' ? 'Mining / Raw' : key.charAt(0).toUpperCase() + key.slice(1);
 const routePathFor = (location: string) => location.split(/[?#]/, 1)[0];
-const focusTargetForLocation = (location: string) => {
-  const query = location.split('?')[1]?.split('#', 1)[0] ?? '';
-  return new URLSearchParams(query).get('focus');
-};
+const focusTargetForSearch = (search: string) => new URLSearchParams(search).get('focus');
 
 const rawInfo: Record<RawKey, { label: string; description: string; research?: ResearchKey; needs?: string }> = {
   iron: { label: 'Iron', description: 'Reliable ferrous feedstock for the first production tier.' },
@@ -1520,6 +1517,7 @@ function SupplyStatus({ label, status, testId }: { label: string; status: Supply
 
 function Shell({ children, state }: { children: ReactNode; state: GameState }) {
   const [location] = useLocation();
+  const search = useSearch();
   const active = nav.find(([key, path]) => path === routePathFor(location))?.[0] ?? 'factory';
   const lowPower = powerProductionFor(state) - electricPowerDraw(state) < 0;
   const lowFuel = peakProductionRateFor(state, 'coal') < peakDemandRateFor(state, 'coal');
@@ -1539,7 +1537,7 @@ function Shell({ children, state }: { children: ReactNode; state: GameState }) {
     if (contentRef.current) contentRef.current.scrollTop = scrollPositions.current[active] ?? 0;
   }, [active]);
   useEffect(() => {
-    const targetId = focusTargetForLocation(location);
+    const targetId = focusTargetForSearch(search);
     if (!targetId) return;
     const retryDelays = [0, 80, 180, 350, 700, 1200];
     const timers: number[] = [];
@@ -1555,7 +1553,7 @@ function Shell({ children, state }: { children: ReactNode; state: GameState }) {
       timers.push(window.setTimeout(scrollToTarget, delay));
     });
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [location]);
+  }, [search]);
   const navigationAlertDescription = (key: string) => key === 'power' && lowPower
     ? 'Low power alert: generation is below factory draw.'
     : key === 'mining' && lowFuel
@@ -2151,7 +2149,8 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
   const [category, setCategory] = useState('all');
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
   const [location, navigate] = useLocation();
-  const focusTarget = focusTargetForLocation(location);
+  const search = useSearch();
+  const focusTarget = focusTargetForSearch(search);
   const automationUnlocked = state.research.includes('automation');
   const currentFurnaceLabel = furnaceLabelFor(state);
   const spaceScienceUnlocked = spaceScienceUnlockedFor(state);
