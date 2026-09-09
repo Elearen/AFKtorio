@@ -1520,7 +1520,7 @@ function SupplyStatus({ label, status, testId }: { label: string; status: Supply
 
 function Shell({ children, state }: { children: ReactNode; state: GameState }) {
   const [location] = useLocation();
-  const active = nav.find(([key, path]) => path === location)?.[0] ?? 'factory';
+  const active = nav.find(([key, path]) => path === routePathFor(location))?.[0] ?? 'factory';
   const lowPower = powerProductionFor(state) - electricPowerDraw(state) < 0;
   const lowFuel = peakProductionRateFor(state, 'coal') < peakDemandRateFor(state, 'coal');
   const activeResearch = activeResearchFor(state);
@@ -3552,9 +3552,16 @@ function Game() {
     const scrollToTarget = () => {
       const target = document.getElementById(targetId);
       if (target) {
-        const headerHeight = document.querySelector('.app-header')?.getBoundingClientRect().height ?? 0;
-        const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - headerHeight - 12);
-        window.scrollTo(0, top);
+        const scrollContainer = document.querySelector('main');
+        if (scrollContainer instanceof HTMLElement) {
+          const containerTop = scrollContainer.getBoundingClientRect().top;
+          const top = Math.max(0, target.getBoundingClientRect().top - containerTop + scrollContainer.scrollTop - 12);
+          scrollContainer.scrollTo(0, top);
+        } else {
+          const headerHeight = document.querySelector('.app-header')?.getBoundingClientRect().height ?? 0;
+          const top = Math.max(0, target.getBoundingClientRect().top + window.scrollY - headerHeight - 12);
+          window.scrollTo(0, top);
+        }
         return;
       }
     };
