@@ -2486,7 +2486,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
     : boilerInputRatio >= 0.999999
       ? { tone: 'teal', label: 'supplied', detail: `${powerRateLabel(boilerSteamRate)} steam / sec available` }
       : { tone: 'red', label: 'limited', detail: `${powerRateLabel(boilerSteamRate)} steam / sec available` };
-  const steamEngineSteamFlowStatus = steam ? powerFlowBadgeFor(steamEngineInputStatus) : lockedPowerFlowStatus;
+  const steamEngineSteamFlowStatus = steam ? powerFlowBadgeFor(steamEngineSteamStatus) : lockedPowerFlowStatus;
   const boilerConstructionItems = state.queue.filter((item) => item.action === 'boiler');
   const steamEngineConstructionItems = state.queue.filter((item) => item.action === 'steamEngine');
   const solarPanelConstructionItems = state.queue.filter((item) => item.action === 'solarPanel');
