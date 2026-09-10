@@ -2519,6 +2519,13 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
     : steamEngineSteamStatus.label === 'limited'
       ? <Tag tone="red"><TriangleAlert size={10} /> steam-limited</Tag>
       : statusTag(true, state.steamEngines, steamEngineConstructionItems.length);
+  const nuclearReactorFuelRatio = nuclearFlow.reactorFuelRatio;
+  const nuclearFuelCellAvailableRate = peakProductionRateFor(state, 'uranium-fuel-cell') / 60;
+  const nuclearFuelCellFlowStatus: SupplyStatus = !nuclear
+    ? { tone: 'muted', label: 'locked', detail: 'research Nuclear Power' }
+    : nuclearReactorFuelRatio >= 0.999999
+      ? { tone: 'teal', label: 'supplied', detail: `${fmt(quantityFor(state, 'uranium-fuel-cell'))} cells stored` }
+      : { tone: 'red', label: 'limited', detail: `${fmt(quantityFor(state, 'uranium-fuel-cell'))} cells stored` };
   const nuclearHeatRatio = nuclearFlow.heatDemand > 0 ? nuclearFlow.heatConsumed / nuclearFlow.heatDemand : 0;
   const nuclearHeatFlowStatus: SupplyStatus = !nuclear
     ? { tone: 'muted', label: 'locked', detail: 'research Nuclear Power' }
