@@ -2519,14 +2519,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
     : steamEngineSteamStatus.label === 'limited'
       ? <Tag tone="red"><TriangleAlert size={10} /> steam-limited</Tag>
       : statusTag(true, state.steamEngines, steamEngineConstructionItems.length);
-  const nuclearReactorFuelRatio = nuclearFlow.reactorFuelRatio;
   const nuclearHeatRatio = nuclearFlow.heatDemand > 0 ? nuclearFlow.heatConsumed / nuclearFlow.heatDemand : 0;
-  const nuclearFuelCellAvailableRate = peakProductionRateFor(state, 'uranium-fuel-cell') / 60;
-  const nuclearFuelCellFlowStatus: SupplyStatus = !nuclear
-    ? { tone: 'muted', label: 'locked', detail: 'research Nuclear Power' }
-    : nuclearReactorFuelRatio >= 0.999999
-      ? { tone: 'teal', label: 'supplied', detail: `${fmt(quantityFor(state, 'uranium-fuel-cell'))} cells stored` }
-      : { tone: 'red', label: 'limited', detail: `${fmt(quantityFor(state, 'uranium-fuel-cell'))} cells stored` };
   const nuclearHeatFlowStatus: SupplyStatus = !nuclear
     ? { tone: 'muted', label: 'locked', detail: 'research Nuclear Power' }
     : nuclearHeatRatio >= 0.999999
@@ -2622,8 +2615,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
            <div className="eyebrow mb-2">4 · Nuclear reactor</div>
            <article className={`rounded-xl border p-3.5 sm:p-4 ${nuclear ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-nuclear-reactor">
              <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="nuclear-reactor" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Nuclear reactor</h2><div className="flex items-center gap-2">{statusTag(nuclear, state.nuclearReactors, nuclearReactorConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]"><ResourceIcon item="nuclear-reactor" size={17} /><span className="mono text-[13px]">{state.nuclearReactors}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Fuel cells to heat · 1 fuel cell / 200 sec · 120,000 heat / sec</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={nuclear ? 'teal' : 'muted'}>{nuclear ? 'heat source' : 'research lock'}</Tag>{nuclearReactorConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
-             <PowerRateSummary unitLabel="per second" rows={[{ label: 'Fuel cells', perBuilding: nuclearFuelCellPerSecond, total: nuclearFlow.fuelCellDemand / Math.max(0.0001, state.simulationSpeed), tone: 'text-[hsl(var(--primary))]' }, { label: 'Heat', perBuilding: nuclearHeatPerReactorPerSecond, total: nuclearFlow.heatProduced / Math.max(0.0001, state.simulationSpeed), tone: 'text-[hsl(var(--secondary))]' }]} />
-             <div className="mt-3 grid gap-2 sm:grid-cols-2"><PowerFlowCard label="Fuel cells" item="uranium-fuel-cell" firstValue={nuclearFuelCellAvailableRate} secondValue={nuclearFlow.fuelCellsConsumed} status={nuclearFuelCellFlowStatus} testId="flow-power-nuclear-reactor-fuel" /><PowerFlowCard label="Heat" item="heat-pipe" firstLabel="Produced" firstValue={nuclearFlow.heatProduced} secondValue={nuclearFlow.heatConsumed} status={nuclearHeatFlowStatus} testId="flow-power-nuclear-reactor-heat" /></div>
+              <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3" data-testid="recipe-power-nuclear-reactor"><div className="eyebrow mb-2">Production per machine per second</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><ResourceIcon item="uranium-fuel-cell" size={17} /><strong>0.05</strong> uranium fuel cells / s</span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--secondary)/.4)' }}><ResourceIcon item="heat-pipe" size={17} /><strong>40000</strong> heat / s</span></div></div>
              {constructionChips(recipeBuildCosts(nuclearReactorRecipe), 'nuclear-reactor')}
              <div className="mt-4 flex gap-2"><button onClick={() => buildPowerUnit('nuclearReactor')} className={`button-base flex-1 !py-2 ${nuclearReactorConstructionItems.length ? 'button-build-active' : nuclear ? 'button-ghost' : 'button-primary'}`} data-testid="button-build-nuclear-reactor">{nuclearReactorConstructionItems.length ? <><Check size={13} /> queued · build {constructionBatchSize}</> : nuclear ? <><Hammer size={13} /> construct {constructionBatchSize} <ResourceIcon item="nuclear-reactor" size={13} /></> : <><LockKeyhole size={13} /> requires Nuclear Power</>}</button></div>
              <BuildProgress items={nuclearReactorConstructionItems} label="Nuclear reactor" cancelConstruction={cancelConstruction} notice={notice} />
