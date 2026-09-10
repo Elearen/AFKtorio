@@ -2685,8 +2685,14 @@ function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: P
     notice(`${containerLabel} for ${meta[key].label} queued`);
   };
   const unlockedKeys = orderedTrackedKeys.filter((key) => unlockedProductKeys(state).has(key));
+  const [query, setQuery] = useState('');
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
-   const visibleKeys = unlockedKeys.filter((key) => scienceFilter === 'all' || trackedScienceChainFor(key, state) === scienceFilter);
+  const visibleKeys = unlockedKeys.filter((key) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const matchesQuery = !normalizedQuery
+      || `${meta[key].label} ${meta[key].category} ${key}`.toLowerCase().includes(normalizedQuery);
+    return matchesQuery && (scienceFilter === 'all' || trackedScienceChainFor(key, state) === scienceFilter);
+  });
   const visibleMaterialKeys = visibleKeys.filter((key) => !isFluidKey(key));
   const visibleFluidKeys = visibleKeys.filter((key) => isFluidKey(key));
   const lowestMaterialCapacity = visibleMaterialKeys.length
@@ -2758,6 +2764,7 @@ function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: P
     </section>
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
       <div className="flex flex-col gap-2 sm:flex-row">
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items or categories" className="min-w-0 flex-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search stored items" data-testid="input-search-storage" />
         <select value={scienceFilter} onChange={(event) => setScienceFilter(event.target.value as RecipeScienceFilter)} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none" aria-label="Filter storage science chain" data-testid="select-storage-science-filter">
           <option value="all">All items</option>
           <option value="Core">Core items</option>
