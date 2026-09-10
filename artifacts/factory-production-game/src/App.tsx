@@ -5,7 +5,7 @@ import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
 import { technologyOrder } from './technologyOrder';
 import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, spaceScienceRecipeMachineCountAfterUnlock, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
-import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, electricFurnaceCraftingSpeed, electricFurnacePowerKw, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
+import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, centrifugeCraftingSpeed, centrifugePowerKw, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, electricFurnaceCraftingSpeed, electricFurnacePowerKw, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
 import { activateReadyConstruction, constructionCanBeFullyFunded, constructionDurationFor, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import { calculateNuclearPowerFlow, type NuclearPowerFlow } from './nuclearPowerSystem';
@@ -268,6 +268,7 @@ const labRecipe = recipeMap['lab'];
 const nuclearReactorRecipe = recipeMap['nuclear-reactor'];
 const heatExchangerRecipe = recipeMap['heat-exchanger'];
 const steamTurbineRecipe = recipeMap['steam-turbine'];
+const centrifugeRecipe = recipeMap['centrifuge'];
 const uraniumProcessingRecipe = recipeMap['uranium-processing'];
 const kovarexRecipe = recipeMap['kovarex-enrichment-process'];
 const uraniumFuelCellRecipe = recipeMap['uranium-fuel-cell'];
@@ -325,6 +326,7 @@ const isSmeltingRecipe = (recipe: Recipe) => smeltingRecipeKeys.has(recipe.name)
 const isOilRefineryRecipe = (recipe?: Recipe) => Boolean(recipe && (recipe.name === 'basic-oil-processing' || recipe.name === 'advanced-oil-processing'));
 const chemicalPlantRecipeKeys = new Set<string>(chemicalPlantRecipeNames);
 const isChemicalPlantRecipe = (recipe?: Recipe) => Boolean(recipe && chemicalPlantRecipeKeys.has(recipe.name));
+const isCentrifugeRecipe = (recipe?: Recipe) => recipe?.category === 'centrifuging';
 const furnaceCraftingSpeedFor = (state: GameState) => state.furnaceVariant === 'electric-furnace'
   ? electricFurnaceCraftingSpeed
   : state.furnaceVariant === 'steel-furnace' ? steelFurnaceCraftingSpeed : 1;
@@ -336,7 +338,7 @@ const automatedRecipeInputsFor = (state: GameState, recipe: Recipe) => {
 };
 const furnaceLabelFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? 'Electric Furnace' : state.furnaceVariant === 'steel-furnace' ? 'Steel Furnace' : 'Stone Furnace';
 const furnaceBuildRecipeFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? electricFurnaceRecipe : state.furnaceVariant === 'steel-furnace' ? steelFurnaceRecipe : stoneFurnaceRecipe;
-const productionBuildingFor = (state: GameState, recipe: Recipe) => recipe.name === 'space-science-pack' ? 'rocket-silo' : isSmeltingRecipe(recipe) ? state.furnaceVariant : isOilRefineryRecipe(recipe) ? 'oil-refinery' : isChemicalPlantRecipe(recipe) ? 'chemical-plant' : state.machineVariants.assembly;
+const productionBuildingFor = (state: GameState, recipe: Recipe) => recipe.name === 'space-science-pack' ? 'rocket-silo' : isSmeltingRecipe(recipe) ? state.furnaceVariant : isOilRefineryRecipe(recipe) ? 'oil-refinery' : isChemicalPlantRecipe(recipe) ? 'chemical-plant' : isCentrifugeRecipe(recipe) ? 'centrifuge' : state.machineVariants.assembly;
 const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
 const trackedKeys: TrackedKey[] = Array.from(new Set([
   ...rawKeys,
@@ -534,13 +536,16 @@ const storageBoxCountFor = (state: GameState) => itemStorageBoxCountFor(
 const storageCapacityFor = (state: GameState, key: TrackedKey) => calculateStorageCapacityFor(key, fluidKeys, state.storageBoxes, state.storageTanks, storageBoxCapacityFor(state));
 const capFor = (state: GameState, key: TrackedKey) => Math.floor(state.storage[key] ?? storageCapacityFor(state, key));
 const burnerMinerCount = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + state.miners[key], 0);
-const electricAssemblerCount = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && !isSmeltingRecipe(recipeMap[recipeKey]) && !isOilRefineryRecipe(recipeMap[recipeKey]) && !isChemicalPlantRecipe(recipeMap[recipeKey]) ? count : 0), 0);
+const electricAssemblerCount = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && !isSmeltingRecipe(recipeMap[recipeKey]) && !isOilRefineryRecipe(recipeMap[recipeKey]) && !isChemicalPlantRecipe(recipeMap[recipeKey]) && !isCentrifugeRecipe(recipeMap[recipeKey]) ? count : 0), 0);
 const oilRefineryCountFor = (state: GameState) => (state.assemblers['basic-oil-processing'] ?? 0) + (state.assemblers['advanced-oil-processing'] ?? 0);
 const chemicalPlantCountFor = (state: GameState) => chemicalPlantRecipeNames.reduce((total, recipeKey) => total + (state.assemblers[recipeKey] ?? 0), 0);
+const centrifugeCountFor = (state: GameState) => Object.entries(state.assemblers).reduce((total, [recipeKey, count]) => total + (recipeMap[recipeKey] && isCentrifugeRecipe(recipeMap[recipeKey]) ? count : 0), 0);
 const smeltingFurnaceCountFor = (state: GameState) => Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => total + (state.assemblers[recipeKey] ?? 0), 0);
 const productionUnitCount = (state: GameState) => Object.values(state.assemblers).reduce((total, count) => total + count, 0);
-const assemblyMachineProductionSpeedFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe)
-  ? oilRefineryCraftingSpeed
+const assemblyMachineProductionSpeedFor = (state: GameState, recipe?: Recipe) => isCentrifugeRecipe(recipe)
+  ? centrifugeCraftingSpeed
+  : isOilRefineryRecipe(recipe)
+    ? oilRefineryCraftingSpeed
   : isChemicalPlantRecipe(recipe)
     ? chemicalPlantCraftingSpeed
     : state.machineVariants.assembly === 'assembling-machine-3'
@@ -548,8 +553,10 @@ const assemblyMachineProductionSpeedFor = (state: GameState, recipe?: Recipe) =>
       : state.machineVariants.assembly === 'assembling-machine-2'
         ? assemblyMachineTwoProductionSpeed
         : assemblyMachineOneProductionSpeed;
-const assemblyMachinePowerFor = (state: GameState, recipe?: Recipe) => isOilRefineryRecipe(recipe)
-  ? oilRefineryPowerKw
+const assemblyMachinePowerFor = (state: GameState, recipe?: Recipe) => isCentrifugeRecipe(recipe)
+  ? centrifugePowerKw
+  : isOilRefineryRecipe(recipe)
+    ? oilRefineryPowerKw
   : isChemicalPlantRecipe(recipe)
     ? chemicalPlantPowerKw
     : state.machineVariants.assembly === 'assembling-machine-3'
@@ -643,6 +650,8 @@ const productionMachineLabelFor = (state: GameState, recipe?: Recipe) => recipe?
     ? 'Oil Refinery'
     : isChemicalPlantRecipe(recipe)
       ? 'Chemical Plant'
+      : isCentrifugeRecipe(recipe)
+        ? 'Centrifuge'
       : state.machineVariants.assembly === 'assembling-machine-3'
         ? 'Assembly Machine 3'
         : state.machineVariants.assembly === 'assembling-machine-2'
@@ -654,6 +663,8 @@ const productionMachineRecipeFor = (state: GameState, recipe?: Recipe) => recipe
     ? oilRefineryRecipe
     : isChemicalPlantRecipe(recipe)
       ? chemicalPlantRecipe
+      : isCentrifugeRecipe(recipe)
+        ? centrifugeRecipe
       : state.machineVariants.assembly === 'assembling-machine-3'
         ? assemblyMachineThreeRecipe
         : state.machineVariants.assembly === 'assembling-machine-2'
@@ -663,22 +674,27 @@ const productionMachineBuildCostFor = (state: GameState, recipe?: Recipe): Build
   ? rocketSiloBuildCost
   : isOilRefineryRecipe(recipe) || isChemicalPlantRecipe(recipe)
   ? recipeBuildCosts(isOilRefineryRecipe(recipe) ? oilRefineryRecipe : chemicalPlantRecipe)
+  : isCentrifugeRecipe(recipe)
+    ? recipeBuildCosts(centrifugeRecipe)
   : state.machineVariants.assembly === 'assembling-machine-3'
     ? assemblyMachineThreeBuildCost
     : state.machineVariants.assembly === 'assembling-machine-2'
       ? assemblyMachineTwoBuildCost
       : [{ key: 'circuit', amount: assemblyMachineOneBuildCost.circuit, source: 'products' }, { key: 'gear', amount: assemblyMachineOneBuildCost.gear, source: 'products' }, { key: 'ironPlate', amount: assemblyMachineOneBuildCost.ironPlate, source: 'products' }];
-const productionMachineLoadLabelFor = (state: GameState) => [oilRefineryCountFor(state), chemicalPlantCountFor(state), electricAssemblerCount(state)].filter((count) => count > 0).length > 1
+const productionMachineLoadLabelFor = (state: GameState) => [oilRefineryCountFor(state), chemicalPlantCountFor(state), centrifugeCountFor(state), electricAssemblerCount(state)].filter((count) => count > 0).length > 1
   ? 'Mixed production'
   : chemicalPlantCountFor(state) > 0
     ? 'Chemical Plant'
     : oilRefineryCountFor(state) > 0
     ? 'Oil Refinery'
+    : centrifugeCountFor(state) > 0
+    ? 'Centrifuge'
     : productionMachineLabelFor(state);
 const productionMachineLoadDetailFor = (state: GameState) => [
   electricAssemblerCount(state) > 0 ? `${assemblyMachinePowerFor(state)} kW assembly` : '',
   oilRefineryCountFor(state) > 0 ? `${oilRefineryPowerKw} kW per Oil Refinery` : '',
   chemicalPlantCountFor(state) > 0 ? `${chemicalPlantPowerKw} kW per Chemical Plant` : '',
+  centrifugeCountFor(state) > 0 ? `${centrifugePowerKw} kW per Centrifuge` : '',
 ].filter(Boolean).join(' · ') || `${assemblyMachinePowerFor(state)} kW per assembly machine`;
 const quantityFor = (state: GameState, key: TrackedKey) => rawKeys.includes(key as RawKey) ? state.raw[key as RawKey] : state.products[key] ?? 0;
 const recipePausedFor = (state: GameState, recipeKey: string) => state.pausedRecipes?.[recipeKey] === true;
@@ -954,8 +970,8 @@ const recipeAutoStartStopConditionFor = (state: GameState, recipe: Recipe) => {
   }
   if (recipe.name === 'kovarex-enrichment-process') {
     return {
-      met: quantityFor(state, 'uranium-238') > quantityFor(state, 'uranium-235'),
-      label: 'U-238 > U-235',
+      met: quantityFor(state, 'uranium-235') >= 1 && quantityFor(state, 'uranium-238') >= 3,
+      label: '1 U-235 + 3 U-238 available',
     };
   }
   return { met: true, label: '' };
@@ -2407,7 +2423,6 @@ function NuclearRecipeCard({ state, setState, enqueue, notice, cancelConstructio
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <button type="button" onClick={() => { togglePause(); notice(paused ? `${prettyLabel(key)} resumed` : `${prettyLabel(key)} paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : autoCondition.met ? 'tag-running' : 'tag-starved'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${prettyLabel(key)}`} data-testid={`button-toggle-pause-nuclear-${key}`}>{paused ? 'PAUSED' : <>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</>}</button> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
         <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle · {buildingLabel}</div>
-        <div className="mt-1 flex flex-wrap gap-1"><Tag tone={recipeScienceChainFor(recipe, spaceScienceUnlocked) === 'Core' ? 'teal' : 'muted'}>{recipeScienceChainFor(recipe, spaceScienceUnlocked)}</Tag>{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
       </div>
     </div>
     <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3"><div className="eyebrow mb-2">Recipe</div><div className="flex flex-wrap items-center gap-1.5">
@@ -2602,8 +2617,8 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
          <div>
            <div className="eyebrow mb-2">4 · Nuclear reactor</div>
            <article className={`rounded-xl border p-3.5 sm:p-4 ${nuclear ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-nuclear-reactor">
-             <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="nuclear-reactor" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Nuclear reactor</h2><div className="flex items-center gap-2">{statusTag(nuclear, state.nuclearReactors, nuclearReactorConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]"><ResourceIcon item="nuclear-reactor" size={17} /><span className="mono text-[13px]">{state.nuclearReactors}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Fuel cells to heat · 1 fuel cell / 200 sec · 120,000 heat / sec</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={nuclear ? 'teal' : 'muted'}>{nuclear ? 'heat source' : 'research lock'}</Tag>{nuclearReactorConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
-              <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3" data-testid="recipe-power-nuclear-reactor"><div className="eyebrow mb-2">Production per machine</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><ResourceIcon item="uranium-fuel-cell" size={17} /><strong>0.005</strong></span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--secondary)/.4)' }}><ResourceIcon item="heat-pipe" size={17} /><strong>40000</strong></span></div></div>
+              <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="nuclear-reactor" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Nuclear reactor</h2><div className="flex items-center gap-2">{statusTag(nuclear, state.nuclearReactors, nuclearReactorConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]"><ResourceIcon item="nuclear-reactor" size={17} /><span className="mono text-[13px]">{state.nuclearReactors}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Fuel cells to heat · 1 fuel cell / 200 sec · 120,000 heat / sec</p></div></div>
+               <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3" data-testid="recipe-power-nuclear-reactor"><div className="eyebrow mb-2">Production per machine</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><ResourceIcon item="uranium-fuel-cell" size={17} /><strong>0.005</strong> / s</span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--secondary)/.4)' }}><ResourceIcon item="heat-pipe" size={17} /><strong>120000</strong> / s</span></div></div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2"><PowerFlowCard label="Fuel cells" item="uranium-fuel-cell" firstValue={nuclearFuelCellAvailableRate} secondValue={nuclearFlow.fuelCellsConsumed} status={nuclearFuelCellFlowStatus} testId="flow-power-nuclear-reactor-fuel" /><PowerFlowCard label="Heat" item="heat-pipe" firstLabel="Produced" firstValue={nuclearFlow.heatProduced} secondValue={nuclearFlow.heatConsumed} status={nuclearHeatFlowStatus} testId="flow-power-nuclear-reactor-heat" /></div>
              {constructionChips(recipeBuildCosts(nuclearReactorRecipe), 'nuclear-reactor')}
              <div className="mt-4 flex gap-2"><button onClick={() => buildPowerUnit('nuclearReactor')} className={`button-base flex-1 !py-2 ${nuclearReactorConstructionItems.length ? 'button-build-active' : nuclear ? 'button-ghost' : 'button-primary'}`} data-testid="button-build-nuclear-reactor">{nuclearReactorConstructionItems.length ? <><Check size={13} /> queued · build {constructionBatchSize}</> : nuclear ? <><Hammer size={13} /> construct {constructionBatchSize} <ResourceIcon item="nuclear-reactor" size={13} /></> : <><LockKeyhole size={13} /> requires Nuclear Power</>}</button></div>
@@ -2613,7 +2628,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
          <div>
            <div className="eyebrow mb-2">5 · Heat exchangers</div>
            <article className={`rounded-xl border p-3.5 sm:p-4 ${nuclear ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-heat-exchanger">
-             <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="heat-exchanger" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Heat exchanger</h2><div className="flex items-center gap-2">{statusTag(nuclear, state.heatExchangers, heatExchangerConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]"><ResourceIcon item="heat-exchanger" size={17} /><span className="mono text-[13px]">{state.heatExchangers}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Heat and water to nuclear steam · 10,000 heat + 10.3 water / sec · 103 steam / sec</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={nuclear ? 'teal' : 'muted'}>{nuclear ? 'nuclear steam line' : 'research lock'}</Tag>{heatExchangerConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
+              <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="heat-exchanger" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Heat exchanger</h2><div className="flex items-center gap-2">{statusTag(nuclear, state.heatExchangers, heatExchangerConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]"><ResourceIcon item="heat-exchanger" size={17} /><span className="mono text-[13px]">{state.heatExchangers}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Heat and water to nuclear steam · 10,000 heat + 10.3 water / sec · 103 steam / sec</p></div></div>
               <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3" data-testid="recipe-power-heat-exchanger"><div className="eyebrow mb-2">Production per machine</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><ResourceIcon item="heat-pipe" size={17} /><strong>10000</strong> / s</span><span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">+</span><span className="resource-chip"><ResourceIcon item="water" size={17} /><strong>10.3</strong> / s</span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--secondary)/.4)' }}><ResourceIcon item="steam" size={17} /><strong>103</strong> / s</span></div></div>
              <div className="mt-3 grid gap-2 sm:grid-cols-3"><PowerFlowCard label="Heat" item="heat-pipe" firstValue={nuclearFlow.heatProduced} secondValue={nuclearFlow.heatConsumed} status={nuclearHeatFlowStatus} testId="flow-power-heat-exchanger-heat" /><PowerFlowCard label="Water" item="water" firstValue={inputFlowPerSecondFor(state, 'water')} secondValue={nuclearFlow.waterConsumed} status={nuclearWaterFlowStatus} testId="flow-power-heat-exchanger-water" /><PowerFlowCard label="Steam output" item="steam" firstLabel="Produced" firstValue={nuclearFlow.nuclearSteamProduced} secondValue={nuclearFlow.nuclearSteamConsumed} status={powerFlowBadgeFor(nuclearSteamStatus)} testId="flow-power-heat-exchanger-steam" /></div>
              {constructionChips(recipeBuildCosts(heatExchangerRecipe), 'heat-exchanger')}
@@ -2624,7 +2639,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
          <div>
            <div className="eyebrow mb-2">6 · Steam turbines</div>
            <article className={`rounded-xl border p-3.5 sm:p-4 ${nuclear ? 'surface-soft' : 'locked-wash opacity-60 grayscale'}`} data-testid="card-power-steam-turbine">
-             <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="steam-turbine" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Steam turbine</h2><div className="flex items-center gap-2">{statusTag(nuclear, state.steamTurbines, steamTurbineConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]"><ResourceIcon item="steam-turbine" size={17} /><span className="mono text-[13px]">{state.steamTurbines}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Nuclear steam to electricity · 60 steam / sec · 5.82 MW / turbine</p><div className="mt-1 flex flex-wrap gap-1"><Tag tone={nuclear ? 'teal' : 'muted'}>{nuclear ? 'power generation' : 'research lock'}</Tag>{steamTurbineConstructionItems.length > 0 && <Tag tone="muted">construction queued</Tag>}</div></div></div>
+              <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item="steam-turbine" size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">Steam turbine</h2><div className="flex items-center gap-2">{statusTag(nuclear, state.steamTurbines, steamTurbineConstructionItems.length)}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]"><ResourceIcon item="steam-turbine" size={17} /><span className="mono text-[13px]">{state.steamTurbines}</span></div></div></div><p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Nuclear steam to electricity · 60 steam / sec · 5.82 MW / turbine</p></div></div>
               <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3" data-testid="recipe-power-steam-turbine"><div className="eyebrow mb-2">Production per machine</div><div className="flex flex-wrap items-center gap-1.5"><span className="resource-chip"><ResourceIcon item="steam" size={17} /><strong>60</strong> / s</span><ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" /><span className="resource-chip" style={{ borderColor: 'hsl(var(--secondary)/.4)' }}><Zap size={16} /><strong>5.82</strong> MW</span></div></div>
              <div className="mt-3"><PowerFlowCard label="Steam input" item="steam" firstValue={nuclearFlow.nuclearSteamProduced} secondValue={nuclearFlow.nuclearSteamConsumed} status={powerFlowBadgeFor(nuclearSteamStatus)} testId="flow-power-steam-turbine-steam" /></div>
              {constructionChips(recipeBuildCosts(steamTurbineRecipe), 'steam-turbine')}

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { recipeCatalog } from '../src/recipeCatalog.js';
-import { isAutomatedOnlyRecipe } from '../src/productionSystem.js';
+import { centrifugeCraftingSpeed, centrifugePowerKw, isAutomatedOnlyRecipe } from '../src/productionSystem.js';
 
 const recipe = (name: string) => {
   const entry = recipeCatalog.find((candidate) => candidate.name === name);
@@ -28,6 +28,17 @@ test('every crafting-with-fluid recipe is automated only', () => {
   fluidRecipes.forEach((entry) => {
     assert.equal(isAutomatedOnlyRecipe(entry), true, `${entry.name} should be automated only`);
   });
+});
+
+test('centrifuging recipes use automated centrifuges with the expected machine profile', () => {
+  const centrifugingRecipes = recipeCatalog.filter((entry) => entry.category === 'centrifuging');
+
+  assert.ok(centrifugingRecipes.length > 0);
+  centrifugingRecipes.forEach((entry) => {
+    assert.equal(isAutomatedOnlyRecipe(entry), true, `${entry.name} should be automated only`);
+  });
+  assert.equal(centrifugeCraftingSpeed, 1);
+  assert.equal(centrifugePowerKw, 350);
 });
 
 test('assembler recipes remain handcraftable', () => {

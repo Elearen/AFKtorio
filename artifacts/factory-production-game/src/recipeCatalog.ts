@@ -5515,23 +5515,18 @@ const recipeCatalogSource: Omit<RecipeCatalogEntry, 'scienceChain'>[] = [
       {
         "type": "item",
         "name": "uranium-235",
-        "amount": 40
+        "amount": 1
       },
       {
         "type": "item",
         "name": "uranium-238",
-        "amount": 5
+        "amount": 3
       }
     ],
     "results": [
       {
         "type": "item",
         "name": "uranium-235",
-        "amount": 41
-      },
-      {
-        "type": "item",
-        "name": "uranium-238",
         "amount": 2
       }
     ]

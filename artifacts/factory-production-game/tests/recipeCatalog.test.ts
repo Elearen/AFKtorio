@@ -70,3 +70,26 @@ test('Speed Module 1 is classified as a Core recipe', () => {
   assert.equal(recipeScienceChainFor(speedModule, false), 'Core');
   assert.equal(recipeScienceChainFor(speedModule, true), 'Core');
 });
+
+test('uranium processing and Kovarex use the centrifuge recipe chain', () => {
+  const centrifuge = recipeCatalog.find((recipe) => recipe.name === 'centrifuge');
+  const uraniumProcessing = recipeCatalog.find((recipe) => recipe.name === 'uranium-processing');
+  const kovarex = recipeCatalog.find((recipe) => recipe.name === 'kovarex-enrichment-process');
+
+  assert.ok(centrifuge);
+  assert.ok(uraniumProcessing);
+  assert.ok(kovarex);
+  assert.equal(centrifuge.energyRequired, 4);
+  assert.deepEqual(centrifuge.ingredients, [
+    { type: 'item', name: 'concrete', amount: 100 },
+    { type: 'item', name: 'steel-plate', amount: 50 },
+    { type: 'item', name: 'advanced-circuit', amount: 100 },
+    { type: 'item', name: 'iron-gear-wheel', amount: 100 },
+  ]);
+  assert.equal(uraniumProcessing.category, 'centrifuging');
+  assert.deepEqual(kovarex.ingredients, [
+    { type: 'item', name: 'uranium-235', amount: 1 },
+    { type: 'item', name: 'uranium-238', amount: 3 },
+  ]);
+  assert.deepEqual(kovarex.results, [{ type: 'item', name: 'uranium-235', amount: 2 }]);
+});

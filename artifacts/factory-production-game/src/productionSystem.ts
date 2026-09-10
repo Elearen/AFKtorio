@@ -1,6 +1,8 @@
 import type { RecipeCatalogEntry } from './recipeCatalog.js';
 
 export const assemblyMachineOneCraftingSpeed = 0.5;
+export const centrifugeCraftingSpeed = 1;
+export const centrifugePowerKw = 350;
 export const oilRefineryCraftingSpeed = 1;
 export const oilRefineryPowerKw = 420;
 export const chemicalPlantCraftingSpeed = 1;
@@ -26,6 +28,7 @@ export const electricFurnacePowerKw = 180;
 export const isAutomatedOnlyRecipe = (recipe: Pick<RecipeCatalogEntry, 'name' | 'category'>) =>
   recipe.category === 'smelting'
   || recipe.category === 'crafting-with-fluid'
+  || recipe.category === 'centrifuging'
   || recipe.name === 'basic-oil-processing'
   || recipe.name === 'advanced-oil-processing'
   || chemicalPlantRecipeNameSet.has(recipe.name)
