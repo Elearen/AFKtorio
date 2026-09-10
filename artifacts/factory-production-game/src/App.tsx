@@ -2509,14 +2509,26 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
     const target = ingredientNavigationFor(key);
     if (target) navigate(`${target.href}?focus=${encodeURIComponent(target.targetId)}`);
   };
+  const coalPowerProduction = powerFlow.powerGeneratedMw;
+  const coalPowerCapacity = steamEnginePeakPowerFor(state);
+  const solarPowerProduction = solarPowerFor(state);
+  const solarPowerCapacity = solarPanelPotentialPowerKwFor(state) / 1000;
+  const nuclearPowerProduction = nuclearPowerFor(state);
+  const nuclearPowerCapacity = nuclearPeakPowerFor(state);
   return <PageFrame>
-     <Header eyebrow="Energy network" title="Power" copy="Boiler steam and nuclear steam are independent lines. Each generator scales to its own limiting fuel, fluid, heat, or steam input before contributing to the shared electrical network." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} constructionRoboticsUnlocked={state.research.includes('construction-robotics')} notice={notice} action={<div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_12%/.8)] px-3 py-2"><BatteryCharging size={17} className="text-[hsl(var(--secondary))]" /><span className="mono text-[15px]">{powerLabel(production)} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">MW produced</span></span></div>} />
-    <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <div className="surface rounded-xl p-4"><div className="eyebrow">Production</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(production)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">current generation</div></div>
-      <div className="surface rounded-xl p-4"><div className="eyebrow">Peak potential</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(potential)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">available at full input</div></div>
-      <div className="surface rounded-xl p-4"><div className="eyebrow">Factory draw</div><div className="mono mt-2 text-xl">{powerLabel(draw)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">labs + electric machines</div></div>
-      <div className="surface rounded-xl p-4"><div className="eyebrow">Net balance</div><div className={`mono mt-2 text-xl ${production >= draw ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{powerLabel(production - draw)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">generation minus draw</div></div>
-    </div>
+     <Header eyebrow="Energy network" title="Power" copy="Boiler steam and nuclear steam are independent lines. Each generator scales to its own limiting fuel, fluid, heat, or steam input before contributing to the shared electrical network." constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={setConstructionBatchSize} constructionRoboticsUnlocked={state.research.includes('construction-robotics')} notice={notice} />
+     <div className="mb-5 space-y-3" data-testid="power-overview">
+       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+         <div className="surface rounded-xl p-4" data-testid="power-overview-draw"><div className="eyebrow">Current factory draw</div><div className="mono mt-2 text-xl text-[hsl(var(--primary))]">{powerLabel(draw)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">labs + electric machines</div></div>
+         <div className="surface rounded-xl p-4" data-testid="power-overview-capacity"><div className="eyebrow">Peak capacity</div><div className="mono mt-2 text-xl text-[hsl(var(--secondary))]">{powerLabel(potential)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">available at full input</div></div>
+         <div className="surface rounded-xl p-4" data-testid="power-overview-net"><div className="eyebrow">Net production</div><div className={`mono mt-2 text-xl ${production >= draw ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{powerLabel(production - draw)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">generation minus draw</div></div>
+       </div>
+       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+         <div className="surface-soft rounded-xl border border-[hsl(var(--border))] p-4" data-testid="power-source-coal"><div className="eyebrow flex items-center gap-1.5 text-[hsl(var(--primary))]"><FlameIcon /> Coal Power</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">Boilers + Steam Engines</div><div className="mono mt-3 text-xl text-[hsl(var(--secondary))]">{powerLabel(coalPowerProduction)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">current · {powerLabel(coalPowerCapacity)} MW peak</div></div>
+         <div className="surface-soft rounded-xl border border-[hsl(var(--border))] p-4" data-testid="power-source-solar"><div className="eyebrow flex items-center gap-1.5 text-[hsl(var(--secondary))]"><Sun size={14} /> Solar Panels</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">Solar Panels + Accumulators</div><div className="mono mt-3 text-xl text-[hsl(var(--secondary))]">{powerLabel(solarPowerProduction)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">current · {powerLabel(solarPowerCapacity)} MW peak</div></div>
+         <div className="surface-soft rounded-xl border border-[hsl(var(--border))] p-4" data-testid="power-source-nuclear"><div className="eyebrow flex items-center gap-1.5 text-[hsl(var(--secondary))]"><Sparkles size={14} /> Nuclear Power</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">Nuclear Reactors + Heat Exchangers + Steam Turbines</div><div className="mono mt-3 text-xl text-[hsl(var(--secondary))]">{powerLabel(nuclearPowerProduction)} MW</div><div className="mt-1 text-[9px] text-[hsl(var(--muted-foreground))]">current · {powerLabel(nuclearPowerCapacity)} MW peak</div></div>
+       </div>
+     </div>
     <section className="surface rounded-xl p-4 sm:p-5">
       <SectionTitle detail={`${steam ? 'steam power unlocked' : 'steam power locked'} · ${solar ? 'solar online' : 'solar locked'}`}>Production cards</SectionTitle>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
