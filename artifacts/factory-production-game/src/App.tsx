@@ -774,6 +774,8 @@ const markResearchComplete = (state: GameState, technology: TechnologyDefinition
       ? 'trains'
     : technology.name === 'spidertron'
       ? 'spidertron'
+      : technology.name === 'ai-powered-infinite-research'
+        ? 'infinite-science-complete'
       : null;
   if (researchMilestone && unlockMilestone(state, researchMilestone) && !state.milestoneNotifications.includes(researchMilestone)) {
     state.milestoneNotifications.push(researchMilestone);
@@ -1328,6 +1330,7 @@ function loadState() {
       spidertronResearched: Array.isArray(parsed.research) && parsed.research.some((key: unknown) => normalizeResearchKey(String(key)) === 'spidertron'),
       gameCompleted: parsed.gameComplete === true || parsed.rocketLaunched === true,
       spaceScienceProduced: typeof parsed.produced?.spacePack === 'number' ? parsed.produced.spacePack : 0,
+      infiniteResearchCompleted: normalizedResearch.includes('ai-powered-infinite-research'),
       totalSciencePacksProduced: totalSciencePacksProducedFor(parsed.produced ?? {}),
       advancedOilProductionCompleted: parsed.oilProcessingAdvanced === true,
     });
@@ -3463,6 +3466,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   const isRocketSilo = milestone === 'rocket-silo';
   const isSpidertron = milestone === 'spidertron';
   const isSpaceScience = milestone === 'space-science';
+  const isInfiniteScienceComplete = milestone === 'infinite-science-complete';
   const image = isFirstLab
     ? 'first-lab-milestone.jpg'
     : isHundredSciencePacks
@@ -3489,7 +3493,9 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
           ? 'spidertron-milestone.jpg'
          : isSpaceScience
            ? 'space-science-milestone.jpg'
-          : 'sixty-furnaces-milestone.jpg';
+           : isInfiniteScienceComplete
+             ? 'infinite-science-complete-milestone.jpg'
+            : 'sixty-furnaces-milestone.jpg';
   const imageAlt = isFirstLab
     ? 'Factory Planet laboratory and production machines beside a river'
     : isHundredSciencePacks
@@ -3516,13 +3522,17 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
           ? 'A giant spidertron standing over a factory planet forest'
          : isSpaceScience
            ? 'A satellite orbiting above Factory Planet and its atmosphere'
+           : isInfiniteScienceComplete
+             ? 'A vast factory built around a glowing artificial intelligence brain'
           : 'Factory Planet with a large industrial furnace and production network';
   const imageDimensions = isRocketSilo
     ? { width: 1181, height: 1331 }
     : isSpidertron
       ? { width: 1402, height: 1122 }
-      : isSpaceScience
-        ? { width: 1369, height: 1149 }
+       : isSpaceScience
+         ? { width: 1369, height: 1149 }
+       : isInfiniteScienceComplete
+         ? { width: 1536, height: 1024 }
        : isTrains
          ? { width: 1536, height: 1024 }
       : isAdvancedOilProduction
@@ -3564,6 +3574,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
           ? 'What could you possibly need this for?'
          : isSpaceScience
            ? 'You may have left the planet, but the factory has grown a life of its own. Production continues on.'
+          : isInfiniteScienceComplete
+            ? 'What have you done..!??\nWe may never know... until it is too late.'
           : '60 furnaces! This is a burgeoning industrial empire.';
   return <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface relative w-full max-w-[560px] overflow-hidden rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(88_24%_17%),hsl(216_25%_12%))] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="milestone-title" data-testid={`dialog-milestone-${milestone}`}>
@@ -3578,7 +3590,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
              <p className="mt-1 text-[12px] font-bold uppercase tracking-[.16em] text-[hsl(var(--primary))]">{milestoneTitles[milestone]}</p>
           </div>
         </div>
-        <p className="mt-6 text-[13px] leading-6 text-[hsl(var(--muted-foreground))]">{message}</p>
+        <p className="mt-6 whitespace-pre-line text-[13px] leading-6 text-[hsl(var(--muted-foreground))]">{message}</p>
         {isAdvancedOilProduction && <p className="mt-3 rounded-lg border border-[hsl(var(--primary)/.3)] bg-[hsl(var(--primary)/.06)] px-3 py-2 text-[10px] leading-5 text-[hsl(var(--muted-foreground))]"><span className="font-bold text-[hsl(var(--primary))]">Note:</span> Cracking plant balancing is fully automated.</p>}
         <button onClick={onDismiss} className="button-base button-primary mt-6 w-full !py-3 text-[12px]" data-testid="button-dismiss-milestone"><Check size={15} /> Continue</button>
       </div>

@@ -168,3 +168,17 @@ mtime_ms = 1788829754473
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/7a4d1b5b-d75b-49f6-a62d-7614127ce6ce/ffa055b3-691c-4e42-a230-55fc95089f3c"
 storage_version_token = "1788829777351103"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "VyJ7vpu25HT3QQrhieSUo"
+uri = "file://artifacts/factory-production-game/public/infinite-science-complete-milestone.jpg"
+type = "image"
+title = "Infinite Science Complete milestone artwork"
+description = "JPG artwork for the Infinite Science Complete milestone, converted from the attached PNG."
+logical_id = "1f21b84a-f7ba-40b7-b35d-c08f377c485c"
+content_hash = "sha256:9e68de2a50e32b91f913230ed95b491b7af086dfba54a7fd190b580c53094026"
+size = 580545
+mtime_ms = 1789046713098
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/1f21b84a-f7ba-40b7-b35d-c08f377c485c/22e68f38-2fe3-46ff-b066-11a1a9019024"
+storage_version_token = "1789046789084614"
+content_type = "image/jpeg"

@@ -135,6 +135,7 @@ test('milestones use the requested archive order', () => {
     'game-complete',
     'spidertron',
     'space-science',
+    'infinite-science-complete',
   ]);
 });
 
@@ -217,7 +218,7 @@ test('Game Complete is replayable without creating a second completion notificat
 
 test('Space Science is a replayable milestone triggered by the first produced pack', () => {
   assert.equal(milestoneTitles['space-science'], 'Space Science');
-  assert.equal(milestoneOrder.at(-1), 'space-science');
+  assert.equal(milestoneOrder.indexOf('space-science') < milestoneOrder.indexOf('infinite-science-complete'), true);
   const migrated = migrateMilestoneState({
     welcomeSeen: true,
     unlockedMilestones: ['crash-landed'],
@@ -228,6 +229,33 @@ test('Space Science is a replayable milestone triggered by the first produced pa
   });
   assert.deepEqual(migrated.milestoneNotifications, ['space-science']);
   assert.equal(migrated.unlockedMilestones.includes('space-science'), true);
+});
+
+test('Infinite Science Complete is triggered when AI-powered infinite research finishes', () => {
+  assert.equal(milestoneTitles['infinite-science-complete'], 'Infinite Science Complete');
+  assert.equal(milestoneOrder.at(-1), 'infinite-science-complete');
+  const migrated = migrateMilestoneState({
+    welcomeSeen: true,
+    unlockedMilestones: ['crash-landed', 'space-science'],
+    milestoneNotifications: ['space-science'],
+    labCount: 0,
+    furnaceCount: 0,
+    infiniteResearchCompleted: true,
+  });
+  assert.deepEqual(migrated.milestoneNotifications, ['space-science', 'infinite-science-complete']);
+  assert.equal(migrated.unlockedMilestones.includes('infinite-science-complete'), true);
+});
+
+test('Infinite Science Complete does not notify again for an existing save', () => {
+  const migrated = migrateMilestoneState({
+    welcomeSeen: true,
+    unlockedMilestones: ['crash-landed', 'infinite-science-complete'],
+    milestoneNotifications: [],
+    labCount: 0,
+    furnaceCount: 0,
+    infiniteResearchCompleted: true,
+  });
+  assert.deepEqual(migrated.milestoneNotifications, []);
 });
 
 test('legacy saves surface welcome and earned milestones as unviewed', () => {
