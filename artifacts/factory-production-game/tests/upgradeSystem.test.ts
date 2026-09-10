@@ -6,6 +6,7 @@ import {
   applyOilProcessingUpgradeCompletion,
   bufferedActualRateFor,
   beginUpgrade,
+  kovarexConditionMet,
   migrateMachineUpgradeState,
   oilCrackingConditionMet,
   oilProcessingUpgradeTimeFor,
@@ -276,6 +277,13 @@ test('oil cracking auto-start conditions require a strict storage lead', () => {
   assert.equal(oilCrackingConditionMet('heavy-oil-cracking', { 'heavy-oil': 40, 'light-oil': 40 }), false);
   assert.equal(oilCrackingConditionMet('light-oil-cracking', { 'light-oil': 21, 'petroleum-gas': 20 }), true);
   assert.equal(oilCrackingConditionMet('light-oil-cracking', { 'light-oil': 20, 'petroleum-gas': 21 }), false);
+});
+
+test('Kovarex auto-start condition requires stored U-238 to exceed stored U-235', () => {
+  assert.equal(kovarexConditionMet({ 'uranium-238': 4, 'uranium-235': 1 }), true);
+  assert.equal(kovarexConditionMet({ 'uranium-238': 3, 'uranium-235': 3 }), false);
+  assert.equal(kovarexConditionMet({ 'uranium-238': 2, 'uranium-235': 3 }), false);
+  assert.equal(kovarexConditionMet({ 'uranium-238': 0, 'uranium-235': 0 }), false);
 });
 
 test('save migration keeps valid state, removes legacy upgrade jobs, and allows one valid job', () => {

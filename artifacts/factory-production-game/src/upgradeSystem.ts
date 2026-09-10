@@ -27,6 +27,8 @@ export const oilCrackingConditionMet = (recipeId: string, inventory: Record<stri
   : recipeId === 'light-oil-cracking'
     ? (inventory['light-oil'] ?? 0) > (inventory['petroleum-gas'] ?? 0)
     : true;
+export const kovarexConditionMet = (inventory: Record<string, number>) =>
+  (inventory['uranium-238'] ?? 0) > (inventory['uranium-235'] ?? 0);
 export type BuildMaterialCost = { key: string; amount: number; source: 'raw' | 'products' };
 export type MachineVariants = Record<MachineGroup, string>;
 export type UpgradeDefinition = {

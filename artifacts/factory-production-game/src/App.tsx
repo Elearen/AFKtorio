@@ -12,7 +12,7 @@ import { calculateNuclearPowerFlow, type NuclearPowerFlow } from './nuclearPower
 import { burnerMinerFuelRatioFor, burnerMinerNeedsFuel, miningPowerRatioFor } from './miningSystem';
 import {
   OIL_PROCESSING_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
-  migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeInstalledFor, upgradeMap,
+  kovarexConditionMet, migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeInstalledFor, upgradeMap,
   ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY, ELECTRIC_FURNACE_UPGRADE_ID, electricFurnacePrerequisiteMet, electricFurnaceUpgradeCostPerFurnace, electricFurnaceUpgradeTimePerFurnace, steelFurnacePrerequisiteMet, type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
 import {
@@ -970,8 +970,8 @@ const recipeAutoStartStopConditionFor = (state: GameState, recipe: Recipe) => {
   }
   if (recipe.name === 'kovarex-enrichment-process') {
     return {
-      met: quantityFor(state, 'uranium-235') >= 1 && quantityFor(state, 'uranium-238') >= 3,
-      label: '1 U-235 + 3 U-238 available',
+      met: kovarexConditionMet({ 'uranium-235': quantityFor(state, 'uranium-235'), 'uranium-238': quantityFor(state, 'uranium-238') }),
+      label: 'U-238 > U-235',
     };
   }
   return { met: true, label: '' };
