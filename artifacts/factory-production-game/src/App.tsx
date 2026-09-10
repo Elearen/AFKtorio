@@ -24,7 +24,7 @@ import {
   steelChestUpgradeCostFor, steelChestUpgradeTimeFor,
   type StorageBoxType,
 } from './storageSystem';
-import { milestoneOrder, milestoneTitles, migrateMilestoneState, SCIENCE_PACKS_MILESTONE_THRESHOLD, SCIENCE_PACKS_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_TEN_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_HUNDRED_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_MILLION_MILESTONE_THRESHOLD, type MilestoneKey } from './milestoneSystem';
+import { milestoneOrder, milestoneTitles, migrateMilestoneState, nuclearPowerMilestoneTriggered, SCIENCE_PACKS_MILESTONE_THRESHOLD, SCIENCE_PACKS_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_TEN_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_HUNDRED_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_MILLION_MILESTONE_THRESHOLD, type MilestoneKey } from './milestoneSystem';
 import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
 import { formatWinDuration, winMetricsFor, type WinMetrics } from './endgameMetrics';
 import { primaryOutputFor } from './productionOutput';
@@ -1094,6 +1094,11 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     && unlockMilestone(state, 'turn-lights-on')
     && !state.milestoneNotifications.includes('turn-lights-on')) {
     state.milestoneNotifications.push('turn-lights-on');
+  }
+  if (nuclearPowerMilestoneTriggered(nuclearPowerFor(state))
+    && unlockMilestone(state, 'nuclear-power')
+    && !state.milestoneNotifications.includes('nuclear-power')) {
+    state.milestoneNotifications.push('nuclear-power');
   }
   rawKeys.forEach((key) => {
     const count = miningMachineCountFor(state, key);
@@ -2751,8 +2756,16 @@ function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: P
         </button>}
       </div>
     </section>
+    <section className="surface mb-5 rounded-xl p-3 sm:p-4">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <select value={scienceFilter} onChange={(event) => setScienceFilter(event.target.value as RecipeScienceFilter)} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none" aria-label="Filter storage science chain" data-testid="select-storage-science-filter">
+          <option value="all">All items</option>
+          <option value="Core">Core items</option>
+          <option value="Non-Core">Non-Core items</option>
+        </select>
+      </div>
+    </section>
     <section className="surface rounded-xl p-2.5 sm:p-3">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><div className="eyebrow">Science chain filter</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{unlockedKeys.length} unlocked · {unlockedKeys.filter((key) => trackedScienceChainFor(key, state) === 'Core').length} core / {unlockedKeys.filter((key) => trackedScienceChainFor(key, state) === 'Non-Core').length} non-core</div></div><select value={scienceFilter} onChange={(event) => setScienceFilter(event.target.value as RecipeScienceFilter)} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none" aria-label="Filter storage science chain" data-testid="select-storage-science-filter"><option value="all">All items</option><option value="Core">Core items</option><option value="Non-Core">Non-Core items</option></select></div>
       <div className="space-y-2">
         {visibleKeys.map((key) => {
           const amount = quantityFor(state, key);
@@ -3492,6 +3505,7 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
   const isTwentyOneLabs = milestone === 'twenty-one-labs';
   const isTurnLightsOn = milestone === 'turn-lights-on';
   const isAdvancedOilProduction = milestone === 'advanced-oil-production';
+  const isNuclearPower = milestone === 'nuclear-power';
   const isTrains = milestone === 'trains';
   const isRocketSilo = milestone === 'rocket-silo';
   const isSpidertron = milestone === 'spidertron';
@@ -3515,6 +3529,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? 'turn-lights-on-milestone.jpg'
         : isAdvancedOilProduction
           ? 'advanced-oil-production-milestone.jpg'
+        : isNuclearPower
+          ? 'nuclear-power-milestone.jpg'
         : isTrains
           ? 'trains-milestone.jpg'
         : isRocketSilo
@@ -3544,6 +3560,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? 'Factory Planet boiler and steam engine generating electricity in a forest'
         : isAdvancedOilProduction
           ? 'An advanced oil refinery complex beside a river and mountain valley'
+        : isNuclearPower
+          ? 'A nuclear-powered factory complex in a mountain valley'
         : isTrains
           ? 'A freight train carrying ore past Factory Planet and its industrial complex'
         : isRocketSilo
@@ -3567,6 +3585,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
          ? { width: 1536, height: 1024 }
       : isAdvancedOilProduction
         ? { width: 1536, height: 1024 }
+       : isNuclearPower
+         ? { width: 1536, height: 1024 }
       : isThousandSciencePacks
         ? { width: 1536, height: 1024 }
       : isTenThousandSciencePacks
@@ -3596,6 +3616,8 @@ function MilestoneModal({ milestone, onDismiss }: { milestone: MilestoneKey; onD
         ? 'With the power of electricity, everything can be automated.'
         : isAdvancedOilProduction
           ? 'You have now unleashed the full power of complex organic chemistry.'
+         : isNuclearPower
+           ? 'You have unlocked the secrets of the atom, paving the way for unlimited energy.'
         : isTrains
           ? 'Choo Choo motherfucker.'
         : isRocketSilo

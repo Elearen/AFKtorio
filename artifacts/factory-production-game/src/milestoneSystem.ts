@@ -1,6 +1,6 @@
-export type MilestoneKey = 'crash-landed' | 'first-lab' | 'hundred-science-packs' | 'thousand-science-packs' | 'ten-thousand-science-packs' | 'hundred-thousand-science-packs' | 'million-science-packs' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'trains' | 'advanced-oil-production' | 'rocket-silo' | 'spidertron' | 'game-complete' | 'space-science' | 'infinite-science-complete';
+export type MilestoneKey = 'crash-landed' | 'first-lab' | 'hundred-science-packs' | 'thousand-science-packs' | 'ten-thousand-science-packs' | 'hundred-thousand-science-packs' | 'million-science-packs' | 'twenty-one-labs' | 'sixty-furnaces' | 'turn-lights-on' | 'trains' | 'advanced-oil-production' | 'nuclear-power' | 'rocket-silo' | 'spidertron' | 'game-complete' | 'space-science' | 'infinite-science-complete';
 
-export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'turn-lights-on', 'first-lab', 'hundred-science-packs', 'thousand-science-packs', 'ten-thousand-science-packs', 'hundred-thousand-science-packs', 'million-science-packs', 'sixty-furnaces', 'twenty-one-labs', 'trains', 'advanced-oil-production', 'rocket-silo', 'game-complete', 'spidertron', 'space-science', 'infinite-science-complete'];
+export const milestoneOrder: MilestoneKey[] = ['crash-landed', 'turn-lights-on', 'first-lab', 'hundred-science-packs', 'thousand-science-packs', 'ten-thousand-science-packs', 'hundred-thousand-science-packs', 'million-science-packs', 'sixty-furnaces', 'twenty-one-labs', 'trains', 'advanced-oil-production', 'nuclear-power', 'rocket-silo', 'game-complete', 'spidertron', 'space-science', 'infinite-science-complete'];
 export const SCIENCE_PACKS_MILESTONE_THRESHOLD = 100;
 export const SCIENCE_PACKS_THOUSAND_MILESTONE_THRESHOLD = 1000;
 export const SCIENCE_PACKS_TEN_THOUSAND_MILESTONE_THRESHOLD = 10000;
@@ -20,6 +20,7 @@ export const milestoneTitles: Record<MilestoneKey, string> = {
   'turn-lights-on': 'Power Production',
   trains: 'Trains',
   'advanced-oil-production': 'Advanced Oil Production',
+  'nuclear-power': 'Nuclear Power',
   'rocket-silo': 'Rocket Silo',
   spidertron: 'Spidertron',
   'game-complete': 'Game Complete',
@@ -40,12 +41,15 @@ const isMilestoneKey = (value: string): value is MilestoneKey => (
   || value === 'turn-lights-on'
   || value === 'trains'
   || value === 'advanced-oil-production'
+  || value === 'nuclear-power'
   || value === 'rocket-silo'
   || value === 'spidertron'
   || value === 'game-complete'
   || value === 'space-science'
   || value === 'infinite-science-complete'
 );
+
+export const nuclearPowerMilestoneTriggered = (powerProductionMw: number) => Number.isFinite(powerProductionMw) && powerProductionMw > 0;
 
 const normalizeMilestoneKeys = (value: unknown) => Array.from(new Set(
   (Array.isArray(value) ? value : []).map(String).filter(isMilestoneKey),

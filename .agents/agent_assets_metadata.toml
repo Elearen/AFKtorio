@@ -182,3 +182,17 @@ mtime_ms = 1789046713098
 storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/1f21b84a-f7ba-40b7-b35d-c08f377c485c/22e68f38-2fe3-46ff-b066-11a1a9019024"
 storage_version_token = "1789046789084614"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "ofI8K6sIgl20LqAb5aQE-"
+uri = "file://artifacts/factory-production-game/public/nuclear-power-milestone.jpg"
+type = "image"
+title = "Nuclear Power milestone artwork"
+description = "Processed JPG artwork used by the Factory Planet Nuclear Power milestone."
+logical_id = "47ca24fb-e85f-4412-81a8-95c1cdb8ece4"
+content_hash = "sha256:9429c0b7a5e133ebd7beb1d6fae79dc3ee86f5fe6fe21a6954c39fcfd8d6681d"
+size = 758609
+mtime_ms = 1789054244502
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:8e72c09e-af69-4258-838f-5337f9ad7e4c/47ca24fb-e85f-4412-81a8-95c1cdb8ece4/733b3707-487c-413c-bf44-18a090d6786c"
+storage_version_token = "1789054284284880"
+content_type = "image/jpeg"

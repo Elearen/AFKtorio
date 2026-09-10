@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { migrateMilestoneState, milestoneOrder, milestoneTitles } from '../src/milestoneSystem.js';
+import { migrateMilestoneState, milestoneOrder, milestoneTitles, nuclearPowerMilestoneTriggered } from '../src/milestoneSystem.js';
 
 test('Turn the lights on is a replayable milestone with the requested settings label', () => {
   assert.equal(milestoneTitles['turn-lights-on'], 'Power Production');
@@ -131,6 +131,7 @@ test('milestones use the requested archive order', () => {
     'twenty-one-labs',
     'trains',
     'advanced-oil-production',
+    'nuclear-power',
     'rocket-silo',
     'game-complete',
     'spidertron',
@@ -153,6 +154,15 @@ test('Advanced Oil Production is triggered by a completed oil conversion', () =>
   });
   assert.deepEqual(migrated.milestoneNotifications, ['advanced-oil-production']);
   assert.equal(migrated.unlockedMilestones.includes('advanced-oil-production'), true);
+});
+
+test('Nuclear Power triggers when nuclear production is positive', () => {
+  assert.equal(milestoneTitles['nuclear-power'], 'Nuclear Power');
+  assert.equal(milestoneOrder.indexOf('advanced-oil-production') < milestoneOrder.indexOf('nuclear-power'), true);
+  assert.equal(milestoneOrder.indexOf('nuclear-power') < milestoneOrder.indexOf('rocket-silo'), true);
+  assert.equal(nuclearPowerMilestoneTriggered(0), false);
+  assert.equal(nuclearPowerMilestoneTriggered(-0.01), false);
+  assert.equal(nuclearPowerMilestoneTriggered(0.01), true);
 });
 
 test('Trains is triggered when Railway is unlocked and migrates into the archive', () => {
