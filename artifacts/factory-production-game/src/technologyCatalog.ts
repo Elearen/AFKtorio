@@ -4473,10 +4473,6 @@ const rawTechnologyCatalog: TechnologyDefinition[] = [
       {
         "type": "unlock-recipe",
         "recipe": "cargo-landing-pad"
-      },
-      {
-        "type": "unlock-recipe",
-        "recipe": "satellite"
       }
     ],
     "iconPath": "__base__/graphics/technology/rocket-silo.png",

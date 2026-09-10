@@ -23,6 +23,16 @@ test('Advanced Oil Processing unlocks only the two cracking recipes', () => {
   ]);
 });
 
+test('Space Science unlocks the satellite recipe instead of Rocket Silo', () => {
+  const rocketSilo = technologyCatalog.find((technology) => technology.name === 'rocket-silo');
+  const spaceScience = technologyCatalog.find((technology) => technology.name === 'space-science-pack');
+
+  assert.ok(rocketSilo);
+  assert.ok(spaceScience);
+  assert.equal(rocketSilo.effects.some((effect) => effect.type === 'unlock-recipe' && effect.recipe === 'satellite'), false);
+  assert.equal(spaceScience.effects.some((effect) => effect.type === 'unlock-recipe' && effect.recipe === 'satellite'), true);
+});
+
 test('Uranium Processing unlocks after constructing the first uranium miner', () => {
   const uraniumProcessing = technologyCatalog.find((technology) => technology.name === 'uranium-processing');
 
