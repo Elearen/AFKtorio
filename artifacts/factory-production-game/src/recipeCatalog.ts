@@ -5373,17 +5373,17 @@ const recipeCatalogSource: Omit<RecipeCatalogEntry, 'scienceChain'>[] = [
       {
         "type": "item",
         "name": "processing-unit",
-        "amount": 100
+        "amount": 1000
       },
       {
         "type": "item",
         "name": "low-density-structure",
-        "amount": 100
+        "amount": 1000
       },
       {
         "type": "item",
         "name": "rocket-fuel",
-        "amount": 100
+        "amount": 1000
       },
       {
         "type": "item",

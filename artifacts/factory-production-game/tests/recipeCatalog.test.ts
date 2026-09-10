@@ -10,9 +10,9 @@ test('Space Science Pack uses the requested ingredients, produces 1000 packs, an
   assert.equal(spaceScience.energyRequired, 300);
   assert.equal(spaceScience.category, 'rocket-building');
   assert.deepEqual(spaceScience.ingredients, [
-    { type: 'item', name: 'processing-unit', amount: 100 },
-    { type: 'item', name: 'low-density-structure', amount: 100 },
-    { type: 'item', name: 'rocket-fuel', amount: 100 },
+    { type: 'item', name: 'processing-unit', amount: 1000 },
+    { type: 'item', name: 'low-density-structure', amount: 1000 },
+    { type: 'item', name: 'rocket-fuel', amount: 1000 },
     { type: 'item', name: 'satellite', amount: 1 },
   ]);
   assert.deepEqual(spaceScience.results, [{ type: 'item', name: 'space-science-pack', amount: 1000 }]);
