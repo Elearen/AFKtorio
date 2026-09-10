@@ -1459,6 +1459,7 @@ function UpgradeAssetIcon({ file, size = 28 }: { file: string; size?: number }) 
   return <img src={`${import.meta.env.BASE_URL}upgrade-icons/${file}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
 }
 function Tag({ children, tone = 'teal' }: { children: ReactNode; tone?: 'teal' | 'amber' | 'red' | 'muted' }) {
+  if (children === 'construction queued') return null;
   return <span className={`status-tag ${tone === 'teal' ? 'tag-running' : tone === 'amber' ? 'tag-starved' : tone === 'red' ? 'tag-blocked' : 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]'}`}>{children}</span>;
 }
 function UpgradeIconPair({ from, to, fromLabel, toLabel }: { from: ReactNode; to: ReactNode; fromLabel: string; toLabel: string }) {
@@ -1575,7 +1576,7 @@ function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, cost
 }
 function SupplyStatus({ label, status, testId }: { label: string; status: SupplyStatus; testId: string }) {
   return <div className="data-row rounded-lg p-2.5" data-testid={testId}>
-    <div className="flex items-center justify-between gap-2"><div className="eyebrow">{label}</div><Tag tone={status.tone}>{status.label}</Tag></div>
+    <div className="flex items-center justify-between gap-2"><div className="eyebrow">{label}</div><Tag tone={status.tone}>{status.label === 'supplied' ? 'adequate' : status.label}</Tag></div>
     <div className="mt-1 text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">{status.detail}</div>
   </div>;
 }
@@ -1587,7 +1588,7 @@ const powerFlowBadgeFor = (status: SupplyStatus): SupplyStatus => ({
 });
 function PowerFlowCard({ label, item, firstLabel = 'Available', firstValue, secondValue, status, testId }: { label: string; item: TrackedKey; firstLabel?: string; firstValue: number; secondValue: number; status: SupplyStatus; testId: string }) {
   return <div className="data-row rounded-lg p-2.5" data-testid={testId}>
-    <div className="flex items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><ResourceIcon item={item} size={17} /><div className="eyebrow truncate">{label} per second</div></div><Tag tone={status.tone}>{status.label}</Tag></div>
+    <div className="flex items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><ResourceIcon item={item} size={17} /><div className="eyebrow truncate">{label} per second</div></div><Tag tone={status.tone}>{status.label === 'supplied' ? 'adequate' : status.label}</Tag></div>
     <div className="mt-2 flex items-center justify-between gap-2 text-[9px]">
       <div className="whitespace-nowrap text-[hsl(var(--muted-foreground))]">{firstLabel} <strong className="mono ml-1 text-[11px] text-[hsl(var(--secondary))]">{powerRateLabel(firstValue)}</strong></div>
       <div className="whitespace-nowrap text-[hsl(var(--muted-foreground))]">Consumed <strong className="mono ml-1 text-[11px] text-[hsl(var(--primary))]">{powerRateLabel(secondValue)}</strong></div>
