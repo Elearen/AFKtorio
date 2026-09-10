@@ -276,7 +276,7 @@ const labResearchSpeedFor = (state: GameState) => labSpeedForLevel(state.labSpee
 const technologyResearchTimeFor = (technology?: TechnologyDefinition) => Math.max(1, technology?.time ?? defaultTechnologyResearchTime);
 const boilerSteamPerSecond = 60;
 const boilerCoalPerSecond = 0.45;
-const boilerWaterPerSecond = 0.5;
+const boilerWaterPerSecond = 6;
 const steamEngineSteamPerSecond = 30;
 const steamEnginePowerMw = 0.9;
 const nuclearFuelCellPerSecond = 1 / 200;

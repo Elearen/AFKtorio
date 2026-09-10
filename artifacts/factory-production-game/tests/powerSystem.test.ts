@@ -13,7 +13,7 @@ const flow = (overrides: Partial<Parameters<typeof calculatePowerFlow>[0]> = {})
   steamPowerUnlocked: true,
   boilerSteamPerSecond: 60,
   boilerCoalPerSecond: 0.45,
-  boilerWaterPerSecond: 0.5,
+  boilerWaterPerSecond: 6,
   steamEngineSteamPerSecond: 30,
   steamEnginePowerMw: 0.9,
   ...overrides,
@@ -24,7 +24,7 @@ test('boiler runs at full rate when coal and water are available', () => {
 
   assert.equal(result.boilerInputRatio, 1);
   assert.equal(result.boilerCoalConsumed, 0.45);
-  assert.equal(result.boilerWaterConsumed, 0.5);
+  assert.equal(result.boilerWaterConsumed, 6);
   assert.equal(result.steamProduced, 60);
   assert.equal(result.powerGeneratedMw, 0.9);
 });
@@ -41,7 +41,7 @@ test('disabling boilers removes their coal demand and consumption', () => {
 
 test('boiler steam scales to the limiting coal or water input', () => {
   const coalLimited = flow({ coal: 0.225 });
-  const waterLimited = flow({ water: 0.25 });
+  const waterLimited = flow({ water: 3 });
 
   assert.equal(coalLimited.boilerInputRatio, 0.5);
   assert.equal(coalLimited.steamProduced, 30);
