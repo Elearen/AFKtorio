@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: launch-rankings
+    description: Opt-in rocket launch rankings
 paths:
   /healthz:
     get:
@@ -24,6 +26,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /launch-rankings:
+    post:
+      operationId: submitLaunchRanking
+      tags: [launch-rankings]
+      summary: Submit a completed rocket launch for ranking
+      description: Saves an opt-in launch result once per session ID and returns its ranking.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LaunchRankingInput"
+      responses:
+        "200":
+          description: Launch ranking result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LaunchRankingSubmission"
+        "400":
+          description: Invalid launch ranking data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Could not save launch ranking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +66,53 @@ components:
           type: string
       required:
         - status
+    LaunchRankingInput:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        timeTakenSeconds:
+          type: number
+          minimum: 0
+        totalItemsProduced:
+          type: number
+          minimum: 0
+        totalSciencePacksProduced:
+          type: number
+          minimum: 0
+        totalIronCopperMined:
+          type: number
+          minimum: 0
+      required:
+        - sessionId
+        - timeTakenSeconds
+        - totalItemsProduced
+        - totalSciencePacksProduced
+        - totalIronCopperMined
+    LaunchRankingSubmission:
+      allOf:
+        - $ref: "#/components/schemas/LaunchRankingInput"
+        - type: object
+          properties:
+            rank:
+              type: number
+              minimum: 1
+            totalSubmissions:
+              type: number
+              minimum: 1
+            alreadySubmitted:
+              type: boolean
+          required:
+            - rank
+            - totalSubmissions
+            - alreadySubmitted
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
 

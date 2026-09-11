@@ -5,9 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
 
 export interface LaunchRankingInput {
   /**
@@ -23,16 +20,4 @@ export interface LaunchRankingInput {
   totalSciencePacksProduced: number;
   /** @minimum 0 */
   totalIronCopperMined: number;
-}
-
-export type LaunchRankingSubmission = LaunchRankingInput & {
-  /** @minimum 1 */
-  rank: number;
-  /** @minimum 1 */
-  totalSubmissions: number;
-  alreadySubmitted: boolean;
-};
-
-export interface ErrorResponse {
-  error: string;
 }

@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type ReactNode, type SetStateAction } from 'react';
 import { Link, Router as WouterRouter, useLocation, useSearch } from 'wouter';
+import { useSubmitLaunchRanking, type LaunchRankingSubmission } from '@workspace/api-client-react';
 import { recipeCatalog, recipeScienceChainFor, type RecipeCatalogEntry, type RecipeMaterial, type RecipeScienceChain } from './recipeCatalog';
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
@@ -3722,6 +3723,71 @@ function GameCompleteModal({ gameStartTimestamp, winMetrics, onClose }: { gameSt
   </div>;
 }
 
+type LaunchRankingStats = {
+  sessionId: string;
+  timeTakenSeconds: number;
+  timeTakenLabel: string;
+  totalItemsProduced: number;
+  totalSciencePacksProduced: number;
+  totalIronMined: number;
+  totalCopperMined: number;
+  totalIronCopperMined: number;
+};
+
+const launchRankingStatsFor = (state: GameState): LaunchRankingStats | null => {
+  if (!state.rocketLaunched || !state.winMetrics) return null;
+  return {
+    sessionId: state.sessionId,
+    timeTakenSeconds: Math.max(0, Math.floor((state.winMetrics.timestamp - state.gameStartTimestamp) / 1000)),
+    timeTakenLabel: formatWinDuration(state.gameStartTimestamp, state.winMetrics.timestamp),
+    totalItemsProduced: state.winMetrics.totalItemsProduced,
+    totalSciencePacksProduced: state.winMetrics.totalSciencePacksProduced,
+    totalIronMined: state.winMetrics.totalIronMined,
+    totalCopperMined: state.winMetrics.totalCopperMined,
+    totalIronCopperMined: state.winMetrics.totalIronMined + state.winMetrics.totalCopperMined,
+  };
+};
+
+function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, onClose }: {
+  stats: LaunchRankingStats;
+  submission: LaunchRankingSubmission | null;
+  isSubmitting: boolean;
+  error: string;
+  onSubmit: () => void;
+  onClose: () => void;
+}) {
+  const submitted = submission !== null;
+  const displayedStats = submission ?? stats;
+  const rows = [
+    ['Session ID:', displayedStats.sessionId],
+    ['Time taken:', submitted ? duration(submission.timeTakenSeconds) : stats.timeTakenLabel],
+    ['Total items produced:', fmt(displayedStats.totalItemsProduced)],
+    ['Total science packs produced:', fmt(displayedStats.totalSciencePacksProduced)],
+    ['Total iron and copper mined:', `${fmt(displayedStats.totalIronCopperMined)} total (${fmt(stats.totalIronMined)} iron · ${fmt(stats.totalCopperMined)} copper)`],
+  ];
+  return <div className="fixed inset-0 z-[85] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
+    <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--primary)/.7)] bg-[linear-gradient(145deg,hsl(35_30%_18%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="launch-ranking-title" data-testid="dialog-launch-ranking">
+      <div className="flex items-center justify-between gap-3"><Tag tone="amber"><Rocket size={11} /> launch ranking</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{submitted ? 'submitted' : 'optional'}</span></div>
+      <h2 id="launch-ranking-title" className="mt-5 text-2xl font-extrabold">{submitted ? 'Launch Ranking Confirmed' : 'Check My Launch Ranking'}</h2>
+      {!submitted
+        ? <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Submitting is optional. If you confirm, the launch statistics below and your session ID will be saved to the shared ranking. You will receive a rank compared with other submitted launches.</p>
+        : <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">{submission.alreadySubmitted ? 'This session already has a submitted result. No second row was created.' : 'Your launch result was saved to the shared ranking.'}</p>}
+      <div className="surface-soft mt-5 rounded-xl border border-[hsl(var(--primary)/.2)] px-3 py-2" data-testid="panel-launch-ranking-stats">
+        {rows.map(([label, value], index) => <div className={`flex items-center justify-between gap-4 py-2 ${index > 0 ? 'border-t border-[hsl(var(--border))]' : ''}`} key={label}>
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{label}</span>
+          <span className="mono max-w-[65%] text-right text-[11px] text-[hsl(var(--foreground))]">{value}</span>
+        </div>)}
+      </div>
+      {submitted && <div className="mt-5 rounded-xl border border-[hsl(var(--secondary)/.4)] bg-[hsl(var(--secondary)/.08)] p-4 text-center" data-testid="panel-launch-ranking-result"><div className="eyebrow text-[hsl(var(--secondary))]">Your ranking</div><div className="mono mt-1 text-3xl font-bold text-[hsl(var(--secondary))]">#{submission.rank}</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">of {submission.totalSubmissions} submitted launches</div></div>}
+      {error && <div className="mt-4 rounded-lg border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] px-3 py-2 text-[10px] text-[hsl(var(--destructive))]" role="alert" data-testid="alert-launch-ranking">{error}</div>}
+      <div className="mt-6 flex gap-2">
+        {!submitted && <button onClick={onSubmit} disabled={isSubmitting} className="button-base button-primary flex-1 !py-3 text-[12px]" data-testid="button-submit-launch-ranking"><Rocket size={15} /> {isSubmitting ? 'submitting…' : 'submit results'}</button>}
+        <button onClick={onClose} disabled={isSubmitting} className={`button-base button-ghost !py-3 text-[12px] ${submitted ? 'w-full' : 'flex-1'}`} data-testid="button-close-launch-ranking">{submitted ? 'close' : 'cancel'}</button>
+      </div>
+    </section>
+  </div>;
+}
+
 function LegacySettingsPage({ state, setState, saveNow, reset, notice }: PageProps) {
   const [confirm, setConfirm] = useState(false);
   return <PageFrame><Header eyebrow="Control room preferences" title="Settings" copy="Local controls for this browser instance. Nothing here changes the scope of the simulation." action={<Tag><Save size={11} /> local save</Tag>} /><div className="grid gap-5 lg:grid-cols-2"><section className="surface rounded-xl p-5"><SectionTitle>Local save controls</SectionTitle><div className="rounded-xl bg-[hsl(216_24%_10%/.7)] p-4"><div className="flex items-center gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><Save size={16} /></div><div><div className="text-[12px] font-bold">Browser save is active</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Production ticks and settings survive a reload.</div></div></div><div className="mt-4 flex gap-2"><button onClick={() => { saveNow(); notice('save committed now'); }} className="button-base button-primary" data-testid="button-save-now"><Save size={13} /> save now</button><button onClick={() => setConfirm(true)} className="button-base button-ghost text-[hsl(var(--destructive))]" data-testid="button-reset-save"><Trash2 size={13} /> reset progress</button></div></div>{confirm && <div className="mt-3 rounded-xl border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] p-4" data-testid="panel-reset-confirm"><div className="flex gap-2"><ShieldAlert size={16} className="text-[hsl(var(--destructive))]" /><div><div className="text-[12px] font-bold">Reset this factory?</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">This removes the local save and starts a new sector. This cannot be undone.</p></div></div><div className="mt-3 flex gap-2"><button onClick={() => { reset(); setConfirm(false); notice('new sector initialized'); }} className="button-base bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]" data-testid="button-confirm-reset">confirm reset</button><button onClick={() => setConfirm(false)} className="button-base button-ghost" data-testid="button-cancel-reset">cancel</button></div></div>}</section><section className="surface rounded-xl p-5"><SectionTitle>Simulation speed</SectionTitle><div className="grid grid-cols-3 gap-2">{[.5, 1, 2].map((speed) => <button onClick={() => setState((s) => ({ ...s, simulationSpeed: speed }))} className={`button-base py-3 ${state.simulationSpeed === speed ? 'button-primary' : 'button-ghost'}`} key={speed} data-testid={`button-speed-${speed}`}>{speed}x</button>)}</div><div className="mt-5 border-t border-[hsl(var(--border))] pt-4"><SectionTitle>Control legend</SectionTitle><div className="space-y-3 text-[11px] text-[hsl(var(--muted-foreground))]"><div className="flex items-center gap-2"><span className="status-dot status-running" /><span><strong className="text-[hsl(var(--foreground))]">Green</strong> means a unit is consuming and producing.</span></div><div className="flex items-center gap-2"><span className="status-dot status-starved" /><span><strong className="text-[hsl(var(--foreground))]">Yellow</strong> means an input is below recipe demand.</span></div><div className="flex items-center gap-2"><span className="status-dot status-blocked" /><span><strong className="text-[hsl(var(--foreground))]">Red</strong> means output or a control path is blocked.</span></div></div></div></section></div><section className="surface mt-5 rounded-xl p-5"><div className="flex items-start gap-3"><CircleHelp size={17} className="text-[hsl(var(--primary))]" /><div><div className="eyebrow">About this slice</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Factory Production Game is a local, playable incremental factory. The resource art, production loop, and control-room language are original to this interface.</p></div></div></section></PageFrame>;
@@ -3729,7 +3795,28 @@ function LegacySettingsPage({ state, setState, saveNow, reset, notice }: PagePro
 
 function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone }: PageProps) {
   const [confirm, setConfirm] = useState(false);
+  const [rankingModalOpen, setRankingModalOpen] = useState(false);
+  const [rankingSubmission, setRankingSubmission] = useState<LaunchRankingSubmission | null>(null);
+  const [rankingError, setRankingError] = useState('');
+  const submitLaunchRanking = useSubmitLaunchRanking();
   const unlockedMilestones = milestoneOrder.filter((milestone) => state.unlockedMilestones.includes(milestone));
+  const launchRankingStats = launchRankingStatsFor(state);
+  const submitRanking = () => {
+    if (!launchRankingStats) return;
+    setRankingError('');
+    submitLaunchRanking.mutate({
+      data: {
+        sessionId: launchRankingStats.sessionId,
+        timeTakenSeconds: launchRankingStats.timeTakenSeconds,
+        totalItemsProduced: launchRankingStats.totalItemsProduced,
+        totalSciencePacksProduced: launchRankingStats.totalSciencePacksProduced,
+        totalIronCopperMined: launchRankingStats.totalIronCopperMined,
+      },
+    }, {
+      onSuccess: (result) => setRankingSubmission(result),
+      onError: () => setRankingError('The launch result could not be submitted. Please try again.'),
+    });
+  };
   return <PageFrame>
     <Header eyebrow="Control room preferences" title="Settings" copy="Local controls for this browser instance. Nothing here changes the scope of the simulation." action={<Tag><Save size={11} /> local save</Tag>} />
     <div className="grid gap-5 lg:grid-cols-2">
@@ -3748,6 +3835,11 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
         {confirm && <div className="mt-3 rounded-xl border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] p-4" data-testid="panel-reset-confirm">
           <div className="flex gap-2"><ShieldAlert size={16} className="text-[hsl(var(--destructive))]" /><div><div className="text-[12px] font-bold">Reset this factory?</div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">This removes the local save and starts a new sector. This cannot be undone.</p></div></div>
           <div className="mt-3 flex gap-2"><button onClick={() => { reset(); setConfirm(false); notice('new sector initialized'); }} className="button-base bg-[hsl(var(--destructive))] text-[hsl(var(--destructive-foreground))]" data-testid="button-confirm-reset">confirm reset</button><button onClick={() => setConfirm(false)} className="button-base button-ghost" data-testid="button-cancel-reset">cancel</button></div>
+        </div>}
+        {launchRankingStats && <div className="mt-5 border-t border-[hsl(var(--border))] pt-4" data-testid="section-launch-ranking">
+          <SectionTitle>Launch ranking</SectionTitle>
+          <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Your rocket has launched. Check the shared ranking only if you choose to submit this result.</p>
+          <button onClick={() => { setRankingError(''); setRankingSubmission(null); setRankingModalOpen(true); }} className="button-base button-primary mt-3 w-full !py-3 text-[11px]" data-testid="button-check-launch-ranking"><Rocket size={14} /> Check My Launch Ranking</button>
         </div>}
         <div className="mt-5 border-t border-[hsl(var(--border))] pt-4">
           <SectionTitle>Tutorial display</SectionTitle>
@@ -3771,6 +3863,7 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
         <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
       </button>)}</div> : <div className="mt-4 rounded-lg border border-dashed border-[hsl(var(--border))] p-3 text-[10px] text-[hsl(var(--muted-foreground))]">No milestones unlocked yet.</div>}
     </section>
+    {rankingModalOpen && launchRankingStats && <LaunchRankingModal stats={launchRankingStats} submission={rankingSubmission} isSubmitting={submitLaunchRanking.isPending} error={rankingError} onSubmit={submitRanking} onClose={() => { if (!submitLaunchRanking.isPending) setRankingModalOpen(false); }} />}
   </PageFrame>;
 }
 
