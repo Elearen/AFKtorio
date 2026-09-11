@@ -18,7 +18,7 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Saves an opt-in launch result once per session ID and returns its ranking.
+ * Saves a launch result once per session ID and returns its ranking.
  * @summary Submit a completed rocket launch for ranking
  */
 export const submitLaunchRankingBodySessionIdMax = 128;
@@ -83,3 +83,4 @@ export const SubmitLaunchRankingResponse = zod.object({
   "totalIronCopperMined": zod.number().min(submitLaunchRankingResponseTwoRecordsItemTotalIronCopperMinedMin)
 }))
 }))
+))

@@ -3695,6 +3695,8 @@ function RocketReadyModal({ onLaunch }: { onLaunch: () => void }) {
   </div>;
 }
 
+const AUTO_LAUNCH_RANKING_TIMEOUT_MS = 3000;
+
 function GameCompleteModal({ gameStartTimestamp, winMetrics, onClose }: { gameStartTimestamp: number; winMetrics: WinMetrics | null; onClose: () => void }) {
   const stats = [
     ['Time taken:', formatWinDuration(gameStartTimestamp, winMetrics?.timestamp ?? null)],
@@ -3821,7 +3823,7 @@ function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, 
       <div className="flex items-center justify-between gap-3"><Tag tone="amber"><Rocket size={11} /> launch ranking</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{submitted ? 'submitted' : 'optional'}</span></div>
       <h2 id="launch-ranking-title" className="mt-5 text-2xl font-extrabold">{submitted ? 'Launch Ranking Confirmed' : 'Check My Launch Ranking'}</h2>
       {!submitted
-        ? <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Submitting is optional. If you confirm, the launch statistics below and your session ID will be saved to the shared ranking. You will receive a rank compared with other submitted launches.</p>
+        ? <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Your completion result is submitted automatically when this screen opens. You can use this check to retrieve the saved ranking and comparison results.</p>
         : <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">{submission.alreadySubmitted ? 'This session already has a submitted result. No second row was created.' : 'Your launch result was saved to the shared ranking.'}</p>}
       <div className="surface-soft mt-5 rounded-xl border border-[hsl(var(--primary)/.2)] px-3 py-2" data-testid="panel-launch-ranking-stats">
         {rows.map(([label, value], index) => <div className={`flex items-center justify-between gap-4 py-2 ${index > 0 ? 'border-t border-[hsl(var(--border))]' : ''}`} key={label}>
@@ -3890,7 +3892,7 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
         </div>}
         {launchRankingStats && <div className="mt-5 border-t border-[hsl(var(--border))] pt-4" data-testid="section-launch-ranking">
           <SectionTitle>Launch ranking</SectionTitle>
-          <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Your rocket has launched. Check the shared ranking only if you choose to submit this result.</p>
+          <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Your completion result is submitted automatically when the game-complete screen opens. Check the shared ranking whenever you want to review it.</p>
           <button onClick={() => { setRankingError(''); setRankingSubmission(null); setRankingModalOpen(true); }} className="button-base button-primary mt-3 w-full !py-3 text-[11px]" data-testid="button-check-launch-ranking"><Rocket size={14} /> Check My Launch Ranking</button>
         </div>}
         <div className="mt-5 border-t border-[hsl(var(--border))] pt-4">
@@ -3950,6 +3952,28 @@ function Game() {
     else if (state.rocketLaunched) setEndgameModal('game-complete');
     else if (state.rocketPartsBuilt >= ROCKET_PART_TARGET && !state.rocketReadyAcknowledged) setEndgameModal('rocket-ready');
   }, [state.gameComplete, state.rocketLaunched, state.rocketPartsBuilt, state.rocketReadyAcknowledged]);
+  const completionScreenVisible = endgameModal === 'game-complete' || replayMilestone === 'game-complete';
+  useEffect(() => {
+    if (!completionScreenVisible || !state.winMetrics) return;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), AUTO_LAUNCH_RANKING_TIMEOUT_MS);
+    void submitLaunchRanking({
+      sessionId: state.sessionId,
+      timeTakenSeconds: Math.max(0, Math.floor((state.winMetrics.timestamp - state.gameStartTimestamp) / 1000)),
+      totalItemsProduced: state.winMetrics.totalItemsProduced,
+      totalSciencePacksProduced: state.winMetrics.totalSciencePacksProduced,
+      totalIronCopperMined: state.winMetrics.totalIronMined + state.winMetrics.totalCopperMined,
+    }, { signal: controller.signal }).catch(() => undefined).finally(() => window.clearTimeout(timeoutId));
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    completionScreenVisible,
+    state.gameStartTimestamp,
+    state.sessionId,
+    state.winMetrics,
+  ]);
   const saveNow = () => localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, lastSeen: Date.now() }));
   const reset = () => {
     const timestamp = Math.max(Date.now(), state.gameStartTimestamp + 1);

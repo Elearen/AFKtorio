@@ -140,7 +140,7 @@ export const getSubmitLaunchRankingUrl = () => {
 }
 
 /**
- * Saves an opt-in launch result once per session ID and returns its ranking.
+ * Saves a launch result once per session ID and returns its ranking.
  * @summary Submit a completed rocket launch for ranking
  */
 export const submitLaunchRanking = async (launchRankingInput: LaunchRankingInput, options?: Parameters<typeof customFetch>[1]): Promise<LaunchRankingSubmission> => {
