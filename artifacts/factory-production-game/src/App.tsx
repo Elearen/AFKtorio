@@ -32,6 +32,7 @@ import { launchRankingComparisonsFor, type LaunchRankingComparisons } from './la
 import { primaryOutputFor } from './productionOutput';
 import { prioritizeDisplayOrder } from './displayOrder';
 import { sessionIdForStartTimestamp } from './sessionId';
+import { updateHistoryContent } from './updateHistory';
 import {
   Activity, ArrowRight, ArrowUp, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -529,25 +530,6 @@ const nav = [
   ['storage', '/storage', Box], ['logistics', '/logistics', MoveRight], ['upgrades', '/upgrades', TrendingUp], ['science', '/science', FlaskConical],
   ['research', '/research', Layers3], ['settings', '/settings', Settings2],
 ] as const;
-const UPDATE_HISTORY_CONTENT = `11/09/26
-
-Added rankings for game completion.
-
-Users can submit their first launch statistics and be judged on their speed and efficiency.
-
-Re-submitting will reload rankings as more are populated.
-
-10/09/26
-
-Added nuclear power and cleaned up power bugs.
-
-Added storage item filters.
-
-09/09/26
-
-Added batch construction, unlocked with construction robotics.
-
-Worker robot speed upgrades increase construction speed.`;
 const tabLabel = (key: string) => key === 'factory' ? 'Dashboard' : key === 'mining' ? 'Mining / Raw' : key.charAt(0).toUpperCase() + key.slice(1);
 const routePathFor = (location: string) => location.split(/[?#]/, 1)[0];
 const focusTargetForSearch = (search: string) => new URLSearchParams(search).get('focus');
@@ -3875,7 +3857,7 @@ function UpdateHistoryModal({ onClose }: { onClose: () => void }) {
         <button type="button" onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] text-[hsl(var(--muted-foreground))] transition-colors hover:border-[hsl(var(--secondary)/.55)] hover:text-[hsl(var(--secondary))]" aria-label="Close update history" data-testid="button-close-update-history"><X size={15} /></button>
       </div>
       <div className="mt-5 min-h-0 overflow-y-auto rounded-xl border border-[hsl(var(--secondary)/.2)] bg-[hsl(216_24%_10%/.72)] p-4">
-        <pre className="whitespace-pre-wrap font-sans text-[12px] leading-6 text-[hsl(var(--foreground))]">{UPDATE_HISTORY_CONTENT}</pre>
+        <pre className="whitespace-pre-wrap font-sans text-[12px] leading-6 text-[hsl(var(--foreground))]">{updateHistoryContent}</pre>
       </div>
       <div className="mt-5 flex justify-end">
         <button type="button" onClick={onClose} className="button-base button-primary !py-3 text-[11px]" data-testid="button-dismiss-update-history">close update history</button>
