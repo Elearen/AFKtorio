@@ -1436,6 +1436,8 @@ function loadState() {
         milestoneNotifications: migratedMilestones.milestoneNotifications,
         unlockedMilestones: migratedMilestones.unlockedMilestones,
       lastSeen: parsed.lastSeen ?? Date.now(),
+       // Speed controls are currently hidden; returning saves are normalized to the default.
+       simulationSpeed: 1,
        gameStartTimestamp,
        sessionId,
       rocketSiloBuilt: parsed.rocketSiloBuilt === true,
