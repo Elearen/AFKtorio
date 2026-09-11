@@ -3766,7 +3766,8 @@ const launchRankingComparisonsFor = (submission: LaunchRankingSubmission): Launc
 
 const formatLaunchRankingTime = (seconds: number) => {
   const totalSeconds = Math.max(0, Math.floor(seconds));
-  return `${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  return `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
 };
 
 function LaunchRankingResultsModal({ submission, onClose }: {
