@@ -83,4 +83,3 @@ export const SubmitLaunchRankingResponse = zod.object({
   "totalIronCopperMined": zod.number().min(submitLaunchRankingResponseTwoRecordsItemTotalIronCopperMinedMin)
 }))
 }))
-}))
