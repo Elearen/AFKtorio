@@ -509,7 +509,6 @@ const nav = [
   ['storage', '/storage', Box], ['logistics', '/logistics', MoveRight], ['upgrades', '/upgrades', TrendingUp], ['science', '/science', FlaskConical],
   ['research', '/research', Layers3], ['settings', '/settings', Settings2],
 ] as const;
-const UPDATE_HISTORY_SOURCE_URL = 'https://1drv.ms/t/c/41f8ca83fd4ca79d/IQASjG_buEfiSpV2qKvtef3mAcAfAjdACGMBPaXcXRq3zeQ';
 const UPDATE_HISTORY_CONTENT = `11/09/26
 
 Added rankings for game completion.
@@ -3858,8 +3857,7 @@ function UpdateHistoryModal({ onClose }: { onClose: () => void }) {
       <div className="mt-5 min-h-0 overflow-y-auto rounded-xl border border-[hsl(var(--secondary)/.2)] bg-[hsl(216_24%_10%/.72)] p-4">
         <pre className="whitespace-pre-wrap font-sans text-[12px] leading-6 text-[hsl(var(--foreground))]">{UPDATE_HISTORY_CONTENT}</pre>
       </div>
-      <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-        <a href={UPDATE_HISTORY_SOURCE_URL} target="_blank" rel="noreferrer" className="button-base button-ghost !py-3 text-center text-[11px]" data-testid="link-update-history-source">open source file</a>
+      <div className="mt-5 flex justify-end">
         <button type="button" onClick={onClose} className="button-base button-primary !py-3 text-[11px]" data-testid="button-dismiss-update-history">close update history</button>
       </div>
     </section>
