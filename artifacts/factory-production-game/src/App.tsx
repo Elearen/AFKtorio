@@ -3756,7 +3756,7 @@ type LaunchRankingComparisons = {
 };
 
 const launchRankingComparisonsFor = (submission: LaunchRankingSubmission): LaunchRankingComparisons => {
-  const records = submission.records;
+  const records = submission.records?.length ? submission.records : [submission];
   const percentageFor = (matches: number) => records.length === 0 ? 0 : Math.round((matches / records.length) * 100);
   return {
     timeFasterThan: percentageFor(records.filter((record) => record.timeTakenSeconds > submission.timeTakenSeconds).length),
