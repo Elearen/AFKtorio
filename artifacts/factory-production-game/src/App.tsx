@@ -33,7 +33,7 @@ import { primaryOutputFor } from './productionOutput';
 import { prioritizeDisplayOrder } from './displayOrder';
 import { sessionIdForStartTimestamp } from './sessionId';
 import {
-  Activity, ArrowRight, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
+  Activity, ArrowRight, ArrowUp, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
   Info, Layers3, Lightbulb, LockKeyhole, Pickaxe, Plus, Power, Rocket,
   RotateCcw, Save, Settings2, ShieldAlert, Sparkles, Sun, Moon, Trash2,
@@ -3377,6 +3377,20 @@ function ResearchPage({ state, setState, notice }: PageProps) {
       return { ...s, autoResearch: [...autoResearch, name], currentResearch: name, researchSelected: true };
     });
   };
+  const prioritizeResearch = (name: ResearchKey) => {
+    if (technologyMap[name]?.researchTrigger) return;
+    setState((s) => {
+      if (s.research.includes(name)) return s;
+      const autoResearch = s.autoResearch ?? [];
+      if (autoResearch[0] === name) return s;
+      return {
+        ...s,
+        autoResearch: [name, ...autoResearch.filter((queuedName) => queuedName !== name)],
+        currentResearch: name,
+        researchSelected: true,
+      };
+    });
+  };
   const technologyCounts = useMemo(() => orderedTechnologyCatalog.reduce<Record<ResearchFilter, number>>((counts, technology) => {
     const completed = state.research.includes(technology.name);
     const unlocked = !completed && technologyPrerequisitesMet(state, technology);
@@ -3486,11 +3500,11 @@ function ResearchPage({ state, setState, notice }: PageProps) {
         </div>;
       })}</section>
     </div>
-    {detailItem && <TechnologyDetailModal item={detailItem} state={state} toggleAutoResearch={toggleAutoResearch} onClose={() => setDetailsTechnology(null)} />}
+    {detailItem && <TechnologyDetailModal item={detailItem} state={state} toggleAutoResearch={toggleAutoResearch} prioritizeResearch={prioritizeResearch} onClose={() => setDetailsTechnology(null)} />}
   </PageFrame>;
 }
 
-function TechnologyDetailModal({ item, state, toggleAutoResearch, onClose }: { item: TechnologyDefinition; state: GameState; toggleAutoResearch: (name: ResearchKey) => void; onClose: () => void }) {
+function TechnologyDetailModal({ item, state, toggleAutoResearch, prioritizeResearch, onClose }: { item: TechnologyDefinition; state: GameState; toggleAutoResearch: (name: ResearchKey) => void; prioritizeResearch: (name: ResearchKey) => void; onClose: () => void }) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -3504,6 +3518,8 @@ function TechnologyDetailModal({ item, state, toggleAutoResearch, onClose }: { i
   const selectedTotal = researchUnitsFor(item);
   const selectedProgressPercent = selectedTriggerProgress ? selectedTriggerProgress.produced / selectedTriggerProgress.required * 100 : selectedProgress / selectedTotal * 100;
   const selectedAuto = (state.autoResearch ?? []).includes(item.name);
+  const queuePosition = (state.autoResearch ?? []).indexOf(item.name);
+  const isNextResearch = queuePosition === 0;
   return <div className="fixed inset-0 z-[60] overflow-y-auto bg-[hsl(0_0%_0%/.78)] p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section className="surface mx-auto my-2 max-h-[calc(100dvh-1rem)] w-full max-w-[560px] overflow-y-auto rounded-2xl p-5 shadow-2xl sm:my-6 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="technology-detail-title" data-testid="dialog-technology-detail">
       <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="eyebrow">Technology detail</div><h2 id="technology-detail-title" className="mt-2 text-xl font-extrabold">{prettyLabel(item.name)}</h2></div><div className="flex shrink-0 items-center gap-2"><Tag tone={item.upgrade ? 'amber' : 'teal'}>{item.upgrade ? 'upgrade' : 'technology'}</Tag><button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] text-[hsl(var(--muted-foreground))] transition-colors hover:border-[hsl(var(--primary)/.55)] hover:text-[hsl(var(--primary))]" aria-label="Close technology details" data-testid="button-close-technology-detail"><X size={15} /></button></div></div>
@@ -3512,7 +3528,7 @@ function TechnologyDetailModal({ item, state, toggleAutoResearch, onClose }: { i
       <div className="mt-5 border-y border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Prerequisites</div>{item.prerequisites.length ? <div className="flex flex-wrap gap-1.5">{item.prerequisites.map((prerequisite) => <span className={`resource-chip ${state.research.includes(prerequisite) ? 'border-[hsl(var(--secondary)/.55)]' : ''}`} key={prerequisite}><span className={`status-dot ${state.research.includes(prerequisite) ? 'status-running' : 'status-starved'}`} />{prettyLabel(prerequisite)}</span>)}</div> : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No prerequisites · available at the start.</div>}</div>
        {item.researchTrigger ? <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-2">Unlock trigger</div><div className="text-[11px]">{researchTriggerLabel(item.researchTrigger)}</div>{selectedTriggerProgress ? <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">Starting inventory does not count toward this trigger.</div> : <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">This trigger type is not represented by a quantity counter in the current simulator.</div>}</div> : <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Science requirements</div><div className="space-y-2">{item.scienceCosts.length ? item.scienceCosts.map((cost) => { const costKey = keyForSource(cost.pack); const have = quantityFor(state, costKey); return <div className="flex items-center justify-between gap-3 text-[11px]" key={cost.pack}><span className="flex min-w-0 items-center gap-2"><ResourceIcon item={costKey} size={20} />{meta[costKey].label} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per unit</span></span><span className={`mono shrink-0 ${have >= cost.amount ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{fmt(have)} / {cost.amount}</span></div>; }) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No science packs required.</div>}</div><div className="mt-3 text-[10px] text-[hsl(var(--muted-foreground))]">Total requirement: <span className="break-words mono">{item.scienceCosts.length ? item.scienceCosts.map((cost) => researchRequirementLabel(item, cost)).join(' · ') : 'none'}</span></div>{item.countFormula && <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">Cost formula: <span className="mono text-[hsl(var(--foreground))]">{item.countFormula}</span> <span className="text-[9px]">(L = technology level)</span></div>}</div>}
       <div className="py-4"><div className="eyebrow mb-3">Effects</div><div className="space-y-2">{item.effects.length ? item.effects.map((effect, index) => <div className="data-row rounded-lg px-3 py-2 text-[10px]" key={`${effect.type}-${index}`}><span className="font-semibold">{effect.description ?? (effect.recipe ? `Unlock ${prettyLabel(effect.recipe)}` : prettyLabel(effect.type))}</span>{effect.target && <span className="text-[hsl(var(--muted-foreground))]"> · {prettyLabel(effect.target)}</span>}{effect.modifier !== undefined && <span className="mono float-right text-[hsl(var(--secondary))]">{typeof effect.modifier === 'number' && effect.modifier > 0 ? '+' : ''}{String(effect.modifier)}</span>}</div>) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No listed effects.</div>}</div></div>
-       {!item.researchTrigger && <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.07)] p-3 text-[11px]"><span><span className="block font-bold">Research order</span><span className="mt-1 block text-[9px] text-[hsl(var(--muted-foreground))]">{selectedAuto ? `Queue position ${((state.autoResearch ?? []).indexOf(item.name) + 1)} · runs in selection order` : 'Add this technology to the end of the research order.'}</span></span><input type="checkbox" checked={selectedAuto} onChange={() => toggleAutoResearch(item.name)} className="h-5 w-5 accent-[hsl(var(--primary))]" aria-label={`Select ${prettyLabel(item.name)} for research`} data-testid={`checkbox-auto-research-detail-${item.name}`} /></label>}
+       {!item.researchTrigger && <div className="rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.07)] p-3 text-[11px]"><div className="flex items-center justify-between gap-3"><label className="flex min-w-0 cursor-pointer items-center justify-between gap-3"><span><span className="block font-bold">Research order</span><span className="mt-1 block text-[9px] text-[hsl(var(--muted-foreground))]">{selectedAuto ? `Queue position ${queuePosition + 1} · runs in selection order` : 'Add this technology to the end of the research order.'}</span></span><input type="checkbox" checked={selectedAuto} onChange={() => toggleAutoResearch(item.name)} className="h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" aria-label={`Select ${prettyLabel(item.name)} for research`} data-testid={`checkbox-auto-research-detail-${item.name}`} /></label><button type="button" onClick={() => prioritizeResearch(item.name)} disabled={selectedDone || isNextResearch} className="button-base button-ghost shrink-0 !gap-1 !px-2.5 !py-2 text-[9px] disabled:cursor-not-allowed disabled:opacity-45" title={isNextResearch ? 'Already first in the research queue' : 'Move this technology to the front of the research queue'} data-testid={`button-prioritize-research-${item.name}`}><ArrowUp size={12} /> {isNextResearch ? 'next' : 'research next'}</button></div></div>}
     </section>
   </div>;
 }
