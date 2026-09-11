@@ -134,6 +134,7 @@ type GameState = {
   completionTotalOutput: number | null;
   completionStats: Record<string, number> | null;
   winMetrics: WinMetrics | null;
+  finishTimestamp: number | null;
   tutorialVisible: boolean;
   welcomeSeen: boolean;
 };
@@ -499,7 +500,7 @@ const initialState: GameState = {
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, nuclearReactors: 0, heatExchangers: 0, steamTurbines: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
-  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, tutorialVisible: true, welcomeSeen: false,
+  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, tutorialVisible: true, welcomeSeen: false,
 };
 
 const nav = [
@@ -1443,13 +1444,14 @@ function loadState() {
       gameComplete: parsed.gameComplete === true,
       completionTotalOutput: typeof parsed.completionTotalOutput === 'number' ? Math.max(0, parsed.completionTotalOutput) : null,
       completionStats: parsed.completionStats && typeof parsed.completionStats === 'object' ? { ...parsed.completionStats } : null,
-       winMetrics: parsed.winMetrics && typeof parsed.winMetrics === 'object' ? {
+      winMetrics: parsed.winMetrics && typeof parsed.winMetrics === 'object' ? {
          timestamp: Number((parsed.winMetrics as Partial<WinMetrics>).timestamp),
          totalItemsProduced: Number((parsed.winMetrics as Partial<WinMetrics>).totalItemsProduced),
          totalSciencePacksProduced: Number((parsed.winMetrics as Partial<WinMetrics>).totalSciencePacksProduced),
          totalIronMined: Number((parsed.winMetrics as Partial<WinMetrics>).totalIronMined),
          totalCopperMined: Number((parsed.winMetrics as Partial<WinMetrics>).totalCopperMined),
        } : null,
+      finishTimestamp: typeof parsed.finishTimestamp === 'number' && Number.isFinite(parsed.finishTimestamp) ? parsed.finishTimestamp : null,
       tutorialVisible: parsed.tutorialVisible !== false,
        welcomeSeen: migratedMilestones.welcomeSeen,
     } as GameState;
@@ -3697,9 +3699,9 @@ function RocketReadyModal({ onLaunch }: { onLaunch: () => void }) {
 
 const AUTO_LAUNCH_RANKING_TIMEOUT_MS = 3000;
 
-function GameCompleteModal({ gameStartTimestamp, winMetrics, onClose }: { gameStartTimestamp: number; winMetrics: WinMetrics | null; onClose: () => void }) {
+function GameCompleteModal({ gameStartTimestamp, finishTimestamp, winMetrics, onClose }: { gameStartTimestamp: number; finishTimestamp: number | null; winMetrics: WinMetrics | null; onClose: () => void }) {
   const stats = [
-    ['Time taken:', formatWinDuration(gameStartTimestamp, winMetrics?.timestamp ?? null)],
+    ['Time taken:', formatWinDuration(gameStartTimestamp, finishTimestamp ?? winMetrics?.timestamp ?? null)],
     ['Total items produced:', winMetrics ? fmt(winMetrics.totalItemsProduced) : '—'],
     ['Total science packs produced:', winMetrics ? fmt(winMetrics.totalSciencePacksProduced) : '—'],
     ['Total iron and copper mined:', winMetrics ? `${fmt(winMetrics.totalIronMined)} iron · ${fmt(winMetrics.totalCopperMined)} copper` : '—'],
@@ -3736,10 +3738,11 @@ type LaunchRankingStats = {
 
 const launchRankingStatsFor = (state: GameState): LaunchRankingStats | null => {
   if (!state.rocketLaunched || !state.winMetrics) return null;
+  const finishTimestamp = state.finishTimestamp ?? state.winMetrics.timestamp;
   return {
     sessionId: state.sessionId,
-    timeTakenSeconds: Math.max(0, Math.floor((state.winMetrics.timestamp - state.gameStartTimestamp) / 1000)),
-    timeTakenLabel: formatWinDuration(state.gameStartTimestamp, state.winMetrics.timestamp),
+    timeTakenSeconds: Math.max(0, Math.floor((finishTimestamp - state.gameStartTimestamp) / 1000)),
+    timeTakenLabel: formatWinDuration(state.gameStartTimestamp, finishTimestamp),
     totalItemsProduced: state.winMetrics.totalItemsProduced,
     totalSciencePacksProduced: state.winMetrics.totalSciencePacksProduced,
     totalIronCopperMined: state.winMetrics.totalIronMined + state.winMetrics.totalCopperMined,
@@ -3950,12 +3953,17 @@ function Game() {
   }, [state.gameComplete, state.rocketLaunched, state.rocketPartsBuilt, state.rocketReadyAcknowledged]);
   const completionScreenVisible = endgameModal === 'game-complete' || replayMilestone === 'game-complete';
   useEffect(() => {
-    if (!completionScreenVisible || !state.winMetrics) return;
+    if (!completionScreenVisible) return;
+    if (!state.finishTimestamp) {
+      setState((current) => current.finishTimestamp ? current : { ...current, finishTimestamp: Date.now() });
+      return;
+    }
+    if (!state.winMetrics) return;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), AUTO_LAUNCH_RANKING_TIMEOUT_MS);
     void submitLaunchRanking({
       sessionId: state.sessionId,
-      timeTakenSeconds: Math.max(0, Math.floor((state.winMetrics.timestamp - state.gameStartTimestamp) / 1000)),
+      timeTakenSeconds: Math.max(0, Math.floor((state.finishTimestamp - state.gameStartTimestamp) / 1000)),
       totalItemsProduced: state.winMetrics.totalItemsProduced,
       totalSciencePacksProduced: state.winMetrics.totalSciencePacksProduced,
       totalIronCopperMined: state.winMetrics.totalIronMined + state.winMetrics.totalCopperMined,
@@ -3966,6 +3974,7 @@ function Game() {
     };
   }, [
     completionScreenVisible,
+    state.finishTimestamp,
     state.gameStartTimestamp,
     state.sessionId,
     state.winMetrics,
