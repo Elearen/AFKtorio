@@ -111,6 +111,7 @@ type GameState = {
   researchSelected: boolean;
   researchProgress: Record<ResearchKey, number>;
   autoResearch: ResearchKey[];
+  autoResearchEnabled: boolean;
   researchNotifications: ResearchKey[];
   milestoneNotifications: MilestoneKey[];
   unlockedMilestones: MilestoneKey[];
@@ -170,20 +171,39 @@ const orderedTechnologyCatalog = [...normalizedTechnologyCatalog].sort((a, b) =>
   return orderA - orderB;
 });
 const technologyPrerequisitesMet = (state: GameState, technology: TechnologyDefinition) => technology.prerequisites.every((prerequisite) => state.research.includes(prerequisite));
-const autoResearchTargetFor = (state: GameState) => {
-  const selected = new Set(state.autoResearch ?? []);
-  return orderedTechnologyCatalog.find((technology) =>
-    !technology.researchTrigger
-    && selected.has(technology.name)
+const queuedResearchTargetFor = (state: GameState) => (state.autoResearch ?? [])
+  .map((name) => technologyMap[name])
+  .find((technology) =>
+    technology
+    && !technology.researchTrigger
     && !state.research.includes(technology.name)
     && technologyPrerequisitesMet(state, technology),
   );
+const firstUnlockedResearchFor = (state: GameState) => orderedTechnologyCatalog.find((technology) =>
+  !technology.researchTrigger
+  && !state.research.includes(technology.name)
+  && technologyPrerequisitesMet(state, technology),
+);
+const autoResearchTargetFor = (state: GameState) => {
+  const queuedTarget = queuedResearchTargetFor(state);
+  if (queuedTarget) return queuedTarget;
+  return state.autoResearchEnabled && state.labs > 0 ? firstUnlockedResearchFor(state) : undefined;
+};
+const ensureAutoResearchSelection = (state: GameState) => {
+  if (!state.autoResearchEnabled || state.labs <= 0 || queuedResearchTargetFor(state)) return;
+  const technology = firstUnlockedResearchFor(state);
+  if (!technology || (state.autoResearch ?? []).includes(technology.name)) return;
+  state.autoResearch.push(technology.name);
+  state.currentResearch = technology.name;
+  state.researchSelected = true;
 };
 const activeResearchFor = (state: GameState) => {
-  if ((state.autoResearch ?? []).length) return autoResearchTargetFor(state);
+  const queuedTarget = queuedResearchTargetFor(state);
+  if (queuedTarget) return queuedTarget;
+  if (state.autoResearchEnabled && state.labs > 0) return firstUnlockedResearchFor(state);
   if (!state.researchSelected || !state.currentResearch || state.research.includes(state.currentResearch)) return undefined;
   const technology = technologyMap[state.currentResearch];
-  return technology && technologyPrerequisitesMet(state, technology) ? technology : undefined;
+  return technology && !technology.researchTrigger && technologyPrerequisitesMet(state, technology) ? technology : undefined;
 };
 const scienceRequirementKeysFor = (technology?: TechnologyDefinition) => Array.from(new Set(
   technology?.scienceCosts.map((cost) => keyForSource(cost.pack)) ?? [],
@@ -500,7 +520,7 @@ const initialState: GameState = {
   oilProcessingAdvanced: false,
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, nuclearReactors: 0, heatExchangers: 0, steamTurbines: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], autoResearchEnabled: true, researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
   totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, tutorialVisible: true, welcomeSeen: false,
 };
 
@@ -1190,6 +1210,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     }
   }
   state.labProgress = 0;
+  ensureAutoResearchSelection(state);
   let remainingResearchSeconds = seconds;
   let researchTargetsProcessed = 0;
   while (remainingResearchSeconds > 0 && researchTargetsProcessed < 100) {
@@ -1364,6 +1385,11 @@ function loadState() {
       return total + (typeof count === 'number' && Number.isFinite(count) ? Math.max(0, count) : 0);
     }, 0);
     const normalizedResearch = Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key)))));
+    const normalizedAutoResearch = Array.from(new Set(
+      (Array.isArray(parsed.autoResearch) ? parsed.autoResearch : [])
+        .map((key) => normalizeResearchKey(String(key)))
+        .filter((key) => technologyMap[key] && !technologyMap[key].researchTrigger),
+    ));
     const researchedWorkerRobotSpeedLevels = normalizedResearch.filter((key) => key.startsWith('worker-robots-speed-')).length;
     const savedWorkerRobotSpeedLevel = typeof parsed.workerRobotSpeedLevel === 'number' && Number.isFinite(parsed.workerRobotSpeedLevel)
       ? Math.max(0, Math.floor(parsed.workerRobotSpeedLevel))
@@ -1450,7 +1476,8 @@ function loadState() {
       currentResearch: parsed.currentResearch ? normalizeResearchKey(String(parsed.currentResearch)) : initialState.currentResearch,
       researchSelected: parsed.researchSelected === true,
       researchProgress: Object.fromEntries(Object.entries(parsed.researchProgress ?? {}).filter(([key, value]) => technologyMap[key] && typeof value === 'number').map(([key, value]) => [normalizeResearchKey(key), Math.max(0, value as number)])),
-      autoResearch: orderedTechnologyCatalog.filter((technology) => !technology.researchTrigger && (parsed.autoResearch ?? []).map((key) => normalizeResearchKey(String(key))).includes(technology.name)).map((technology) => technology.name),
+       autoResearch: normalizedAutoResearch,
+       autoResearchEnabled: parsed.autoResearchEnabled !== false,
        researchNotifications: Array.from(new Set((parsed.researchNotifications ?? []).map((key) => normalizeResearchKey(String(key))).filter((key) => technologyMap[key]))),
         milestoneNotifications: migratedMilestones.milestoneNotifications,
         unlockedMilestones: migratedMilestones.unlockedMilestones,
@@ -3334,16 +3361,20 @@ function ResearchPage({ state, setState, notice }: PageProps) {
   const accentFor = (name: string) => ['#65afba', '#df7165', '#dfb05c', '#8ea9db', '#92c86b', '#c9d3d0'][name.length % 6];
   const selectResearch = (name: ResearchKey) => {
     setSelected(name);
-    setState((s) => s.currentResearch === name && s.researchSelected ? s : { ...s, currentResearch: name, researchSelected: true });
+    if (technologyMap[name]?.researchTrigger) return;
+    setState((s) => {
+      if (s.research.includes(name) || (s.autoResearch ?? []).includes(name)) return s;
+      return { ...s, currentResearch: name, researchSelected: true, autoResearch: [...(s.autoResearch ?? []), name] };
+    });
   };
   const toggleAutoResearch = (name: ResearchKey) => {
     if (technologyMap[name]?.researchTrigger) return;
     setState((s) => {
-      const selectedAuto = new Set(s.autoResearch ?? []);
-      if (selectedAuto.has(name)) selectedAuto.delete(name);
-      else selectedAuto.add(name);
-      const autoResearch = orderedTechnologyCatalog.filter((technology) => selectedAuto.has(technology.name)).map((technology) => technology.name);
-      return { ...s, autoResearch, currentResearch: s.currentResearch ?? name, researchSelected: true };
+      const autoResearch = s.autoResearch ?? [];
+      const existingIndex = autoResearch.indexOf(name);
+      if (existingIndex >= 0) return { ...s, autoResearch: autoResearch.filter((queuedName) => queuedName !== name) };
+      if (s.research.includes(name)) return s;
+      return { ...s, autoResearch: [...autoResearch, name], currentResearch: name, researchSelected: true };
     });
   };
   const technologyCounts = useMemo(() => orderedTechnologyCatalog.reduce<Record<ResearchFilter, number>>((counts, technology) => {
@@ -3359,34 +3390,6 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     const haystack = `${technology.name} ${technology.prerequisites.join(' ')} ${technology.effects.map((effect) => `${effect.type} ${effect.recipe ?? ''}`).join(' ')}`.toLowerCase();
     return status === filter && (!query.trim() || haystack.includes(query.trim().toLowerCase()));
   }), [filter, query, state.research]);
-  const selectableVisibleTechnologyNames = visibleTechnologies
-    .filter((technology) => !technology.researchTrigger)
-    .map((technology) => technology.name);
-  const allVisibleTechnologiesSelected = selectableVisibleTechnologyNames.length > 0
-    && selectableVisibleTechnologyNames.every((name) => (state.autoResearch ?? []).includes(name));
-  const toggleAllVisibleTechnologies = () => {
-    setState((s) => {
-      const visibleNames = visibleTechnologies
-        .filter((technology) => !technology.researchTrigger)
-        .map((technology) => technology.name);
-      if (!visibleNames.length) return s;
-      const selectedAuto = new Set(s.autoResearch ?? []);
-      const shouldSelectAll = !visibleNames.every((name) => selectedAuto.has(name));
-      visibleNames.forEach((name) => {
-        if (shouldSelectAll) selectedAuto.add(name);
-        else selectedAuto.delete(name);
-      });
-      const autoResearch = orderedTechnologyCatalog
-        .filter((technology) => selectedAuto.has(technology.name))
-        .map((technology) => technology.name);
-      return {
-        ...s,
-        autoResearch,
-        currentResearch: s.currentResearch ?? visibleNames[0],
-        researchSelected: true,
-      };
-    });
-  };
   const detailItem = detailsTechnology ? technologyMap[detailsTechnology] : undefined;
   const activeResearch = activeResearchFor(state);
   const activeResearchIsLabDriven = Boolean(activeResearch && !activeResearch.researchTrigger && activeResearch.scienceCosts.length);
@@ -3396,7 +3399,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
   const activeResearchPercent = activeResearch ? researchProgressPercentFor(state, activeResearch) : 0;
   const activeResearchEta = activeResearchIsLabDriven && activeResearchRate > 0 ? Math.max(0, activeResearchTotal - activeResearchProgress) / activeResearchRate * 60 : null;
   return <PageFrame>
-    <Header eyebrow="Technology control" title="Research" copy="Select a technology to research with your labs, or mark several for auto research. Checked technologies run one at a time from the top of this official catalog." action={<Tag><Lightbulb size={11} /> {technologyCatalog.length} technologies · {state.research.length} complete</Tag>} />
+     <Header eyebrow="Technology control" title="Research" copy="Select technologies in the order you want them researched. Locked selections wait in the queue until their prerequisites are complete, while the next available selection continues." action={<Tag><Lightbulb size={11} /> {technologyCatalog.length} technologies · {state.research.length} complete</Tag>} />
     <section className="surface mb-5 rounded-xl border-[hsl(var(--secondary)/.45)] bg-[linear-gradient(100deg,hsl(88_25%_16%/.86),hsl(216_25%_13%/.96))] p-4 sm:p-5" data-testid="panel-current-research">
       {activeResearch ? <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
         <div className="flex items-start gap-3">
@@ -3441,15 +3444,15 @@ function ResearchPage({ state, setState, notice }: PageProps) {
       </div>}
     </section>
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
+       <label className="mb-3 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.07)] p-3">
+         <span><span className="block text-[11px] font-bold">Auto-research</span><span className="mt-1 block text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">When enabled, labs choose the first unlocked research when no selected technology is available.</span></span>
+         <input type="checkbox" checked={state.autoResearchEnabled} onChange={() => setState((s) => ({ ...s, autoResearchEnabled: !s.autoResearchEnabled }))} className="h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" aria-label="Auto-research" data-testid="checkbox-auto-research-enabled" />
+       </label>
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search technologies, prerequisites, or effects" className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search technologies" data-testid="input-search-technologies" />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Technology filters">{(['completed', 'unlocked', 'locked'] as ResearchFilter[]).map((option) => <button onClick={() => setFilter(option)} className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${filter === option ? 'button-primary' : 'button-ghost'}`} aria-pressed={filter === option} key={option} data-testid={`button-filter-${option}`}>{option === 'locked' ? 'Available' : option} <span className="mono opacity-75">{technologyCounts[option]}</span></button>)}</div>
-        <label className="flex cursor-pointer items-center gap-2 text-[10px] text-[hsl(var(--foreground))]">
-          <input type="checkbox" checked={allVisibleTechnologiesSelected} onChange={toggleAllVisibleTechnologies} disabled={!selectableVisibleTechnologyNames.length} className="h-4 w-4 accent-[hsl(var(--primary))] disabled:cursor-not-allowed disabled:opacity-45" aria-label="Select all visible researches" data-testid="checkbox-select-all-research" />
-          <span>Select all</span>
-        </label>
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Source names remain intact for save compatibility and dependency matching.</span><span className="mono">{(state.autoResearch ?? []).length} auto selected · {visibleTechnologies.length} visible</span></div>
+       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Selections are queued in the order they are added.</span><span className="mono">{(state.autoResearch ?? []).length} selected · {visibleTechnologies.length} visible</span></div>
     </section>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
       <section className="space-y-3">{visibleTechnologies.map((technology) => {
@@ -3475,9 +3478,9 @@ function ResearchPage({ state, setState, notice }: PageProps) {
               <ChevronRight size={15} className="mt-1 shrink-0 text-[hsl(var(--muted-foreground))]" />
             </button>
              <button type="button" onClick={(event) => { event.stopPropagation(); setDetailsTechnology(technology.name); }} className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] text-[hsl(var(--muted-foreground))] transition-colors hover:border-[hsl(var(--primary)/.55)] hover:text-[hsl(var(--primary))]" title={`More info about ${prettyLabel(technology.name)}`} aria-label={`More info about ${prettyLabel(technology.name)}`} data-testid={`button-more-info-${technology.name}`}><Info size={14} /></button>
-              {!technology.researchTrigger && <label className="flex shrink-0 cursor-pointer flex-col items-center gap-1 text-center text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]" title="Auto research when available">
+              {!technology.researchTrigger && <label className="flex shrink-0 cursor-pointer flex-col items-center gap-1 text-center text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]" title="Add to research order">
               <input type="checkbox" checked={autoPosition >= 0} onChange={() => toggleAutoResearch(technology.name)} className="h-4 w-4 accent-[hsl(var(--primary))]" aria-label={`Auto research ${prettyLabel(technology.name)}`} data-testid={`checkbox-auto-research-${technology.name}`} />
-              <span>{autoPosition >= 0 ? `auto #${autoPosition + 1}` : 'auto'}</span>
+               <span>{autoPosition >= 0 ? `#${autoPosition + 1}` : 'select'}</span>
              </label>}
           </div>
         </div>;
@@ -3509,7 +3512,7 @@ function TechnologyDetailModal({ item, state, toggleAutoResearch, onClose }: { i
       <div className="mt-5 border-y border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Prerequisites</div>{item.prerequisites.length ? <div className="flex flex-wrap gap-1.5">{item.prerequisites.map((prerequisite) => <span className={`resource-chip ${state.research.includes(prerequisite) ? 'border-[hsl(var(--secondary)/.55)]' : ''}`} key={prerequisite}><span className={`status-dot ${state.research.includes(prerequisite) ? 'status-running' : 'status-starved'}`} />{prettyLabel(prerequisite)}</span>)}</div> : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No prerequisites · available at the start.</div>}</div>
        {item.researchTrigger ? <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-2">Unlock trigger</div><div className="text-[11px]">{researchTriggerLabel(item.researchTrigger)}</div>{selectedTriggerProgress ? <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">Starting inventory does not count toward this trigger.</div> : <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">This trigger type is not represented by a quantity counter in the current simulator.</div>}</div> : <div className="border-b border-[hsl(var(--border))] py-4"><div className="eyebrow mb-3">Science requirements</div><div className="space-y-2">{item.scienceCosts.length ? item.scienceCosts.map((cost) => { const costKey = keyForSource(cost.pack); const have = quantityFor(state, costKey); return <div className="flex items-center justify-between gap-3 text-[11px]" key={cost.pack}><span className="flex min-w-0 items-center gap-2"><ResourceIcon item={costKey} size={20} />{meta[costKey].label} <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per unit</span></span><span className={`mono shrink-0 ${have >= cost.amount ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{fmt(have)} / {cost.amount}</span></div>; }) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No science packs required.</div>}</div><div className="mt-3 text-[10px] text-[hsl(var(--muted-foreground))]">Total requirement: <span className="break-words mono">{item.scienceCosts.length ? item.scienceCosts.map((cost) => researchRequirementLabel(item, cost)).join(' · ') : 'none'}</span></div>{item.countFormula && <div className="mt-2 text-[10px] text-[hsl(var(--muted-foreground))]">Cost formula: <span className="mono text-[hsl(var(--foreground))]">{item.countFormula}</span> <span className="text-[9px]">(L = technology level)</span></div>}</div>}
       <div className="py-4"><div className="eyebrow mb-3">Effects</div><div className="space-y-2">{item.effects.length ? item.effects.map((effect, index) => <div className="data-row rounded-lg px-3 py-2 text-[10px]" key={`${effect.type}-${index}`}><span className="font-semibold">{effect.description ?? (effect.recipe ? `Unlock ${prettyLabel(effect.recipe)}` : prettyLabel(effect.type))}</span>{effect.target && <span className="text-[hsl(var(--muted-foreground))]"> · {prettyLabel(effect.target)}</span>}{effect.modifier !== undefined && <span className="mono float-right text-[hsl(var(--secondary))]">{typeof effect.modifier === 'number' && effect.modifier > 0 ? '+' : ''}{String(effect.modifier)}</span>}</div>) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No listed effects.</div>}</div></div>
-      {!item.researchTrigger && <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.07)] p-3 text-[11px]"><span><span className="block font-bold">Auto research when available</span><span className="mt-1 block text-[9px] text-[hsl(var(--muted-foreground))]">{selectedAuto ? `Queue position ${((state.autoResearch ?? []).indexOf(item.name) + 1)} · runs in catalog order` : 'Add this technology to the ordered auto queue.'}</span></span><input type="checkbox" checked={selectedAuto} onChange={() => toggleAutoResearch(item.name)} className="h-5 w-5 accent-[hsl(var(--primary))]" aria-label={`Auto research ${prettyLabel(item.name)}`} data-testid={`checkbox-auto-research-detail-${item.name}`} /></label>}
+       {!item.researchTrigger && <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.07)] p-3 text-[11px]"><span><span className="block font-bold">Research order</span><span className="mt-1 block text-[9px] text-[hsl(var(--muted-foreground))]">{selectedAuto ? `Queue position ${((state.autoResearch ?? []).indexOf(item.name) + 1)} · runs in selection order` : 'Add this technology to the end of the research order.'}</span></span><input type="checkbox" checked={selectedAuto} onChange={() => toggleAutoResearch(item.name)} className="h-5 w-5 accent-[hsl(var(--primary))]" aria-label={`Select ${prettyLabel(item.name)} for research`} data-testid={`checkbox-auto-research-detail-${item.name}`} /></label>}
     </section>
   </div>;
 }

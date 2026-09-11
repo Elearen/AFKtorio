@@ -1,7 +1,7 @@
 - [Construction feedback](construction-feedback.md) — derive queued state and progress from the shared construction queue, not a second timer.
 - [Technology source normalization](technology-source-normalization.md) — parse prototype objects structurally and expand helper-generated technologies without losing metadata.
 - [Science throughput](science-throughput.md) — active research selects required packs; SPM is lab-cycle throughput bottlenecked by each required pack line.
-- [Technology tier ordering](technology-order.md) — the attached tier list is the canonical display and auto-research priority order.
+- [Technology tier ordering](technology-order.md) — the attached tier list is the canonical display and Auto-research fallback order; user queue order takes precedence.
 - [Recipe science-chain classification](recipe-science-chain.md) — classify recipes by recursively walking backward from all science-pack outputs.
 - [Smelting fuel metrics](smelting-fuel-metrics.md) — show normalized cost per item alongside current and peak furnace coal usage.
 - [Mining card layout](mining-card-layout.md) — mining cards mirror Production while keeping manual collection available alongside automated drills.
