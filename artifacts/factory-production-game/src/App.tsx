@@ -3758,10 +3758,15 @@ const launchRankingComparisonsFor = (submission: LaunchRankingSubmission): Launc
   const percentageFor = (matches: number) => records.length === 0 ? 0 : Math.round((matches / records.length) * 100);
   return {
     timeFasterThan: percentageFor(records.filter((record) => record.timeTakenSeconds > submission.timeTakenSeconds).length),
-    itemsMoreThan: percentageFor(records.filter((record) => record.totalItemsProduced < submission.totalItemsProduced).length),
-    sciencePacksMoreThan: percentageFor(records.filter((record) => record.totalSciencePacksProduced < submission.totalSciencePacksProduced).length),
-    ironCopperMoreThan: percentageFor(records.filter((record) => record.totalIronCopperMined < submission.totalIronCopperMined).length),
+    itemsMoreThan: percentageFor(records.filter((record) => record.totalItemsProduced > submission.totalItemsProduced).length),
+    sciencePacksMoreThan: percentageFor(records.filter((record) => record.totalSciencePacksProduced > submission.totalSciencePacksProduced).length),
+    ironCopperMoreThan: percentageFor(records.filter((record) => record.totalIronCopperMined > submission.totalIronCopperMined).length),
   };
+};
+
+const formatLaunchRankingTime = (seconds: number) => {
+  const totalSeconds = Math.max(0, Math.floor(seconds));
+  return `${String(Math.floor(totalSeconds / 60)).padStart(2, '0')}:${String(totalSeconds % 60).padStart(2, '0')}`;
 };
 
 function LaunchRankingResultsModal({ submission, onClose }: {
@@ -3771,20 +3776,14 @@ function LaunchRankingResultsModal({ submission, onClose }: {
   const comparisons = launchRankingComparisonsFor(submission);
   const results = [
     ['Launch time', `You were faster than ${comparisons.timeFasterThan}% of submitted launches.`],
-    ['Total items', `You produced more total items than ${comparisons.itemsMoreThan}% of submitted launches.`],
-    ['Science packs', `You produced more science packs than ${comparisons.sciencePacksMoreThan}% of submitted launches.`],
-    ['Iron and copper', `You mined more iron and copper than ${comparisons.ironCopperMoreThan}% of submitted launches.`],
+    ['Total items', `You were more efficient than ${comparisons.itemsMoreThan}% of users.`],
+    ['Science packs', `You were more efficient than ${comparisons.sciencePacksMoreThan}% of users.`],
+    ['Iron and copper', `You were more efficient than ${comparisons.ironCopperMoreThan}% of users.`],
   ];
   return <div className="fixed inset-0 z-[95] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.88)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(174_24%_15%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="launch-ranking-results-title" data-testid="dialog-launch-ranking-results">
       <div className="flex items-center justify-between gap-3"><Tag tone="teal"><TrendingUp size={11} /> comparison results</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">submitted launches</span></div>
       <h2 id="launch-ranking-results-title" className="mt-5 text-2xl font-extrabold">Your Factory Results</h2>
-      <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Your result was compared with all {submission.totalSubmissions} submitted launches. Equal values are not counted as faster or greater.</p>
-      <div className="mt-5 rounded-xl border border-[hsl(var(--secondary)/.35)] bg-[hsl(var(--secondary)/.06)] p-4 text-center" data-testid="panel-launch-ranking-results-rank">
-        <div className="eyebrow text-[hsl(var(--secondary))]">Overall ranking</div>
-        <div className="mono mt-1 text-3xl font-bold text-[hsl(var(--secondary))]">#{submission.rank}</div>
-        <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">of {submission.totalSubmissions} submitted launches</div>
-      </div>
       <div className="mt-5 space-y-2" data-testid="panel-launch-ranking-comparisons">
         {results.map(([label, message]) => <div className="data-row rounded-xl p-3" key={label}>
           <div className="eyebrow text-[hsl(var(--secondary))]">{label}</div>
@@ -3809,7 +3808,7 @@ function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, 
   const displayedStats = submission ?? stats;
   const rows = [
     ['Session ID:', displayedStats.sessionId],
-    ['Time taken:', submitted ? duration(submission.timeTakenSeconds) : stats.timeTakenLabel],
+    ['Time taken:', submitted ? formatLaunchRankingTime(submission.timeTakenSeconds) : stats.timeTakenLabel],
     ['Total items produced:', fmt(displayedStats.totalItemsProduced)],
     ['Total science packs produced:', fmt(displayedStats.totalSciencePacksProduced)],
     ['Total iron and copper mined:', `${fmt(displayedStats.totalIronCopperMined)} total`],
@@ -3819,15 +3818,15 @@ function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, 
       <div className="flex items-center justify-between gap-3"><Tag tone="amber"><Rocket size={11} /> launch ranking</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{submitted ? 'submitted' : 'optional'}</span></div>
       <h2 id="launch-ranking-title" className="mt-5 text-2xl font-extrabold">{submitted ? 'Launch Ranking Confirmed' : 'Check My Launch Ranking'}</h2>
       {!submitted
-        ? <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Your completion result is submitted automatically when this screen opens. You can use this check to retrieve the saved ranking and comparison results.</p>
-        : <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">{submission.alreadySubmitted ? 'This session already has a submitted result. No second row was created.' : 'Your launch result was saved to the shared ranking.'}</p>}
+        ? <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Submit your completion stats to compare how you performed against other players.</p>
+        : <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Your launch result was saved to the shared ranking.</p>}
       <div className="surface-soft mt-5 rounded-xl border border-[hsl(var(--primary)/.2)] px-3 py-2" data-testid="panel-launch-ranking-stats">
         {rows.map(([label, value], index) => <div className={`flex items-center justify-between gap-4 py-2 ${index > 0 ? 'border-t border-[hsl(var(--border))]' : ''}`} key={label}>
           <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{label}</span>
           <span className="mono max-w-[65%] text-right text-[11px] text-[hsl(var(--foreground))]">{value}</span>
         </div>)}
       </div>
-      {submitted && <div className="mt-5 rounded-xl border border-[hsl(var(--secondary)/.4)] bg-[hsl(var(--secondary)/.08)] p-4 text-center" data-testid="panel-launch-ranking-result"><div className="eyebrow text-[hsl(var(--secondary))]">Your ranking</div><div className="mono mt-1 text-3xl font-bold text-[hsl(var(--secondary))]">#{submission.rank}</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">of {submission.totalSubmissions} submitted launches</div><button onClick={onViewResults} className="button-base button-ghost mt-4 w-full !py-2 text-[10px]" data-testid="button-view-launch-ranking-results"><TrendingUp size={13} /> view comparison results</button></div>}
+      {submitted && <button onClick={onViewResults} className="button-base button-primary mt-5 w-full !py-3 text-[11px]" data-testid="button-view-launch-ranking-results"><TrendingUp size={13} /> view comparison results</button>}
       {error && <div className="mt-4 rounded-lg border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] px-3 py-2 text-[10px] text-[hsl(var(--destructive))]" role="alert" data-testid="alert-launch-ranking">{error}</div>}
       <div className="mt-6 flex gap-2">
         {!submitted && <button onClick={onSubmit} disabled={isSubmitting} className="button-base button-primary flex-1 !py-3 text-[12px]" data-testid="button-submit-launch-ranking"><Rocket size={15} /> {isSubmitting ? 'submitting…' : 'submit results'}</button>}
@@ -3888,7 +3887,7 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
         </div>}
         {launchRankingStats && <div className="mt-5 border-t border-[hsl(var(--border))] pt-4" data-testid="section-launch-ranking">
           <SectionTitle>Launch ranking</SectionTitle>
-          <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Your completion result is submitted automatically when the game-complete screen opens. Check the shared ranking whenever you want to review it.</p>
+          <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">How do you compare against other players?</p>
           <button onClick={() => { setRankingError(''); setRankingSubmission(null); setRankingModalOpen(true); }} className="button-base button-primary mt-3 w-full !py-3 text-[11px]" data-testid="button-check-launch-ranking"><Rocket size={14} /> Check My Launch Ranking</button>
         </div>}
         <div className="mt-5 border-t border-[hsl(var(--border))] pt-4">
