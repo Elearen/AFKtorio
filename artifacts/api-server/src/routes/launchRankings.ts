@@ -59,6 +59,17 @@ router.post("/launch-rankings", async (req, res): Promise<void> => {
     .select({ count: sql<number>`count(*)` })
     .from(launchRankingsTable);
 
+  const records = await db
+    .select({
+      sessionId: launchRankingsTable.sessionId,
+      timeTakenSeconds: launchRankingsTable.timeTakenSeconds,
+      totalItemsProduced: launchRankingsTable.totalItemsProduced,
+      totalSciencePacksProduced: launchRankingsTable.totalSciencePacksProduced,
+      totalIronCopperMined: launchRankingsTable.totalIronCopperMined,
+    })
+    .from(launchRankingsTable)
+    .orderBy(asc(launchRankingsTable.id));
+
   const response = SubmitLaunchRankingResponse.parse({
     sessionId: ranking.sessionId,
     timeTakenSeconds: ranking.timeTakenSeconds,
@@ -68,6 +79,7 @@ router.post("/launch-rankings", async (req, res): Promise<void> => {
     rank: ahead.length + 1,
     totalSubmissions: Number(count),
     alreadySubmitted: !inserted,
+    records,
   });
 
   res.json(response);

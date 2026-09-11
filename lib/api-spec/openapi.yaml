@@ -104,10 +104,40 @@ components:
               minimum: 1
             alreadySubmitted:
               type: boolean
+            records:
+              type: array
+              items:
+                $ref: "#/components/schemas/LaunchRankingRecord"
           required:
             - rank
             - totalSubmissions
             - alreadySubmitted
+            - records
+    LaunchRankingRecord:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        timeTakenSeconds:
+          type: number
+          minimum: 0
+        totalItemsProduced:
+          type: number
+          minimum: 0
+        totalSciencePacksProduced:
+          type: number
+          minimum: 0
+        totalIronCopperMined:
+          type: number
+          minimum: 0
+      required:
+        - sessionId
+        - timeTakenSeconds
+        - totalItemsProduced
+        - totalSciencePacksProduced
+        - totalIronCopperMined
     ErrorResponse:
       type: object
       properties:
