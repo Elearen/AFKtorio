@@ -826,6 +826,7 @@ const researchTriggerMet = (state: GameState, technology: TechnologyDefinition) 
 const markResearchComplete = (state: GameState, technology: TechnologyDefinition) => {
   if (state.research.includes(technology.name)) return;
   state.research.push(technology.name);
+  state.autoResearch = (state.autoResearch ?? []).filter((queuedName) => queuedName !== technology.name);
   if (technology.name.startsWith('worker-robots-speed-')) state.workerRobotSpeedLevel += 1;
   if (!state.researchNotifications.includes(technology.name)) state.researchNotifications.push(technology.name);
   const researchMilestone = technology.name === 'rocket-silo'
@@ -1388,7 +1389,7 @@ function loadState() {
     const normalizedAutoResearch = Array.from(new Set(
       (Array.isArray(parsed.autoResearch) ? parsed.autoResearch : [])
         .map((key) => normalizeResearchKey(String(key)))
-        .filter((key) => technologyMap[key] && !technologyMap[key].researchTrigger),
+        .filter((key) => technologyMap[key] && !technologyMap[key].researchTrigger && !normalizedResearch.includes(key)),
     ));
     const researchedWorkerRobotSpeedLevels = normalizedResearch.filter((key) => key.startsWith('worker-robots-speed-')).length;
     const savedWorkerRobotSpeedLevel = typeof parsed.workerRobotSpeedLevel === 'number' && Number.isFinite(parsed.workerRobotSpeedLevel)
