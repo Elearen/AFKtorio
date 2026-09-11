@@ -509,6 +509,26 @@ const nav = [
   ['storage', '/storage', Box], ['logistics', '/logistics', MoveRight], ['upgrades', '/upgrades', TrendingUp], ['science', '/science', FlaskConical],
   ['research', '/research', Layers3], ['settings', '/settings', Settings2],
 ] as const;
+const UPDATE_HISTORY_SOURCE_URL = 'https://1drv.ms/t/c/41f8ca83fd4ca79d/IQASjG_buEfiSpV2qKvtef3mAcAfAjdACGMBPaXcXRq3zeQ';
+const UPDATE_HISTORY_CONTENT = `11/09/26
+
+Added rankings for game completion.
+
+Users can submit their first launch statistics and be judged on their speed and efficiency.
+
+Re-submitting will reload rankings as more are populated.
+
+10/09/26
+
+Added nuclear power and cleaned up power bugs.
+
+Added storage item filters.
+
+09/09/26
+
+Added batch construction, unlocked with construction robotics.
+
+Worker robot speed upgrades increase construction speed.`;
 const tabLabel = (key: string) => key === 'factory' ? 'Dashboard' : key === 'mining' ? 'Mining / Raw' : key.charAt(0).toUpperCase() + key.slice(1);
 const routePathFor = (location: string) => location.split(/[?#]/, 1)[0];
 const focusTargetForSearch = (search: string) => new URLSearchParams(search).get('focus');
@@ -3825,10 +3845,32 @@ function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, 
   </div>;
 }
 
+function UpdateHistoryModal({ onClose }: { onClose: () => void }) {
+  return <div className="fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.88)] p-4 backdrop-blur-sm" role="presentation">
+    <section className="surface flex max-h-[calc(100dvh-2rem)] w-full max-w-[560px] flex-col rounded-2xl border-[hsl(var(--secondary)/.6)] bg-[linear-gradient(145deg,hsl(174_24%_15%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="update-history-title" data-testid="dialog-update-history">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="eyebrow text-[hsl(var(--secondary))]">Factory Planet</div>
+          <h2 id="update-history-title" className="mt-2 text-2xl font-extrabold">Update history</h2>
+        </div>
+        <button type="button" onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] text-[hsl(var(--muted-foreground))] transition-colors hover:border-[hsl(var(--secondary)/.55)] hover:text-[hsl(var(--secondary))]" aria-label="Close update history" data-testid="button-close-update-history"><X size={15} /></button>
+      </div>
+      <div className="mt-5 min-h-0 overflow-y-auto rounded-xl border border-[hsl(var(--secondary)/.2)] bg-[hsl(216_24%_10%/.72)] p-4">
+        <pre className="whitespace-pre-wrap font-sans text-[12px] leading-6 text-[hsl(var(--foreground))]">{UPDATE_HISTORY_CONTENT}</pre>
+      </div>
+      <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+        <a href={UPDATE_HISTORY_SOURCE_URL} target="_blank" rel="noreferrer" className="button-base button-ghost !py-3 text-center text-[11px]" data-testid="link-update-history-source">open source file</a>
+        <button type="button" onClick={onClose} className="button-base button-primary !py-3 text-[11px]" data-testid="button-dismiss-update-history">close update history</button>
+      </div>
+    </section>
+  </div>;
+}
+
 function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone }: PageProps) {
   const [confirm, setConfirm] = useState(false);
   const [rankingModalOpen, setRankingModalOpen] = useState(false);
   const [rankingResultsOpen, setRankingResultsOpen] = useState(false);
+  const [updateHistoryOpen, setUpdateHistoryOpen] = useState(false);
   const [rankingSubmission, setRankingSubmission] = useState<LaunchRankingSubmission | null>(null);
   const [rankingError, setRankingError] = useState('');
   const submitLaunchRanking = useSubmitLaunchRanking();
@@ -3895,6 +3937,8 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
         <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
       </button>)}</div> : <div className="mt-4 rounded-lg border border-dashed border-[hsl(var(--border))] p-3 text-[10px] text-[hsl(var(--muted-foreground))]">No milestones unlocked yet.</div>}
     </section>
+    <button type="button" onClick={() => setUpdateHistoryOpen(true)} className="button-base button-ghost mt-5 w-full !py-3 text-[11px]" data-testid="button-open-update-history"><Clock3 size={14} /> view update history</button>
+    {updateHistoryOpen && <UpdateHistoryModal onClose={() => setUpdateHistoryOpen(false)} />}
     {rankingModalOpen && launchRankingStats && <LaunchRankingModal stats={launchRankingStats} submission={rankingSubmission} isSubmitting={submitLaunchRanking.isPending} error={rankingError} onSubmit={submitRanking} onViewResults={() => setRankingResultsOpen(true)} onClose={() => { if (!submitLaunchRanking.isPending) setRankingModalOpen(false); }} />}
     {rankingResultsOpen && rankingSubmission && <LaunchRankingResultsModal submission={rankingSubmission} onClose={() => setRankingResultsOpen(false)} />}
   </PageFrame>;
