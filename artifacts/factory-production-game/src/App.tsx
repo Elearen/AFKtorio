@@ -3804,7 +3804,7 @@ function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, 
   ];
   return <div className="fixed inset-0 z-[85] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--primary)/.7)] bg-[linear-gradient(145deg,hsl(35_30%_18%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="launch-ranking-title" data-testid="dialog-launch-ranking">
-      <div className="flex items-center justify-between gap-3"><Tag tone="amber"><Rocket size={11} /> launch ranking</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{submitted ? 'submitted' : 'optional'}</span></div>
+      <div className="flex items-center justify-end gap-3"><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{submitted ? 'submitted' : 'optional'}</span></div>
       <h2 id="launch-ranking-title" className="mt-5 text-2xl font-extrabold">{submitted ? 'Launch Ranking Confirmed' : 'Check My Launch Ranking'}</h2>
       {!submitted
         ? <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Submit your completion stats to compare how you performed against other players.</p>
