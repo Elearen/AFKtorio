@@ -28,6 +28,7 @@ import {
 import { milestoneOrder, milestoneTitles, migrateMilestoneState, nuclearPowerMilestoneTriggered, SCIENCE_PACKS_MILESTONE_THRESHOLD, SCIENCE_PACKS_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_TEN_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_HUNDRED_THOUSAND_MILESTONE_THRESHOLD, SCIENCE_PACKS_MILLION_MILESTONE_THRESHOLD, type MilestoneKey } from './milestoneSystem';
 import { evaluateResearchCountFormula, technologyLevelFor } from './researchFormula';
 import { formatWinDuration, winMetricsFor, type WinMetrics } from './endgameMetrics';
+import { launchRankingComparisonsFor, type LaunchRankingComparisons } from './launchRanking';
 import { primaryOutputFor } from './productionOutput';
 import { prioritizeDisplayOrder } from './displayOrder';
 import { sessionIdForStartTimestamp } from './sessionId';
@@ -3746,24 +3747,6 @@ const launchRankingStatsFor = (state: GameState): LaunchRankingStats | null => {
     totalItemsProduced: state.winMetrics.totalItemsProduced,
     totalSciencePacksProduced: state.winMetrics.totalSciencePacksProduced,
     totalIronCopperMined: state.winMetrics.totalIronMined + state.winMetrics.totalCopperMined,
-  };
-};
-
-type LaunchRankingComparisons = {
-  timeFasterThan: number;
-  itemsMoreThan: number;
-  sciencePacksMoreThan: number;
-  ironCopperMoreThan: number;
-};
-
-const launchRankingComparisonsFor = (submission: LaunchRankingSubmission): LaunchRankingComparisons => {
-  const records = submission.records?.length ? submission.records : [submission];
-  const percentageFor = (matches: number) => records.length === 0 ? 0 : Math.round((matches / records.length) * 100);
-  return {
-    timeFasterThan: percentageFor(records.filter((record) => record.timeTakenSeconds > submission.timeTakenSeconds).length),
-    itemsMoreThan: percentageFor(records.filter((record) => record.totalItemsProduced > submission.totalItemsProduced).length),
-    sciencePacksMoreThan: percentageFor(records.filter((record) => record.totalSciencePacksProduced > submission.totalSciencePacksProduced).length),
-    ironCopperMoreThan: percentageFor(records.filter((record) => record.totalIronCopperMined > submission.totalIronCopperMined).length),
   };
 };
 
