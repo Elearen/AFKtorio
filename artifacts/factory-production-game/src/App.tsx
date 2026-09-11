@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type ReactNode, type SetStateAction } from 'react';
 import { Link, Router as WouterRouter, useLocation, useSearch } from 'wouter';
-import { useSubmitLaunchRanking, type LaunchRankingSubmission } from '@workspace/api-client-react';
+import { submitLaunchRanking, useSubmitLaunchRanking, type LaunchRankingSubmission } from '@workspace/api-client-react';
 import { recipeCatalog, recipeScienceChainFor, type RecipeCatalogEntry, type RecipeMaterial, type RecipeScienceChain } from './recipeCatalog';
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
