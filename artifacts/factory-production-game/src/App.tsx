@@ -3731,8 +3731,6 @@ type LaunchRankingStats = {
   timeTakenLabel: string;
   totalItemsProduced: number;
   totalSciencePacksProduced: number;
-  totalIronMined: number;
-  totalCopperMined: number;
   totalIronCopperMined: number;
 };
 
@@ -3744,8 +3742,6 @@ const launchRankingStatsFor = (state: GameState): LaunchRankingStats | null => {
     timeTakenLabel: formatWinDuration(state.gameStartTimestamp, state.winMetrics.timestamp),
     totalItemsProduced: state.winMetrics.totalItemsProduced,
     totalSciencePacksProduced: state.winMetrics.totalSciencePacksProduced,
-    totalIronMined: state.winMetrics.totalIronMined,
-    totalCopperMined: state.winMetrics.totalCopperMined,
     totalIronCopperMined: state.winMetrics.totalIronMined + state.winMetrics.totalCopperMined,
   };
 };
@@ -3816,7 +3812,7 @@ function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, 
     ['Time taken:', submitted ? duration(submission.timeTakenSeconds) : stats.timeTakenLabel],
     ['Total items produced:', fmt(displayedStats.totalItemsProduced)],
     ['Total science packs produced:', fmt(displayedStats.totalSciencePacksProduced)],
-    ['Total iron and copper mined:', `${fmt(displayedStats.totalIronCopperMined)} total (${fmt(stats.totalIronMined)} iron · ${fmt(stats.totalCopperMined)} copper)`],
+    ['Total iron and copper mined:', `${fmt(displayedStats.totalIronCopperMined)} total`],
   ];
   return <div className="fixed inset-0 z-[85] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.84)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--primary)/.7)] bg-[linear-gradient(145deg,hsl(35_30%_18%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="launch-ranking-title" data-testid="dialog-launch-ranking">
