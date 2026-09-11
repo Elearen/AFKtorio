@@ -9,4 +9,5 @@
 export * from './errorResponse';
 export * from './healthStatus';
 export * from './launchRankingInput';
+export * from './launchRankingRecord';
 export * from './launchRankingSubmission';

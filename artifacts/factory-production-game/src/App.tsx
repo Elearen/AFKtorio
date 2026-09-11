@@ -3748,12 +3748,63 @@ const launchRankingStatsFor = (state: GameState): LaunchRankingStats | null => {
   };
 };
 
-function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, onClose }: {
+type LaunchRankingComparisons = {
+  timeFasterThan: number;
+  itemsMoreThan: number;
+  sciencePacksMoreThan: number;
+  ironCopperMoreThan: number;
+};
+
+const launchRankingComparisonsFor = (submission: LaunchRankingSubmission): LaunchRankingComparisons => {
+  const records = submission.records;
+  const percentageFor = (matches: number) => records.length === 0 ? 0 : Math.round((matches / records.length) * 100);
+  return {
+    timeFasterThan: percentageFor(records.filter((record) => record.timeTakenSeconds > submission.timeTakenSeconds).length),
+    itemsMoreThan: percentageFor(records.filter((record) => record.totalItemsProduced < submission.totalItemsProduced).length),
+    sciencePacksMoreThan: percentageFor(records.filter((record) => record.totalSciencePacksProduced < submission.totalSciencePacksProduced).length),
+    ironCopperMoreThan: percentageFor(records.filter((record) => record.totalIronCopperMined < submission.totalIronCopperMined).length),
+  };
+};
+
+function LaunchRankingResultsModal({ submission, onClose }: {
+  submission: LaunchRankingSubmission;
+  onClose: () => void;
+}) {
+  const comparisons = launchRankingComparisonsFor(submission);
+  const results = [
+    ['Launch time', `You were faster than ${comparisons.timeFasterThan}% of submitted launches.`],
+    ['Total items', `You produced more total items than ${comparisons.itemsMoreThan}% of submitted launches.`],
+    ['Science packs', `You produced more science packs than ${comparisons.sciencePacksMoreThan}% of submitted launches.`],
+    ['Iron and copper', `You mined more iron and copper than ${comparisons.ironCopperMoreThan}% of submitted launches.`],
+  ];
+  return <div className="fixed inset-0 z-[95] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.88)] p-4 backdrop-blur-sm" role="presentation">
+    <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(174_24%_15%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="launch-ranking-results-title" data-testid="dialog-launch-ranking-results">
+      <div className="flex items-center justify-between gap-3"><Tag tone="teal"><TrendingUp size={11} /> comparison results</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">submitted launches</span></div>
+      <h2 id="launch-ranking-results-title" className="mt-5 text-2xl font-extrabold">Your Factory Results</h2>
+      <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Your result was compared with all {submission.totalSubmissions} submitted launches. Equal values are not counted as faster or greater.</p>
+      <div className="mt-5 rounded-xl border border-[hsl(var(--secondary)/.35)] bg-[hsl(var(--secondary)/.06)] p-4 text-center" data-testid="panel-launch-ranking-results-rank">
+        <div className="eyebrow text-[hsl(var(--secondary))]">Overall ranking</div>
+        <div className="mono mt-1 text-3xl font-bold text-[hsl(var(--secondary))]">#{submission.rank}</div>
+        <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">of {submission.totalSubmissions} submitted launches</div>
+      </div>
+      <div className="mt-5 space-y-2" data-testid="panel-launch-ranking-comparisons">
+        {results.map(([label, message]) => <div className="data-row rounded-xl p-3" key={label}>
+          <div className="eyebrow text-[hsl(var(--secondary))]">{label}</div>
+          <div className="mt-1 text-[12px] font-semibold leading-5">{message}</div>
+        </div>)}
+      </div>
+      <button onClick={onClose} className="button-base button-primary mt-6 w-full !py-3 text-[12px]" data-testid="button-close-launch-ranking-results"><Check size={15} /> close results</button>
+    </section>
+  </div>;
+}
+
+function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, onViewResults, onClose }: {
   stats: LaunchRankingStats;
   submission: LaunchRankingSubmission | null;
   isSubmitting: boolean;
   error: string;
   onSubmit: () => void;
+  onViewResults: () => void;
   onClose: () => void;
 }) {
   const submitted = submission !== null;
@@ -3778,7 +3829,7 @@ function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, 
           <span className="mono max-w-[65%] text-right text-[11px] text-[hsl(var(--foreground))]">{value}</span>
         </div>)}
       </div>
-      {submitted && <div className="mt-5 rounded-xl border border-[hsl(var(--secondary)/.4)] bg-[hsl(var(--secondary)/.08)] p-4 text-center" data-testid="panel-launch-ranking-result"><div className="eyebrow text-[hsl(var(--secondary))]">Your ranking</div><div className="mono mt-1 text-3xl font-bold text-[hsl(var(--secondary))]">#{submission.rank}</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">of {submission.totalSubmissions} submitted launches</div></div>}
+      {submitted && <div className="mt-5 rounded-xl border border-[hsl(var(--secondary)/.4)] bg-[hsl(var(--secondary)/.08)] p-4 text-center" data-testid="panel-launch-ranking-result"><div className="eyebrow text-[hsl(var(--secondary))]">Your ranking</div><div className="mono mt-1 text-3xl font-bold text-[hsl(var(--secondary))]">#{submission.rank}</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">of {submission.totalSubmissions} submitted launches</div><button onClick={onViewResults} className="button-base button-ghost mt-4 w-full !py-2 text-[10px]" data-testid="button-view-launch-ranking-results"><TrendingUp size={13} /> view comparison results</button></div>}
       {error && <div className="mt-4 rounded-lg border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] px-3 py-2 text-[10px] text-[hsl(var(--destructive))]" role="alert" data-testid="alert-launch-ranking">{error}</div>}
       <div className="mt-6 flex gap-2">
         {!submitted && <button onClick={onSubmit} disabled={isSubmitting} className="button-base button-primary flex-1 !py-3 text-[12px]" data-testid="button-submit-launch-ranking"><Rocket size={15} /> {isSubmitting ? 'submitting…' : 'submit results'}</button>}
@@ -3796,6 +3847,7 @@ function LegacySettingsPage({ state, setState, saveNow, reset, notice }: PagePro
 function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone }: PageProps) {
   const [confirm, setConfirm] = useState(false);
   const [rankingModalOpen, setRankingModalOpen] = useState(false);
+  const [rankingResultsOpen, setRankingResultsOpen] = useState(false);
   const [rankingSubmission, setRankingSubmission] = useState<LaunchRankingSubmission | null>(null);
   const [rankingError, setRankingError] = useState('');
   const submitLaunchRanking = useSubmitLaunchRanking();
@@ -3813,7 +3865,7 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
         totalIronCopperMined: launchRankingStats.totalIronCopperMined,
       },
     }, {
-      onSuccess: (result) => setRankingSubmission(result),
+      onSuccess: (result) => { setRankingSubmission(result); setRankingResultsOpen(true); },
       onError: () => setRankingError('The launch result could not be submitted. Please try again.'),
     });
   };
@@ -3863,7 +3915,8 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
         <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
       </button>)}</div> : <div className="mt-4 rounded-lg border border-dashed border-[hsl(var(--border))] p-3 text-[10px] text-[hsl(var(--muted-foreground))]">No milestones unlocked yet.</div>}
     </section>
-    {rankingModalOpen && launchRankingStats && <LaunchRankingModal stats={launchRankingStats} submission={rankingSubmission} isSubmitting={submitLaunchRanking.isPending} error={rankingError} onSubmit={submitRanking} onClose={() => { if (!submitLaunchRanking.isPending) setRankingModalOpen(false); }} />}
+    {rankingModalOpen && launchRankingStats && <LaunchRankingModal stats={launchRankingStats} submission={rankingSubmission} isSubmitting={submitLaunchRanking.isPending} error={rankingError} onSubmit={submitRanking} onViewResults={() => setRankingResultsOpen(true)} onClose={() => { if (!submitLaunchRanking.isPending) setRankingModalOpen(false); }} />}
+    {rankingResultsOpen && rankingSubmission && <LaunchRankingResultsModal submission={rankingSubmission} onClose={() => setRankingResultsOpen(false)} />}
   </PageFrame>;
 }
 

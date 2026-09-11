@@ -25,12 +25,29 @@ export interface LaunchRankingInput {
   totalIronCopperMined: number;
 }
 
+export interface LaunchRankingRecord {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  sessionId: string;
+  /** @minimum 0 */
+  timeTakenSeconds: number;
+  /** @minimum 0 */
+  totalItemsProduced: number;
+  /** @minimum 0 */
+  totalSciencePacksProduced: number;
+  /** @minimum 0 */
+  totalIronCopperMined: number;
+}
+
 export type LaunchRankingSubmission = LaunchRankingInput & {
   /** @minimum 1 */
   rank: number;
   /** @minimum 1 */
   totalSubmissions: number;
   alreadySubmitted: boolean;
+  records: LaunchRankingRecord[];
 };
 
 export interface ErrorResponse {

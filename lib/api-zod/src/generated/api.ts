@@ -53,6 +53,16 @@ export const submitLaunchRankingResponseOneTotalIronCopperMinedMin = 0;
 
 
 
+export const submitLaunchRankingResponseTwoRecordsItemSessionIdMax = 128;
+
+export const submitLaunchRankingResponseTwoRecordsItemTimeTakenSecondsMin = 0;
+
+export const submitLaunchRankingResponseTwoRecordsItemTotalItemsProducedMin = 0;
+
+export const submitLaunchRankingResponseTwoRecordsItemTotalSciencePacksProducedMin = 0;
+
+export const submitLaunchRankingResponseTwoRecordsItemTotalIronCopperMinedMin = 0;
+
 
 
 export const SubmitLaunchRankingResponse = zod.object({
@@ -64,5 +74,12 @@ export const SubmitLaunchRankingResponse = zod.object({
 }).and(zod.object({
   "rank": zod.number().min(1),
   "totalSubmissions": zod.number().min(1),
-  "alreadySubmitted": zod.boolean()
+  "alreadySubmitted": zod.boolean(),
+  "records": zod.array(zod.object({
+  "sessionId": zod.string().min(1).max(submitLaunchRankingResponseTwoRecordsItemSessionIdMax),
+  "timeTakenSeconds": zod.number().min(submitLaunchRankingResponseTwoRecordsItemTimeTakenSecondsMin),
+  "totalItemsProduced": zod.number().min(submitLaunchRankingResponseTwoRecordsItemTotalItemsProducedMin),
+  "totalSciencePacksProduced": zod.number().min(submitLaunchRankingResponseTwoRecordsItemTotalSciencePacksProducedMin),
+  "totalIronCopperMined": zod.number().min(submitLaunchRankingResponseTwoRecordsItemTotalIronCopperMinedMin)
+}))
 }))

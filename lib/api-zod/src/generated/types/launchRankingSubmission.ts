@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LaunchRankingInput } from './launchRankingInput';
+import type { LaunchRankingRecord } from './launchRankingRecord';
 
 export type LaunchRankingSubmission = LaunchRankingInput & {
   /** @minimum 1 */
@@ -13,4 +14,5 @@ export type LaunchRankingSubmission = LaunchRankingInput & {
   /** @minimum 1 */
   totalSubmissions: number;
   alreadySubmitted: boolean;
+  records: LaunchRankingRecord[];
 };
