@@ -3591,7 +3591,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     const status = completed ? 'completed' : unlocked ? 'unlocked' : 'locked';
     const haystack = `${technology.name} ${technology.prerequisites.join(' ')} ${technology.effects.map((effect) => `${effect.type} ${effect.recipe ?? ''}`).join(' ')}`.toLowerCase();
     const technologySciencePacks = new Set(technology.scienceCosts.map((cost) => keyForSource(cost.pack) as ScienceKey));
-    const matchesSciencePackFilter = sciencePackFilterKeys.every((key) => technologySciencePacks.has(key) === sciencePackFilterSelectedSet.has(key));
+    const matchesSciencePackFilter = sciencePackFilterKeys.every((key) => sciencePackFilterSelectedSet.has(key) || !technologySciencePacks.has(key));
     return status === filter && matchesSciencePackFilter && (!query.trim() || haystack.includes(query.trim().toLowerCase()));
   }), [filter, query, sciencePackFilterSelectedSet, state.research]);
   const detailItem = detailsTechnology ? technologyMap[detailsTechnology] : undefined;
@@ -3654,13 +3654,13 @@ function ResearchPage({ state, setState, notice }: PageProps) {
        </label>
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search technologies, prerequisites, or effects" className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search technologies" data-testid="input-search-technologies" />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Technology filters">{(['completed', 'unlocked', 'locked'] as ResearchFilter[]).map((option) => <button onClick={() => setFilter(option)} className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${filter === option ? 'button-primary' : 'button-ghost'}`} aria-pressed={filter === option} key={option} data-testid={`button-filter-${option}`}>{option === 'locked' ? 'Available' : option} <span className="mono opacity-75">{technologyCounts[option]}</span></button>)}</div>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Technology filters">{(['completed', 'unlocked', 'locked'] as ResearchFilter[]).map((option) => <button onClick={() => setFilter(option)} className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${filter === option ? 'button-filter-active' : 'button-ghost'}`} aria-pressed={filter === option} key={option} data-testid={`button-filter-${option}`}>{option === 'locked' ? 'Available' : option} <span className="mono opacity-75">{technologyCounts[option]}</span></button>)}</div>
       </div>
        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Selections are researched in the order they are queued.</span><span className="mono">{(state.autoResearch ?? []).length} selected · {visibleTechnologies.length} visible</span></div>
        <div className="mt-3 flex flex-wrap justify-center gap-1.5 border-t border-[hsl(var(--border))] pt-3" role="group" aria-label="Science pack filters">
          {sciencePackFilterKeys.map((key) => {
            const isSelected = sciencePackFilterSelectedSet.has(key);
-           return <button type="button" key={key} onClick={() => toggleSciencePackFilter(key)} className={`button-base !h-9 !w-9 !p-1.5 ${isSelected ? 'button-primary' : 'button-ghost'}`} aria-label={`${sciencePackFilterLabels[key]} filter`} aria-pressed={isSelected} title={sciencePackFilterLabels[key]} data-testid={`button-filter-science-${key}`}><ResourceIcon item={key} size={22} /></button>;
+           return <button type="button" key={key} onClick={() => toggleSciencePackFilter(key)} className={`button-base !h-9 !w-9 !p-1.5 ${isSelected ? 'button-filter-active' : 'button-ghost'}`} aria-label={`${sciencePackFilterLabels[key]} filter`} aria-pressed={isSelected} title={sciencePackFilterLabels[key]} data-testid={`button-filter-science-${key}`}><ResourceIcon item={key} size={22} /></button>;
          })}
        </div>
     </section>
