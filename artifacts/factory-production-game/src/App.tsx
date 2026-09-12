@@ -3855,7 +3855,6 @@ function LaunchRankingResultsModal({ submission, preview, onClose }: {
     <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(174_24%_15%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="launch-ranking-results-title" data-testid="dialog-launch-ranking-results">
       <div className="flex items-center justify-between gap-3"><Tag tone="teal"><TrendingUp size={11} /> comparison results</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{preview ? 'preview only' : 'submitted launches'}</span></div>
       <h2 id="launch-ranking-results-title" className="mt-5 text-2xl font-extrabold">Your Factory Results</h2>
-      {preview && <p className="mt-3 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">This is a relative ranking preview. Imported save statistics are not submitted.</p>}
       <div className="mt-5 space-y-2" data-testid="panel-launch-ranking-comparisons">
         {results.map(([label, message]) => <div className="data-row rounded-xl p-3" key={label}>
           <div className="eyebrow text-[hsl(var(--secondary))]">{label}</div>
