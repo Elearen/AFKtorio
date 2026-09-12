@@ -3928,7 +3928,7 @@ function UpdateHistoryModal({ onClose }: { onClose: () => void }) {
   </div>;
 }
 
-function SettingsPage({ state, setState, saveNow, reset, exportSave, importSave, notice, replayMilestone }: PageProps) {
+function SettingsPage({ state, setState, reset, exportSave, importSave, notice, replayMilestone }: PageProps) {
   const [confirm, setConfirm] = useState(false);
   const [rankingModalOpen, setRankingModalOpen] = useState(false);
   const [rankingResultsOpen, setRankingResultsOpen] = useState(false);
@@ -3985,7 +3985,6 @@ function SettingsPage({ state, setState, saveNow, reset, exportSave, importSave,
             <div><div className="text-[12px] font-bold">Browser save is active</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Auto saved in your browser. Survives refreshes. Use export/import to transfer to another device.</div></div>
           </div>
           <div className="mt-4 flex gap-2">
-            <button onClick={() => { saveNow(); notice('save committed now'); }} className="button-base button-primary" data-testid="button-save-now"><Save size={13} /> save now</button>
             <button onClick={exportSave} className="button-base button-ghost" data-testid="button-export-save"><Save size={13} /> export save</button>
             <button onClick={() => importInputRef.current?.click()} className="button-base button-ghost" data-testid="button-import-save"><RotateCcw size={13} /> import save</button>
             <input ref={importInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) importSave(file); event.target.value = ''; }} data-testid="input-import-save" />
@@ -4029,7 +4028,7 @@ function SettingsPage({ state, setState, saveNow, reset, exportSave, importSave,
   </PageFrame>;
 }
 
-type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[], quantity?: ConstructionBatchSize) => void; cancelConstruction: (id: string) => void; constructionVisualTiming: (total: number) => Pick<QueueItem, 'progressStartedAt' | 'progressDurationMs'>; constructionBatchSize: ConstructionBatchSize; setConstructionBatchSize: (value: ConstructionBatchSize) => void; saveNow: () => void; reset: () => void; exportSave: () => void; importSave: (file: File) => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
+type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[], quantity?: ConstructionBatchSize) => void; cancelConstruction: (id: string) => void; constructionVisualTiming: (total: number) => Pick<QueueItem, 'progressStartedAt' | 'progressDurationMs'>; constructionBatchSize: ConstructionBatchSize; setConstructionBatchSize: (value: ConstructionBatchSize) => void; reset: () => void; exportSave: () => void; importSave: (file: File) => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
 
 function PageFrame({ children }: { children: ReactNode }) { return <div className="mx-auto max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 md:px-8 md:pb-10">{children}</div>; }
 
@@ -4096,7 +4095,6 @@ function Game() {
     state.launchRankingEligible,
     state.launchRankingStats,
   ]);
-  const saveNow = () => localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, lastSeen: Date.now() }));
   const exportSave = () => {
     const exportedState = { ...state, lastSeen: Date.now() };
     localStorage.setItem(SAVE_KEY, JSON.stringify(exportedState));
@@ -4213,7 +4211,7 @@ function Game() {
   });
   const constructionRoboticsUnlocked = state.research.includes('construction-robotics');
   const constructionBatchSize = constructionRoboticsUnlocked ? state.constructionBatchSize : 1;
-  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 })), saveNow, reset, exportSave, importSave, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
+  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 })), reset, exportSave, importSave, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
   const pageKey = nav.find(([key, path]) => path === routePathFor(location))?.[0] ?? 'factory';
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;
