@@ -3516,7 +3516,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     </section>
     <section className="surface mb-5 rounded-xl p-3 sm:p-4">
        <label className="mb-3 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.07)] p-3">
-         <span><span className="block text-[11px] font-bold">Auto-research</span><span className="mt-1 block text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">When enabled, labs choose the first unlocked research when no selected technology is available.</span></span>
+         <span><span className="block text-[11px] font-bold">Auto-research</span><span className="mt-1 block text-[9px] leading-4 text-[hsl(var(--muted-foreground))]">When enabled, idle labs start the first available research.</span></span>
          <input type="checkbox" checked={state.autoResearchEnabled} onChange={() => setState((s) => ({ ...s, autoResearchEnabled: !s.autoResearchEnabled }))} className="h-5 w-5 shrink-0 accent-[hsl(var(--primary))]" aria-label="Auto-research" data-testid="checkbox-auto-research-enabled" />
        </label>
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search technologies, prerequisites, or effects" className="w-full rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_9%)] px-3 py-2 text-[11px] text-[hsl(var(--foreground))] outline-none placeholder:text-[hsl(var(--muted-foreground))]" aria-label="Search technologies" data-testid="input-search-technologies" />
