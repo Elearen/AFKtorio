@@ -3523,7 +3523,7 @@ function ResearchPage({ state, setState, notice }: PageProps) {
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Technology filters">{(['completed', 'unlocked', 'locked'] as ResearchFilter[]).map((option) => <button onClick={() => setFilter(option)} className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${filter === option ? 'button-primary' : 'button-ghost'}`} aria-pressed={filter === option} key={option} data-testid={`button-filter-${option}`}>{option === 'locked' ? 'Available' : option} <span className="mono opacity-75">{technologyCounts[option]}</span></button>)}</div>
       </div>
-       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Selections are queued in the order they are added.</span><span className="mono">{(state.autoResearch ?? []).length} selected · {visibleTechnologies.length} visible</span></div>
+       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Selections are researched in the order they are queued.</span><span className="mono">{(state.autoResearch ?? []).length} selected · {visibleTechnologies.length} visible</span></div>
     </section>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
       <section className="space-y-3">{visibleTechnologies.map((technology) => {
