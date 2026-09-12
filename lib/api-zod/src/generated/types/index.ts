@@ -7,6 +7,7 @@
  */
 
 export * from './errorResponse';
+export * from './gameSessionInput';
 export * from './healthStatus';
 export * from './launchRankingInput';
 export * from './launchRankingRecord';

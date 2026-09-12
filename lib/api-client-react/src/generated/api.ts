@@ -21,6 +21,7 @@ import type {
 
 import type {
   ErrorResponse,
+  GameSessionInput,
   HealthStatus,
   LaunchRankingInput,
   LaunchRankingSubmission,
@@ -287,4 +288,76 @@ export const useSubmitLaunchRanking = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getSubmitLaunchRankingMutationOptions(options));
+    }
+
+export const getRegisterGameSessionUrl = () => {
+
+
+
+
+  return `/api/game-sessions`
+}
+
+/**
+ * Records a game session once by unique session ID.
+ * @summary Register a new game session
+ */
+export const registerGameSession = async (gameSessionInput: GameSessionInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRegisterGameSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(gameSessionInput)
+  }
+);}
+
+
+
+
+
+export const getRegisterGameSessionMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerGameSession>>, TError,{data: BodyType<GameSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof registerGameSession>>, TError,{data: BodyType<GameSessionInput>}, TContext> => {
+
+const mutationKey = ['registerGameSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerGameSession>>, {data: BodyType<GameSessionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  registerGameSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterGameSessionMutationResult = NonNullable<Awaited<ReturnType<typeof registerGameSession>>>
+    export type RegisterGameSessionMutationBody = BodyType<GameSessionInput>
+    export type RegisterGameSessionMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Register a new game session
+ */
+export const useRegisterGameSession = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerGameSession>>, TError,{data: BodyType<GameSessionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof registerGameSession>>,
+        TError,
+        {data: BodyType<GameSessionInput>},
+        TContext
+      > => {
+      return useMutation(getRegisterGameSessionMutationOptions(options));
     }

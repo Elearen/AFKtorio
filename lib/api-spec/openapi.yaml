@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: launch-rankings
     description: Opt-in rocket launch rankings
+  - name: game-sessions
+    description: Anonymous game session counting
 paths:
   /healthz:
     get:
@@ -107,6 +109,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /game-sessions:
+    post:
+      operationId: registerGameSession
+      tags: [game-sessions]
+      summary: Register a new game session
+      description: Records a game session once by unique session ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameSessionInput"
+      responses:
+        "204":
+          description: Game session accepted or already registered
+        "400":
+          description: Invalid game session data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -188,6 +211,19 @@ components:
         - totalItemsProduced
         - totalSciencePacksProduced
         - totalIronCopperMined
+    GameSessionInput:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        gameStartTimestamp:
+          type: number
+          minimum: 0
+      required:
+        - sessionId
+        - gameStartTimestamp
     ErrorResponse:
       type: object
       properties:

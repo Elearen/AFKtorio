@@ -50,6 +50,16 @@ export type LaunchRankingSubmission = LaunchRankingInput & {
   records: LaunchRankingRecord[];
 };
 
+export interface GameSessionInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  sessionId: string;
+  /** @minimum 0 */
+  gameStartTimestamp: number;
+}
+
 export interface ErrorResponse {
   error: string;
 }
@@ -75,5 +85,5 @@ totalSciencePacksProduced: number;
 /**
  * @minimum 0
  */
-  totalIronCopperMined: number;
+totalIronCopperMined: number;
 };

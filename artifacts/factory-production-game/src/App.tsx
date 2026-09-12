@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type ReactNode, type SetStateAction } from 'react';
 import { Link, Router as WouterRouter, useLocation, useSearch } from 'wouter';
-import { previewLaunchRanking, submitLaunchRanking, useSubmitLaunchRanking, type LaunchRankingSubmission } from '@workspace/api-client-react';
+import { previewLaunchRanking, registerGameSession, submitLaunchRanking, useSubmitLaunchRanking, type LaunchRankingSubmission } from '@workspace/api-client-react';
 import { recipeCatalog, recipeScienceChainFor, type RecipeCatalogEntry, type RecipeMaterial, type RecipeScienceChain } from './recipeCatalog';
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
@@ -1384,7 +1384,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
 function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(SAVE_KEY) ?? 'null') as Partial<GameState> | null;
-    if (!parsed) return { state: initialState, away: 0, recovered: 0 };
+    if (!parsed) return { state: initialState, away: 0, recovered: 0, newGame: true };
     const gameStartTimestamp = typeof parsed.gameStartTimestamp === 'number' && Number.isFinite(parsed.gameStartTimestamp) ? parsed.gameStartTimestamp : Date.now();
     const sessionId = typeof parsed.sessionId === 'string' && parsed.sessionId.trim().length > 0
       ? parsed.sessionId
@@ -1556,8 +1556,8 @@ function loadState() {
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
     const before = state.totalOutput;
     const recovered = simulate(state, away, Date.now(), { offline: true });
-    return { state: recovered, away, recovered: recovered.totalOutput - before };
-  } catch { return { state: initialState, away: 0, recovered: 0 }; }
+    return { state: recovered, away, recovered: recovered.totalOutput - before, newGame: false };
+  } catch { return { state: initialState, away: 0, recovered: 0, newGame: true }; }
 }
 
 const iconFileFor: Record<string, string> = {
@@ -4032,6 +4032,17 @@ type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState
 
 function PageFrame({ children }: { children: ReactNode }) { return <div className="mx-auto max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 md:px-8 md:pb-10">{children}</div>; }
 
+const registerGameSessionInBackground = (state: Pick<GameState, 'sessionId' | 'gameStartTimestamp'>) => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 4000);
+  void registerGameSession({
+    sessionId: state.sessionId,
+    gameStartTimestamp: state.gameStartTimestamp,
+  }, { signal: controller.signal })
+    .catch(() => undefined)
+    .finally(() => window.clearTimeout(timeoutId));
+};
+
 function Game() {
   const initial = useMemo(loadState, []);
   const [state, setState] = useState<GameState>(initial.state);
@@ -4044,6 +4055,9 @@ function Game() {
   const [replayMilestone, setReplayMilestone] = useState<MilestoneKey | null>(null);
   const [location, navigate] = useLocation();
   const notice = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 1800); };
+  useEffect(() => {
+    if (initial.newGame) registerGameSessionInBackground(initial.state);
+  }, [initial]);
   useEffect(() => {
     const timer = window.setInterval(() => {
       const tickTimestamp = Date.now();
@@ -4135,7 +4149,9 @@ function Game() {
     setReplayMilestone(null);
     setOfflineReportVisible(false);
     navigate('/');
-    setState({ ...initialState, unedited: true, launchRankingEligible: true, lastSeen: timestamp, gameStartTimestamp: timestamp, sessionId: sessionIdForStartTimestamp(timestamp), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] });
+    const newState = { ...initialState, unedited: true, launchRankingEligible: true, lastSeen: timestamp, gameStartTimestamp: timestamp, sessionId: sessionIdForStartTimestamp(timestamp), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] };
+    setState(newState);
+    registerGameSessionInBackground(newState);
   };
   const constructionVisualTiming = (total: number) => {
     const progressStartedAt = Date.now();

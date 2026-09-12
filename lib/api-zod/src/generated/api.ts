@@ -83,6 +83,8 @@ export const PreviewLaunchRankingResponse = zod.object({
   "totalIronCopperMined": zod.number().min(previewLaunchRankingResponseTwoRecordsItemTotalIronCopperMinedMin)
 }))
 }))
+
+
 /**
  * Saves a launch result once per session ID and returns its ranking.
  * @summary Submit a completed rocket launch for ranking
@@ -148,4 +150,22 @@ export const SubmitLaunchRankingResponse = zod.object({
   "totalSciencePacksProduced": zod.number().min(submitLaunchRankingResponseTwoRecordsItemTotalSciencePacksProducedMin),
   "totalIronCopperMined": zod.number().min(submitLaunchRankingResponseTwoRecordsItemTotalIronCopperMinedMin)
 }))
- }))
+}))
+
+
+/**
+ * Records a game session once by unique session ID.
+ * @summary Register a new game session
+ */
+export const registerGameSessionBodySessionIdMax = 128;
+
+export const registerGameSessionBodyGameStartTimestampMin = 0;
+
+
+
+export const RegisterGameSessionBody = zod.object({
+  "sessionId": zod.string().min(1).max(registerGameSessionBodySessionIdMax),
+  "gameStartTimestamp": zod.number().min(registerGameSessionBodyGameStartTimestampMin)
+})
+
+export const RegisterGameSessionResponse = zod.void()
