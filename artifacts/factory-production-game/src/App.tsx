@@ -3414,9 +3414,6 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
   });
   return <PageFrame>
      <Header eyebrow="Machine + lab upgrades" title="Upgrades" copy="Convert machines, improve lab speed, or upgrade storage and oil processing in one timed job. Material costs are reserved when an upgrade starts, and only one conversion can run at a time." action={<Tag><TrendingUp size={11} /> 13 upgrades</Tag>} />
-    <section className="surface mb-5 rounded-xl border-[hsl(var(--primary)/.25)] bg-[linear-gradient(100deg,hsl(34_28%_16%/.82),hsl(216_25%_14%/.96))] p-4 sm:p-5">
-      <div className="flex items-start gap-3"><div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]"><Info size={17} /></div><div><div className="eyebrow text-[hsl(var(--primary))]">How conversion works</div><p className="mt-1 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">Costs are calculated from the current number of relevant machines, deducted immediately, and all matching machines change variant together when the timer completes. Construction elsewhere in the factory can continue.</p></div></div>
-    </section>
        <div className="mb-4 flex justify-center">
          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Upgrade filters">
           {(['completed', 'available', 'locked'] as UpgradeFilter[]).map((option) => (
