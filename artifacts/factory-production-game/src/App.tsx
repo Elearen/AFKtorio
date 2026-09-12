@@ -3901,7 +3901,7 @@ function LaunchRankingModal({ stats, submission, canSubmit, isSubmitting, error,
       {submitted && <button onClick={onViewResults} className="button-base button-primary mt-5 w-full !py-3 text-[11px]" data-testid="button-view-launch-ranking-results"><TrendingUp size={13} /> view comparison results</button>}
       {error && <div className="mt-4 rounded-lg border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] px-3 py-2 text-[10px] text-[hsl(var(--destructive))]" role="alert" data-testid="alert-launch-ranking">{error}</div>}
       <div className="mt-6 flex gap-2">
-        {!submitted && <button onClick={onSubmit} disabled={isSubmitting} className="button-base button-primary flex-1 !py-3 text-[12px]" data-testid={canSubmit ? 'button-submit-launch-ranking' : 'button-preview-launch-ranking'}><Rocket size={15} /> {isSubmitting ? (canSubmit ? 'submitting…' : 'loading preview…') : (canSubmit ? 'submit results' : 'view relative ranking')}</button>}
+        {!submitted && <button onClick={onSubmit} disabled={isSubmitting} className="button-base button-primary flex-1 !py-3 text-[12px]" data-testid={canSubmit ? 'button-submit-launch-ranking' : 'button-preview-launch-ranking'}><Rocket size={15} /> {isSubmitting ? (canSubmit ? 'submitting…' : 'loading preview…') : 'submit results'}</button>}
         <button onClick={onClose} disabled={isSubmitting} className={`button-base button-ghost !py-3 text-[12px] ${submitted ? 'w-full' : 'flex-1'}`} data-testid="button-close-launch-ranking">{submitted ? 'close' : 'cancel'}</button>
       </div>
     </section>
