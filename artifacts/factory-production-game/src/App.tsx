@@ -3982,7 +3982,7 @@ function SettingsPage({ state, setState, reset, exportSave, importSave, notice, 
         <div className="rounded-xl bg-[hsl(216_24%_10%/.7)] p-4">
           <div className="flex items-center gap-3">
             <div className="grid h-9 w-9 place-items-center rounded-lg bg-[hsl(var(--secondary)/.12)] text-[hsl(var(--secondary))]"><Save size={16} /></div>
-            <div><div className="text-[12px] font-bold">Browser save is active</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Auto saved in your browser. Survives refreshes. Use export/import to transfer to another device.</div></div>
+            <div><div className="text-[12px] font-bold">Auto-save is active</div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">Save data survives reloading. Use export/import to transfer to another device.</div></div>
           </div>
           <div className="mt-4 flex gap-2">
             <button onClick={exportSave} className="button-base button-ghost" data-testid="button-export-save"><Save size={13} /> export save</button>
