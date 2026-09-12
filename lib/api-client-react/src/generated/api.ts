@@ -23,7 +23,8 @@ import type {
   ErrorResponse,
   HealthStatus,
   LaunchRankingInput,
-  LaunchRankingSubmission
+  LaunchRankingSubmission,
+  PreviewLaunchRankingParams
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -119,6 +120,91 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPreviewLaunchRankingUrl = (params: PreviewLaunchRankingParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/launch-rankings?${stringifiedParams}` : `/api/launch-rankings`
+}
+
+/**
+ * Calculates a relative launch ranking without saving the result.
+ * @summary Preview a launch result without submitting it
+ */
+export const previewLaunchRanking = async (params: PreviewLaunchRankingParams, options?: Parameters<typeof customFetch>[1]): Promise<LaunchRankingSubmission> => {
+
+  return customFetch<LaunchRankingSubmission>(getPreviewLaunchRankingUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getPreviewLaunchRankingQueryKey = (params?: PreviewLaunchRankingParams,) => {
+    return [
+    `/api/launch-rankings`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getPreviewLaunchRankingQueryOptions = <TData = Awaited<ReturnType<typeof previewLaunchRanking>>, TError = ErrorType<ErrorResponse>>(params: PreviewLaunchRankingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof previewLaunchRanking>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPreviewLaunchRankingQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof previewLaunchRanking>>> = ({ signal }) => previewLaunchRanking(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof previewLaunchRanking>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type PreviewLaunchRankingQueryResult = NonNullable<Awaited<ReturnType<typeof previewLaunchRanking>>>
+export type PreviewLaunchRankingQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Preview a launch result without submitting it
+ */
+
+export function usePreviewLaunchRanking<TData = Awaited<ReturnType<typeof previewLaunchRanking>>, TError = ErrorType<ErrorResponse>>(
+ params: PreviewLaunchRankingParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof previewLaunchRanking>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getPreviewLaunchRankingQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

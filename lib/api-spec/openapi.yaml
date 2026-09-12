@@ -27,6 +27,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
   /launch-rankings:
+    get:
+      operationId: previewLaunchRanking
+      tags: [launch-rankings]
+      summary: Preview a launch result without submitting it
+      description: Calculates a relative launch ranking without saving the result.
+      parameters:
+        - name: sessionId
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - name: timeTakenSeconds
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: 0
+        - name: totalItemsProduced
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: 0
+        - name: totalSciencePacksProduced
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: 0
+        - name: totalIronCopperMined
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: 0
+      responses:
+        "200":
+          description: Preview launch ranking result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LaunchRankingSubmission"
+        "400":
+          description: Invalid launch ranking data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       operationId: submitLaunchRanking
       tags: [launch-rankings]

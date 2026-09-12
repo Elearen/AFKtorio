@@ -18,6 +18,72 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * Calculates a relative launch ranking without saving the result.
+ * @summary Preview a launch result without submitting it
+ */
+export const previewLaunchRankingQuerySessionIdMax = 128;
+
+export const previewLaunchRankingQueryTimeTakenSecondsMin = 0;
+
+export const previewLaunchRankingQueryTotalItemsProducedMin = 0;
+
+export const previewLaunchRankingQueryTotalSciencePacksProducedMin = 0;
+
+export const previewLaunchRankingQueryTotalIronCopperMinedMin = 0;
+
+
+
+export const PreviewLaunchRankingQueryParams = zod.object({
+  "sessionId": zod.coerce.string().min(1).max(previewLaunchRankingQuerySessionIdMax),
+  "timeTakenSeconds": zod.coerce.number().min(previewLaunchRankingQueryTimeTakenSecondsMin),
+  "totalItemsProduced": zod.coerce.number().min(previewLaunchRankingQueryTotalItemsProducedMin),
+  "totalSciencePacksProduced": zod.coerce.number().min(previewLaunchRankingQueryTotalSciencePacksProducedMin),
+  "totalIronCopperMined": zod.coerce.number().min(previewLaunchRankingQueryTotalIronCopperMinedMin)
+})
+
+export const previewLaunchRankingResponseOneSessionIdMax = 128;
+
+export const previewLaunchRankingResponseOneTimeTakenSecondsMin = 0;
+
+export const previewLaunchRankingResponseOneTotalItemsProducedMin = 0;
+
+export const previewLaunchRankingResponseOneTotalSciencePacksProducedMin = 0;
+
+export const previewLaunchRankingResponseOneTotalIronCopperMinedMin = 0;
+
+
+
+export const previewLaunchRankingResponseTwoRecordsItemSessionIdMax = 128;
+
+export const previewLaunchRankingResponseTwoRecordsItemTimeTakenSecondsMin = 0;
+
+export const previewLaunchRankingResponseTwoRecordsItemTotalItemsProducedMin = 0;
+
+export const previewLaunchRankingResponseTwoRecordsItemTotalSciencePacksProducedMin = 0;
+
+export const previewLaunchRankingResponseTwoRecordsItemTotalIronCopperMinedMin = 0;
+
+
+
+export const PreviewLaunchRankingResponse = zod.object({
+  "sessionId": zod.string().min(1).max(previewLaunchRankingResponseOneSessionIdMax),
+  "timeTakenSeconds": zod.number().min(previewLaunchRankingResponseOneTimeTakenSecondsMin),
+  "totalItemsProduced": zod.number().min(previewLaunchRankingResponseOneTotalItemsProducedMin),
+  "totalSciencePacksProduced": zod.number().min(previewLaunchRankingResponseOneTotalSciencePacksProducedMin),
+  "totalIronCopperMined": zod.number().min(previewLaunchRankingResponseOneTotalIronCopperMinedMin)
+}).and(zod.object({
+  "rank": zod.number().min(1),
+  "totalSubmissions": zod.number().min(1),
+  "alreadySubmitted": zod.boolean(),
+  "records": zod.array(zod.object({
+  "sessionId": zod.string().min(1).max(previewLaunchRankingResponseTwoRecordsItemSessionIdMax),
+  "timeTakenSeconds": zod.number().min(previewLaunchRankingResponseTwoRecordsItemTimeTakenSecondsMin),
+  "totalItemsProduced": zod.number().min(previewLaunchRankingResponseTwoRecordsItemTotalItemsProducedMin),
+  "totalSciencePacksProduced": zod.number().min(previewLaunchRankingResponseTwoRecordsItemTotalSciencePacksProducedMin),
+  "totalIronCopperMined": zod.number().min(previewLaunchRankingResponseTwoRecordsItemTotalIronCopperMinedMin)
+}))
+}))
+/**
  * Saves a launch result once per session ID and returns its ranking.
  * @summary Submit a completed rocket launch for ranking
  */
@@ -82,4 +148,4 @@ export const SubmitLaunchRankingResponse = zod.object({
   "totalSciencePacksProduced": zod.number().min(submitLaunchRankingResponseTwoRecordsItemTotalSciencePacksProducedMin),
   "totalIronCopperMined": zod.number().min(submitLaunchRankingResponseTwoRecordsItemTotalIronCopperMinedMin)
 }))
-}))
+ }))

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type Dispatch, type MouseEvent, type ReactNode, type SetStateAction } from 'react';
 import { Link, Router as WouterRouter, useLocation, useSearch } from 'wouter';
-import { submitLaunchRanking, useSubmitLaunchRanking, type LaunchRankingSubmission } from '@workspace/api-client-react';
+import { previewLaunchRanking, submitLaunchRanking, useSubmitLaunchRanking, type LaunchRankingSubmission } from '@workspace/api-client-react';
 import { recipeCatalog, recipeScienceChainFor, type RecipeCatalogEntry, type RecipeMaterial, type RecipeScienceChain } from './recipeCatalog';
 import { tierProductCatalog } from './productTierCatalog';
 import { technologyCatalog, type TechnologyDefinition } from './technologyCatalog';
@@ -33,6 +33,7 @@ import { primaryOutputFor } from './productionOutput';
 import { prioritizeDisplayOrder } from './displayOrder';
 import { sessionIdForStartTimestamp } from './sessionId';
 import { updateHistoryContent } from './updateHistory';
+import { saveFileTextFor, stateFromSaveFileText } from './saveFile';
 import {
   Activity, ArrowRight, ArrowUp, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -140,6 +141,8 @@ type GameState = {
   finishTimestamp: number | null;
   tutorialVisible: boolean;
   welcomeSeen: boolean;
+  unedited: boolean;
+  launchRankingEligible: boolean;
 };
 
 const SAVE_KEY = 'factory-production-game-save-v2';
@@ -522,7 +525,7 @@ const initialState: GameState = {
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, nuclearReactors: 0, heatExchangers: 0, steamTurbines: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], autoResearchEnabled: true, researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
-  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, tutorialVisible: true, welcomeSeen: false,
+  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, tutorialVisible: true, welcomeSeen: false, unedited: true, launchRankingEligible: true,
 };
 
 const nav = [
@@ -1486,6 +1489,8 @@ function loadState() {
       finishTimestamp: typeof parsed.finishTimestamp === 'number' && Number.isFinite(parsed.finishTimestamp) ? parsed.finishTimestamp : null,
       tutorialVisible: parsed.tutorialVisible !== false,
        welcomeSeen: migratedMilestones.welcomeSeen,
+      unedited: parsed.unedited !== false,
+      launchRankingEligible: parsed.launchRankingEligible !== false,
     } as GameState;
     delete (state as GameState & { upgrades?: unknown }).upgrades;
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
@@ -3779,8 +3784,9 @@ const formatLaunchRankingTime = (seconds: number) => {
   return `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
 };
 
-function LaunchRankingResultsModal({ submission, onClose }: {
+function LaunchRankingResultsModal({ submission, preview, onClose }: {
   submission: LaunchRankingSubmission;
+  preview: boolean;
   onClose: () => void;
 }) {
   const comparisons = launchRankingComparisonsFor(submission);
@@ -3792,8 +3798,9 @@ function LaunchRankingResultsModal({ submission, onClose }: {
   ];
   return <div className="fixed inset-0 z-[95] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.88)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(174_24%_15%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="launch-ranking-results-title" data-testid="dialog-launch-ranking-results">
-      <div className="flex items-center justify-between gap-3"><Tag tone="teal"><TrendingUp size={11} /> comparison results</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">submitted launches</span></div>
+      <div className="flex items-center justify-between gap-3"><Tag tone="teal"><TrendingUp size={11} /> comparison results</Tag><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{preview ? 'preview only' : 'submitted launches'}</span></div>
       <h2 id="launch-ranking-results-title" className="mt-5 text-2xl font-extrabold">Your Factory Results</h2>
+      {preview && <p className="mt-3 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">This is a relative ranking preview. Imported save statistics are not submitted.</p>}
       <div className="mt-5 space-y-2" data-testid="panel-launch-ranking-comparisons">
         {results.map(([label, message]) => <div className="data-row rounded-xl p-3" key={label}>
           <div className="eyebrow text-[hsl(var(--secondary))]">{label}</div>
@@ -3805,9 +3812,10 @@ function LaunchRankingResultsModal({ submission, onClose }: {
   </div>;
 }
 
-function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, onViewResults, onClose }: {
+function LaunchRankingModal({ stats, submission, canSubmit, isSubmitting, error, onSubmit, onViewResults, onClose }: {
   stats: LaunchRankingStats;
   submission: LaunchRankingSubmission | null;
+  canSubmit: boolean;
   isSubmitting: boolean;
   error: string;
   onSubmit: () => void;
@@ -3828,7 +3836,7 @@ function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, 
       <div className="flex items-center justify-end gap-3"><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{submitted ? 'submitted' : 'optional'}</span></div>
       <h2 id="launch-ranking-title" className="mt-5 text-2xl font-extrabold">{submitted ? 'Launch Ranking Confirmed' : 'Check My Launch Ranking'}</h2>
       {!submitted
-        ? <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Submit your completion stats to compare how you performed against other players.</p>
+        ? <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">{canSubmit ? 'Submit your completion stats to compare how you performed against other players.' : 'This save was imported. You can preview your relative ranking, but its statistics will not be submitted.'}</p>
         : <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Your launch result was saved to the shared ranking.</p>}
       <div className="surface-soft mt-5 rounded-xl border border-[hsl(var(--primary)/.2)] px-3 py-2" data-testid="panel-launch-ranking-stats">
         {rows.map(([label, value], index) => <div className={`flex items-center justify-between gap-4 py-2 ${index > 0 ? 'border-t border-[hsl(var(--border))]' : ''}`} key={label}>
@@ -3839,7 +3847,7 @@ function LaunchRankingModal({ stats, submission, isSubmitting, error, onSubmit, 
       {submitted && <button onClick={onViewResults} className="button-base button-primary mt-5 w-full !py-3 text-[11px]" data-testid="button-view-launch-ranking-results"><TrendingUp size={13} /> view comparison results</button>}
       {error && <div className="mt-4 rounded-lg border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] px-3 py-2 text-[10px] text-[hsl(var(--destructive))]" role="alert" data-testid="alert-launch-ranking">{error}</div>}
       <div className="mt-6 flex gap-2">
-        {!submitted && <button onClick={onSubmit} disabled={isSubmitting} className="button-base button-primary flex-1 !py-3 text-[12px]" data-testid="button-submit-launch-ranking"><Rocket size={15} /> {isSubmitting ? 'submitting…' : 'submit results'}</button>}
+        {!submitted && <button onClick={onSubmit} disabled={isSubmitting} className="button-base button-primary flex-1 !py-3 text-[12px]" data-testid={canSubmit ? 'button-submit-launch-ranking' : 'button-preview-launch-ranking'}><Rocket size={15} /> {isSubmitting ? (canSubmit ? 'submitting…' : 'loading preview…') : (canSubmit ? 'submit results' : 'view relative ranking')}</button>}
         <button onClick={onClose} disabled={isSubmitting} className={`button-base button-ghost !py-3 text-[12px] ${submitted ? 'w-full' : 'flex-1'}`} data-testid="button-close-launch-ranking">{submitted ? 'close' : 'cancel'}</button>
       </div>
     </section>
@@ -3866,19 +3874,39 @@ function UpdateHistoryModal({ onClose }: { onClose: () => void }) {
   </div>;
 }
 
-function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone }: PageProps) {
+function SettingsPage({ state, setState, saveNow, reset, exportSave, importSave, notice, replayMilestone }: PageProps) {
   const [confirm, setConfirm] = useState(false);
   const [rankingModalOpen, setRankingModalOpen] = useState(false);
   const [rankingResultsOpen, setRankingResultsOpen] = useState(false);
   const [updateHistoryOpen, setUpdateHistoryOpen] = useState(false);
   const [rankingSubmission, setRankingSubmission] = useState<LaunchRankingSubmission | null>(null);
+  const [rankingIsPreview, setRankingIsPreview] = useState(false);
+  const [rankingPreviewLoading, setRankingPreviewLoading] = useState(false);
   const [rankingError, setRankingError] = useState('');
+  const importInputRef = useRef<HTMLInputElement>(null);
   const submitLaunchRanking = useSubmitLaunchRanking();
   const unlockedMilestones = milestoneOrder.filter((milestone) => state.unlockedMilestones.includes(milestone));
   const launchRankingStats = launchRankingStatsFor(state);
   const submitRanking = () => {
     if (!launchRankingStats) return;
     setRankingError('');
+    if (!state.launchRankingEligible) {
+      setRankingIsPreview(true);
+      setRankingPreviewLoading(true);
+      void previewLaunchRanking({
+        sessionId: launchRankingStats.sessionId,
+        timeTakenSeconds: launchRankingStats.timeTakenSeconds,
+        totalItemsProduced: launchRankingStats.totalItemsProduced,
+        totalSciencePacksProduced: launchRankingStats.totalSciencePacksProduced,
+        totalIronCopperMined: launchRankingStats.totalIronCopperMined,
+      }).then((result) => {
+        setRankingSubmission(result);
+        setRankingResultsOpen(true);
+      }).catch(() => setRankingError('The launch ranking preview could not be loaded. Please try again.'))
+        .finally(() => setRankingPreviewLoading(false));
+      return;
+    }
+    setRankingIsPreview(false);
     submitLaunchRanking.mutate({
       data: {
         sessionId: launchRankingStats.sessionId,
@@ -3904,6 +3932,9 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
           </div>
           <div className="mt-4 flex gap-2">
             <button onClick={() => { saveNow(); notice('save committed now'); }} className="button-base button-primary" data-testid="button-save-now"><Save size={13} /> save now</button>
+            <button onClick={exportSave} className="button-base button-ghost" data-testid="button-export-save"><Save size={13} /> export save</button>
+            <button onClick={() => importInputRef.current?.click()} className="button-base button-ghost" data-testid="button-import-save"><RotateCcw size={13} /> import save</button>
+            <input ref={importInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) importSave(file); event.target.value = ''; }} data-testid="input-import-save" />
             <button onClick={() => setConfirm(true)} className="button-base button-ghost text-[hsl(var(--destructive))]" data-testid="button-reset-save"><Trash2 size={13} /> reset progress</button>
           </div>
         </div>
@@ -3914,7 +3945,7 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
         {launchRankingStats && <div className="mt-5 border-t border-[hsl(var(--border))] pt-4" data-testid="section-launch-ranking">
           <SectionTitle>Launch ranking</SectionTitle>
           <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">How do you compare against other players?</p>
-          <button onClick={() => { setRankingError(''); setRankingSubmission(null); setRankingModalOpen(true); }} className="button-base button-primary mt-3 w-full !py-3 text-[11px]" data-testid="button-check-launch-ranking"><Rocket size={14} /> Check My Launch Ranking</button>
+          <button onClick={() => { setRankingError(''); setRankingSubmission(null); setRankingIsPreview(!state.launchRankingEligible); setRankingModalOpen(true); }} className="button-base button-primary mt-3 w-full !py-3 text-[11px]" data-testid="button-check-launch-ranking"><Rocket size={14} /> {state.launchRankingEligible ? 'Check My Launch Ranking' : 'Preview My Relative Ranking'}</button>
         </div>}
         <div className="mt-5 border-t border-[hsl(var(--border))] pt-4">
           <SectionTitle>Tutorial display</SectionTitle>
@@ -3939,12 +3970,12 @@ function SettingsPage({ state, setState, saveNow, reset, notice, replayMilestone
     </section>
     <button type="button" onClick={() => setUpdateHistoryOpen(true)} className="button-base button-ghost mt-5 w-full !py-3 text-[11px]" data-testid="button-open-update-history"><Clock3 size={14} /> view update history</button>
     {updateHistoryOpen && <UpdateHistoryModal onClose={() => setUpdateHistoryOpen(false)} />}
-    {rankingModalOpen && launchRankingStats && <LaunchRankingModal stats={launchRankingStats} submission={rankingSubmission} isSubmitting={submitLaunchRanking.isPending} error={rankingError} onSubmit={submitRanking} onViewResults={() => setRankingResultsOpen(true)} onClose={() => { if (!submitLaunchRanking.isPending) setRankingModalOpen(false); }} />}
-    {rankingResultsOpen && rankingSubmission && <LaunchRankingResultsModal submission={rankingSubmission} onClose={() => setRankingResultsOpen(false)} />}
+    {rankingModalOpen && launchRankingStats && <LaunchRankingModal stats={launchRankingStats} submission={rankingSubmission} canSubmit={state.launchRankingEligible} isSubmitting={submitLaunchRanking.isPending || rankingPreviewLoading} error={rankingError} onSubmit={submitRanking} onViewResults={() => setRankingResultsOpen(true)} onClose={() => { if (!submitLaunchRanking.isPending && !rankingPreviewLoading) setRankingModalOpen(false); }} />}
+    {rankingResultsOpen && rankingSubmission && <LaunchRankingResultsModal submission={rankingSubmission} preview={rankingIsPreview} onClose={() => setRankingResultsOpen(false)} />}
   </PageFrame>;
 }
 
-type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[], quantity?: ConstructionBatchSize) => void; cancelConstruction: (id: string) => void; constructionVisualTiming: (total: number) => Pick<QueueItem, 'progressStartedAt' | 'progressDurationMs'>; constructionBatchSize: ConstructionBatchSize; setConstructionBatchSize: (value: ConstructionBatchSize) => void; saveNow: () => void; reset: () => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
+type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[], quantity?: ConstructionBatchSize) => void; cancelConstruction: (id: string) => void; constructionVisualTiming: (total: number) => Pick<QueueItem, 'progressStartedAt' | 'progressDurationMs'>; constructionBatchSize: ConstructionBatchSize; setConstructionBatchSize: (value: ConstructionBatchSize) => void; saveNow: () => void; reset: () => void; exportSave: () => void; importSave: (file: File) => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
 
 function PageFrame({ children }: { children: ReactNode }) { return <div className="mx-auto max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 md:px-8 md:pb-10">{children}</div>; }
 
@@ -3976,7 +4007,7 @@ function Game() {
   }, [state.gameComplete, state.rocketLaunched, state.rocketPartsBuilt, state.rocketReadyAcknowledged]);
   const completionScreenVisible = endgameModal === 'game-complete' || replayMilestone === 'game-complete';
   useEffect(() => {
-    if (!completionScreenVisible) return;
+    if (!completionScreenVisible || !state.launchRankingEligible) return;
     if (!state.finishTimestamp) {
       setState((current) => current.finishTimestamp ? current : { ...current, finishTimestamp: Date.now() });
       return;
@@ -3999,10 +4030,44 @@ function Game() {
     completionScreenVisible,
     state.finishTimestamp,
     state.gameStartTimestamp,
+    state.launchRankingEligible,
     state.sessionId,
     state.winMetrics,
   ]);
   const saveNow = () => localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, lastSeen: Date.now() }));
+  const exportSave = () => {
+    const exportedState = { ...state, lastSeen: Date.now() };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(exportedState));
+    const blob = new Blob([saveFileTextFor(exportedState as unknown as Record<string, unknown>)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'factory-planet-save.json';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    notice('save file exported');
+  };
+  const importSave = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const importedState = stateFromSaveFileText(String(reader.result));
+        localStorage.setItem(SAVE_KEY, JSON.stringify({
+          ...importedState,
+          unedited: true,
+          launchRankingEligible: false,
+        }));
+        notice('save imported; reloading');
+        window.setTimeout(() => window.location.reload(), 250);
+      } catch {
+        notice('could not import save file');
+      }
+    };
+    reader.onerror = () => notice('could not read save file');
+    reader.readAsText(file);
+  };
   const reset = () => {
     const timestamp = Math.max(Date.now(), state.gameStartTimestamp + 1);
     localStorage.removeItem(SAVE_KEY);
@@ -4010,7 +4075,7 @@ function Game() {
     setReplayMilestone(null);
     setOfflineReportVisible(false);
     navigate('/');
-    setState({ ...initialState, lastSeen: timestamp, gameStartTimestamp: timestamp, sessionId: sessionIdForStartTimestamp(timestamp), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] });
+    setState({ ...initialState, unedited: true, launchRankingEligible: true, lastSeen: timestamp, gameStartTimestamp: timestamp, sessionId: sessionIdForStartTimestamp(timestamp), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] });
   };
   const constructionVisualTiming = (total: number) => {
     const progressStartedAt = Date.now();
@@ -4072,7 +4137,7 @@ function Game() {
   });
   const constructionRoboticsUnlocked = state.research.includes('construction-robotics');
   const constructionBatchSize = constructionRoboticsUnlocked ? state.constructionBatchSize : 1;
-  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 })), saveNow, reset, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
+  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 })), saveNow, reset, exportSave, importSave, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
   const pageKey = nav.find(([key, path]) => path === routePathFor(location))?.[0] ?? 'factory';
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;

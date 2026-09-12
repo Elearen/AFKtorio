@@ -53,3 +53,27 @@ export type LaunchRankingSubmission = LaunchRankingInput & {
 export interface ErrorResponse {
   error: string;
 }
+
+export type PreviewLaunchRankingParams = {
+/**
+ * @minLength 1
+ * @maxLength 128
+ */
+sessionId: string;
+/**
+ * @minimum 0
+ */
+timeTakenSeconds: number;
+/**
+ * @minimum 0
+ */
+totalItemsProduced: number;
+/**
+ * @minimum 0
+ */
+totalSciencePacksProduced: number;
+/**
+ * @minimum 0
+ */
+  totalIronCopperMined: number;
+};
