@@ -548,19 +548,27 @@ const focusTargetForSearch = (search: string) => new URLSearchParams(search).get
 const normalizePersistedLaunchStats = (value: unknown): PersistedLaunchStats | null => {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Partial<PersistedLaunchStats>;
+  const timeTakenSeconds = candidate.timeTakenSeconds;
+  const totalItemsProduced = candidate.totalItemsProduced;
+  const totalSciencePacksProduced = candidate.totalSciencePacksProduced;
+  const totalIronCopperMined = candidate.totalIronCopperMined;
   if (
     typeof candidate.sessionId !== 'string'
-    || !Number.isFinite(candidate.timeTakenSeconds)
-    || !Number.isFinite(candidate.totalItemsProduced)
-    || !Number.isFinite(candidate.totalSciencePacksProduced)
-    || !Number.isFinite(candidate.totalIronCopperMined)
+    || typeof timeTakenSeconds !== 'number'
+    || typeof totalItemsProduced !== 'number'
+    || typeof totalSciencePacksProduced !== 'number'
+    || typeof totalIronCopperMined !== 'number'
+    || !Number.isFinite(timeTakenSeconds)
+    || !Number.isFinite(totalItemsProduced)
+    || !Number.isFinite(totalSciencePacksProduced)
+    || !Number.isFinite(totalIronCopperMined)
   ) return null;
   return {
     sessionId: candidate.sessionId,
-    timeTakenSeconds: Math.max(0, Math.floor(candidate.timeTakenSeconds)),
-    totalItemsProduced: Math.max(0, candidate.totalItemsProduced),
-    totalSciencePacksProduced: Math.max(0, candidate.totalSciencePacksProduced),
-    totalIronCopperMined: Math.max(0, candidate.totalIronCopperMined),
+    timeTakenSeconds: Math.max(0, Math.floor(timeTakenSeconds)),
+    totalItemsProduced: Math.max(0, totalItemsProduced),
+    totalSciencePacksProduced: Math.max(0, totalSciencePacksProduced),
+    totalIronCopperMined: Math.max(0, totalIronCopperMined),
   };
 };
 
@@ -1532,11 +1540,18 @@ function loadState() {
          totalCopperMined: Number((parsed.winMetrics as Partial<WinMetrics>).totalCopperMined),
        } : null,
       finishTimestamp: typeof parsed.finishTimestamp === 'number' && Number.isFinite(parsed.finishTimestamp) ? parsed.finishTimestamp : null,
+      launchRankingStats: normalizePersistedLaunchStats(parsed.launchRankingStats),
       tutorialVisible: parsed.tutorialVisible !== false,
        welcomeSeen: migratedMilestones.welcomeSeen,
       unedited: parsed.unedited !== false,
       launchRankingEligible: parsed.launchRankingEligible !== false,
     } as GameState;
+    if (state.rocketLaunched && state.finishTimestamp === null && state.winMetrics) {
+      state.finishTimestamp = state.winMetrics.timestamp;
+    }
+    if (!state.launchRankingStats && state.rocketLaunched) {
+      state.launchRankingStats = launchStatsSnapshotFor(state.sessionId, state.gameStartTimestamp, state.finishTimestamp, state.winMetrics);
+    }
     delete (state as GameState & { upgrades?: unknown }).upgrades;
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
     const before = state.totalOutput;
@@ -3811,15 +3826,10 @@ type LaunchRankingStats = {
 };
 
 const launchRankingStatsFor = (state: GameState): LaunchRankingStats | null => {
-  if (!state.rocketLaunched || !state.winMetrics) return null;
-  const finishTimestamp = state.finishTimestamp ?? state.winMetrics.timestamp;
+  if (!state.rocketLaunched || !state.launchRankingStats) return null;
   return {
-    sessionId: state.sessionId,
-    timeTakenSeconds: Math.max(0, Math.floor((finishTimestamp - state.gameStartTimestamp) / 1000)),
-    timeTakenLabel: formatWinDuration(state.gameStartTimestamp, finishTimestamp),
-    totalItemsProduced: state.winMetrics.totalItemsProduced,
-    totalSciencePacksProduced: state.winMetrics.totalSciencePacksProduced,
-    totalIronCopperMined: state.winMetrics.totalIronMined + state.winMetrics.totalCopperMined,
+    ...state.launchRankingStats,
+    timeTakenLabel: formatLaunchRankingTime(state.launchRankingStats.timeTakenSeconds),
   };
 };
 
@@ -4053,19 +4063,28 @@ function Game() {
   const completionScreenVisible = endgameModal === 'game-complete' || replayMilestone === 'game-complete';
   useEffect(() => {
     if (!completionScreenVisible || !state.launchRankingEligible) return;
-    if (!state.finishTimestamp) {
-      setState((current) => current.finishTimestamp ? current : { ...current, finishTimestamp: Date.now() });
+    if (!state.finishTimestamp || !state.launchRankingStats) {
+      setState((current) => {
+        if (current.finishTimestamp && current.launchRankingStats) return current;
+        const finishTimestamp = current.finishTimestamp ?? Date.now();
+        const metrics = current.winMetrics ?? winMetricsFor(finishTimestamp, current.totalOutput, current.produced);
+        return {
+          ...current,
+          finishTimestamp,
+          winMetrics: metrics,
+          launchRankingStats: current.launchRankingStats ?? launchStatsSnapshotFor(current.sessionId, current.gameStartTimestamp, finishTimestamp, metrics),
+        };
+      });
       return;
     }
-    if (!state.winMetrics) return;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), AUTO_LAUNCH_RANKING_TIMEOUT_MS);
     void submitLaunchRanking({
-      sessionId: state.sessionId,
-      timeTakenSeconds: Math.max(0, Math.floor((state.finishTimestamp - state.gameStartTimestamp) / 1000)),
-      totalItemsProduced: state.winMetrics.totalItemsProduced,
-      totalSciencePacksProduced: state.winMetrics.totalSciencePacksProduced,
-      totalIronCopperMined: state.winMetrics.totalIronMined + state.winMetrics.totalCopperMined,
+      sessionId: state.launchRankingStats.sessionId,
+      timeTakenSeconds: state.launchRankingStats.timeTakenSeconds,
+      totalItemsProduced: state.launchRankingStats.totalItemsProduced,
+      totalSciencePacksProduced: state.launchRankingStats.totalSciencePacksProduced,
+      totalIronCopperMined: state.launchRankingStats.totalIronCopperMined,
     }, { signal: controller.signal }).catch(() => undefined).finally(() => window.clearTimeout(timeoutId));
     return () => {
       controller.abort();
@@ -4076,8 +4095,7 @@ function Game() {
     state.finishTimestamp,
     state.gameStartTimestamp,
     state.launchRankingEligible,
-    state.sessionId,
-    state.winMetrics,
+    state.launchRankingStats,
   ]);
   const saveNow = () => localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, lastSeen: Date.now() }));
   const exportSave = () => {
@@ -4158,7 +4176,21 @@ function Game() {
     return { ...s, raw, products, queue: [...s.queue, item] };
   });
   const launchRocket = () => {
-    setState((s) => ({ ...s, rocketReadyAcknowledged: true, rocketLaunched: true, completionTotalOutput: s.totalOutput, completionStats: { ...s.produced }, unlockedMilestones: s.unlockedMilestones.includes('game-complete') ? s.unlockedMilestones : [...s.unlockedMilestones, 'game-complete'] }));
+    setState((s) => {
+      const finishTimestamp = s.finishTimestamp ?? Date.now();
+      const metrics = s.winMetrics ?? winMetricsFor(finishTimestamp, s.totalOutput, s.produced);
+      return {
+        ...s,
+        rocketReadyAcknowledged: true,
+        rocketLaunched: true,
+        completionTotalOutput: s.completionTotalOutput ?? s.totalOutput,
+        completionStats: s.completionStats ?? { ...s.produced },
+        winMetrics: metrics,
+        finishTimestamp,
+        launchRankingStats: s.launchRankingStats ?? launchStatsSnapshotFor(s.sessionId, s.gameStartTimestamp, finishTimestamp, metrics),
+        unlockedMilestones: s.unlockedMilestones.includes('game-complete') ? s.unlockedMilestones : [...s.unlockedMilestones, 'game-complete'],
+      };
+    });
     setEndgameModal('game-complete');
   };
   const finishGame = () => {
