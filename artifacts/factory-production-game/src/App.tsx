@@ -3890,7 +3890,7 @@ function LaunchRankingModal({ stats, submission, canSubmit, isSubmitting, error,
       <div className="flex items-center justify-end gap-3"><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">{submitted ? 'submitted' : 'optional'}</span></div>
       <h2 id="launch-ranking-title" className="mt-5 text-2xl font-extrabold">{submitted ? 'Launch Ranking Confirmed' : 'Check My Launch Ranking'}</h2>
       {!submitted
-        ? <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">{canSubmit ? 'Submit your completion stats to compare how you performed against other players.' : 'This save was imported. You can preview your relative ranking, but its statistics will not be submitted.'}</p>
+        ? <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Submit your completion stats to compare how you performed against other players.</p>
         : <p className="mt-3 text-[12px] leading-5 text-[hsl(var(--muted-foreground))]">Your launch result was saved to the shared ranking.</p>}
       <div className="surface-soft mt-5 rounded-xl border border-[hsl(var(--primary)/.2)] px-3 py-2" data-testid="panel-launch-ranking-stats">
         {rows.map(([label, value], index) => <div className={`flex items-center justify-between gap-4 py-2 ${index > 0 ? 'border-t border-[hsl(var(--border))]' : ''}`} key={label}>
