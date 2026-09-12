@@ -3853,7 +3853,7 @@ function LaunchRankingResultsModal({ submission, preview, onClose }: {
   ];
   return <div className="fixed inset-0 z-[95] grid place-items-center overflow-y-auto bg-[hsl(0_0%_0%/.88)] p-4 backdrop-blur-sm" role="presentation">
     <section className="surface w-full max-w-[560px] rounded-2xl border-[hsl(var(--secondary)/.7)] bg-[linear-gradient(145deg,hsl(174_24%_15%),hsl(216_25%_12%))] p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="launch-ranking-results-title" data-testid="dialog-launch-ranking-results">
-      <div className="flex items-center justify-between gap-3"><Tag tone="teal"><TrendingUp size={11} /> comparison results</Tag>{preview && <span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">preview only</span>}</div>
+      <div className="flex items-center justify-between gap-3"><Tag tone="teal"><TrendingUp size={11} /> comparison results</Tag>{preview && <span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">.</span>}</div>
       <h2 id="launch-ranking-results-title" className="mt-5 text-2xl font-extrabold">Your Factory Results</h2>
       <div className="mt-5 space-y-2" data-testid="panel-launch-ranking-comparisons">
         {results.map(([label, message]) => <div className="data-row rounded-xl p-3" key={label}>
