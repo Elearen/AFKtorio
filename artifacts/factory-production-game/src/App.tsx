@@ -2505,12 +2505,16 @@ function NuclearRecipeCard({ state, setState, enqueue, notice, cancelConstructio
   const handcraftBusy = Boolean(state.handcraft && !handcraftJob);
   const automatedOnly = isAutomatedOnlyRecipe(recipe);
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
+  const recipeUnlocked = recipeIsUnlocked(recipe, state);
+  const requiredTechnology = recipeUnlockResearch[key]?.[0];
+  const researchRequirementLabel = requiredTechnology ? `${prettyLabel(requiredTechnology)} required` : 'Research required';
   const recipeSubtitle = key === 'uranium-processing' || key === 'kovarex-enrichment-process'
     ? `${recipe.energyRequired}s cycle · ${buildingLabel}`
     : `${prettyLabel(recipe.category)} · ${recipe.energyRequired}s cycle · ${buildingLabel}`;
   const metricFocus = key === 'uranium-processing' ? 'U-238' : key === 'kovarex-enrichment-process' ? 'U-235' : null;
 
   const handcraft = () => {
+    if (!recipeUnlocked) return notice(researchRequirementLabel);
     if (automatedOnly) return notice(`${prettyLabel(key)} is automated only — construct its ${productionBuildingFor(state, recipe)} instead`);
     if (state.handcraft) return notice(state.handcraft.recipeKey === key ? `already handcrafting ${prettyLabel(key)}` : `finish handcrafting ${prettyLabel(state.handcraft.recipeKey)} first`);
     const missing = missingBuildMaterials(state, recipeBuildCosts(recipe));
@@ -2525,12 +2529,13 @@ function NuclearRecipeCard({ state, setState, enqueue, notice, cancelConstructio
     notice(`handcrafting ${prettyLabel(outputsForRecipe[0]?.key ?? recipe.name)}`);
   };
   const build = () => {
+    if (!recipeUnlocked) return notice(researchRequirementLabel);
     if (!state.research.includes('automation')) return notice('Automation technology required');
     const machine = productionMachineRecipeFor(state, recipe);
     enqueue('assembler', `${prettyLabel(key)} ${productionMachineLabelFor(state, recipe).toLowerCase()}`, machine.energyRequired, key, productionMachineBuildCostFor(state, recipe), constructionBatchSize);
   };
   const togglePause = () => setState((s) => ({ ...s, pausedRecipes: { ...s.pausedRecipes, [key]: !recipePausedFor(s, key) } }));
-  const nuclearCardClass = recipeIsUnlocked(recipe, state) ? 'surface' : 'locked-wash opacity-60 grayscale';
+  const nuclearCardClass = recipeUnlocked ? 'surface' : 'locked-wash opacity-60 grayscale';
 
   return <section id={`power-nuclear-${key}`} className={`${nuclearCardClass} scroll-mt-24 rounded-xl p-4`} data-testid={`section-power-nuclear-${key}`}>
     <div className="flex items-start gap-3">
@@ -2557,8 +2562,8 @@ function NuclearRecipeCard({ state, setState, enqueue, notice, cancelConstructio
     {autoCondition.label && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3"><div className="flex items-center justify-between gap-2 text-[10px]"><span className="eyebrow text-[hsl(var(--primary))]">Auto start / stop</span><Tag tone={paused ? 'amber' : autoCondition.met ? 'teal' : 'amber'}>{paused ? 'paused' : autoCondition.met ? 'running' : 'stopped'}</Tag></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{paused ? 'Paused manually. Click PAUSED above to resume.' : <>Runs when <span className="font-semibold text-[hsl(var(--foreground))]">{autoCondition.label}</span>.</>}</div></div>}
     <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={productionRate - demandRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} manualOutputEvent={primaryOutput ? state.manualOutputEvents[primaryOutput.key] ?? 0 : 0} />
     <div className="mt-4 flex gap-2">
-      {automatedOnly ? <button disabled className="button-base flex-1 !py-2 button-ghost cursor-not-allowed opacity-70"><LockKeyhole size={13} />automated only</button> : <button onClick={handcraft} className={`button-base flex-1 !py-2 ${count ? 'button-ghost' : 'button-primary'}`} data-testid={`button-handcraft-nuclear-${key}`}>{handcraftJob ? <><Clock3 size={13} /> {handcraftJob.seconds.toFixed(2)}s</> : handcraftBusy ? <Clock3 size={13} /> : <><Plus size={13} />handcraft</>}</button>}
-      <button onClick={build} className={`button-base flex-1 !py-2 ${constructionItems.length ? 'button-build-active' : 'button-ghost'}`} data-testid={`button-build-nuclear-${key}`}>{constructionItems.length ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct' : `construct ${constructionBatchSize}`} <ResourceIcon item={building} size={13} /></>}</button>
+      {!recipeUnlocked ? <button disabled className="button-base flex-1 !py-2 button-ghost cursor-not-allowed opacity-70" data-testid={`button-handcraft-nuclear-${key}`}><LockKeyhole size={13} />{researchRequirementLabel}</button> : automatedOnly ? <button disabled className="button-base flex-1 !py-2 button-ghost cursor-not-allowed opacity-70" data-testid={`button-handcraft-nuclear-${key}`}><LockKeyhole size={13} />automated only</button> : <button onClick={handcraft} className={`button-base flex-1 !py-2 ${count ? 'button-ghost' : 'button-primary'}`} data-testid={`button-handcraft-nuclear-${key}`}>{handcraftJob ? <><Clock3 size={13} /> {handcraftJob.seconds.toFixed(2)}s</> : handcraftBusy ? <Clock3 size={13} /> : <><Plus size={13} />handcraft</>}</button>}
+      <button onClick={build} disabled={!recipeUnlocked} className={`button-base flex-1 !py-2 ${constructionItems.length ? 'button-build-active' : recipeUnlocked ? 'button-ghost' : 'button-ghost cursor-not-allowed opacity-70'}`} data-testid={`button-build-nuclear-${key}`}>{constructionItems.length ? <><Check size={13} /> queued · build {constructionBatchSize}</> : recipeUnlocked ? <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct' : `construct ${constructionBatchSize}`} <ResourceIcon item={building} size={13} /></> : <><LockKeyhole size={13} />{researchRequirementLabel}</>}</button>
     </div>
     {constructionItems.length > 0 && <BuildProgress items={constructionItems} label={buildingLabel} cancelConstruction={cancelConstruction} notice={notice} />}
     {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} simulationSpeed={state.simulationSpeed} />}
