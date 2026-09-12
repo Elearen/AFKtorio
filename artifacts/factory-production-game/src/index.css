@@ -44,8 +44,8 @@
   --sidebar: 0 0% 11%;
   --sidebar-foreground: 38 25% 91%;
   --sidebar-border: 0 0% 7%;
-  --app-font-sans: 'Trebuchet MS', Arial, sans-serif;
-  --app-font-mono: 'Courier New', monospace;
+  --app-font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  --app-font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', 'Courier New', monospace;
   --radius: 0.2rem;
 }
 
