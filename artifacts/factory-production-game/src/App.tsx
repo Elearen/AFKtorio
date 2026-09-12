@@ -2266,13 +2266,6 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
   const pulsePeak = Math.max(...pulseRates, 0);
   const IconFor = ({ icon: Icon }: { icon: typeof Cog }) => <Icon size={15} />;
   const circuitNetworkUnlocked = state.research.includes('circuit-network');
-  const dashboardMetricsRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const element = dashboardMetricsRef.current;
-    if (!element) return;
-    if (circuitNetworkUnlocked) element.removeAttribute('inert');
-    else element.setAttribute('inert', '');
-  }, [circuitNetworkUnlocked]);
   const constructionQueue = <section className="surface mb-5 rounded-xl p-4 sm:p-5"><SectionTitle detail={`${constructionCount} queued`}>Construction queue</SectionTitle>{constructionCount ? <div className="space-y-2">{state.queue.map((item) => {
     const waitingForMaterials = item.started === false;
        const progress = waitingForMaterials
@@ -2285,17 +2278,18 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
     <Header eyebrow="Control Room" title="Dashboard" copy="Live production metrics to optimise efficiency." action={<Tag><span className="status-dot status-running mini-pulse" /> line online · {state.simulationSpeed}x</Tag>} />
     {state.tutorialVisible && <div className="mb-5"><TutorialSection state={state} /></div>}
     {constructionQueue}
-    {!circuitNetworkUnlocked && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.08)] p-4" role="status" data-testid="dashboard-metrics-lock-message"><Info size={17} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" /><p className="text-[11px] leading-5 text-[hsl(var(--foreground))]">Full metrics will be available after unlocking the Circuit Network technology.</p></div>}
-    <div ref={dashboardMetricsRef} aria-disabled={!circuitNetworkUnlocked} className={!circuitNetworkUnlocked ? 'pointer-events-none select-none opacity-45 grayscale' : ''} data-testid="dashboard-full-metrics">
-    <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4 enter enter-delay-1">
+    <div data-testid="dashboard-full-metrics">
+    <div className={`mb-5 grid grid-cols-2 gap-2 enter enter-delay-1 ${circuitNetworkUnlocked ? 'sm:grid-cols-4' : ''}`}>
       {[
-        { label: 'Observed output', value: dashboardObservedProduction === null ? '--' : dashboardObservedProduction.toFixed(1), suffix: dashboardAverageLabel, icon: TrendingUp, color: 'text-[hsl(var(--secondary))]' },
-        { label: 'Network flow', value: dashboardNetFlow === null ? '--' : `${dashboardNetFlow >= 0 ? '+' : ''}${dashboardNetFlow.toFixed(1)}`, suffix: dashboardAverageLabel.replace('items / min', 'items / min net'), icon: Waves, color: dashboardNetFlow !== null && dashboardNetFlow < 0 ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary))]' },
+        ...(circuitNetworkUnlocked ? [
+          { label: 'Observed output', value: dashboardObservedProduction === null ? '--' : dashboardObservedProduction.toFixed(1), suffix: dashboardAverageLabel, icon: TrendingUp, color: 'text-[hsl(var(--secondary))]' },
+          { label: 'Network flow', value: dashboardNetFlow === null ? '--' : `${dashboardNetFlow >= 0 ? '+' : ''}${dashboardNetFlow.toFixed(1)}`, suffix: dashboardAverageLabel.replace('items / min', 'items / min net'), icon: Waves, color: dashboardNetFlow !== null && dashboardNetFlow < 0 ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary))]' },
+        ] : []),
         { label: 'Operating units', value: fmt(active), suffix: 'machines + labs', icon: Activity, color: 'text-[#83d993]' },
         { label: 'Lifetime output', value: fmt(state.totalOutput), suffix: 'items produced', icon: Layers3, color: 'text-[hsl(var(--primary))]' },
       ].map((metric) => <div className="surface rounded-xl p-3.5" key={metric.label}><div className={`mb-2 flex items-center gap-2 ${metric.color}`}><metric.icon size={14} /><span className="eyebrow">{metric.label}</span></div><div className="mono text-[19px]">{metric.value} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{metric.suffix}</span></div></div>)}
     </div>
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
+    {circuitNetworkUnlocked && <><div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
       <section className="surface rounded-xl p-4 sm:p-5 enter enter-delay-2">
         <div className="flex items-start justify-between gap-3">
           <div><SectionTitle detail={`${groupRows.length} groups`}>Network command</SectionTitle><h2 className="mt-1 text-xl font-extrabold tracking-tight">{healthLabel} <span className="mono text-[11px] font-normal text-[hsl(var(--secondary))]">{networkHealth}% ready</span></h2><p className="mt-1 max-w-xl text-[11px] text-[hsl(var(--muted-foreground))]">Live readiness across production, power, raw supply, and storage headroom.</p></div>
@@ -2312,7 +2306,7 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
         <section className="surface rounded-xl p-4 sm:p-5"><div className="flex items-center justify-between"><SectionTitle detail={historySeconds ? `${Math.round(historySeconds)} sec sampled` : 'no samples'}>Network pulse</SectionTitle><Activity size={15} className="text-[hsl(var(--secondary))]" /></div>{pulseRates.length ? <><div className="grid-lines flex h-20 items-end gap-1 rounded-lg border border-[hsl(var(--border))] px-2 pb-2 pt-3">{pulseRates.map((rate, index) => <div key={`${rate}-${index}`} className="min-h-[3px] flex-1 rounded-t-sm bg-[hsl(var(--secondary)/.68)]" style={{ height: `${Math.max(4, rate / Math.max(pulsePeak, .01) * 100)}%` }} title={`${rate.toFixed(1)} items / min`} />)}</div><div className="mt-2 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>oldest sample</span><span>now · {observedProduction.toFixed(1)} / min</span></div></> : <div className="grid h-20 place-items-center rounded-lg border border-dashed border-[hsl(var(--border))] text-center"><div><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Waiting for live rate samples</div><div className="mt-1 mono text-[9px] text-[hsl(var(--muted-foreground))]">The chart fills as the simulation ticks.</div></div></div>}</section>
       </div>
     </div>
-    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[hsl(var(--border))] pt-4"><div className="flex items-center gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><Zap size={13} className="text-[hsl(var(--primary))]" /><span>Rated capacity <strong className="mono font-normal text-[hsl(var(--foreground))]">{ratedCapacity.toFixed(1)} items / min</strong> · live units only</span></div><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">LOCAL SAVE · AUTO-COMMIT EVERY TICK</span></div>
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[hsl(var(--border))] pt-4"><div className="flex items-center gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><Zap size={13} className="text-[hsl(var(--primary))]" /><span>Rated capacity <strong className="mono font-normal text-[hsl(var(--foreground))]">{ratedCapacity.toFixed(1)} items / min</strong> · live units only</span></div><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">LOCAL SAVE · AUTO-COMMIT EVERY TICK</span></div></>}
     </div>
   </PageFrame>;
 }
