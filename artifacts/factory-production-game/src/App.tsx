@@ -2775,10 +2775,10 @@ function PowerDependencyTreePage({ state, notice }: PageProps) {
 }
 function FlameIcon() { return <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.8 2.8c.4 3-1.3 4.2-2.4 5.4-1 1-1.2 2.3-.6 3.3.4-1.3 1.5-2.3 2.8-2.7 2.6 2 3.8 4.3 3.2 7.1-.4 1.8-1.7 3.2-3.3 4.1 4.7-.8 7-4 6.2-8.4-.5-2.8-2.5-5.8-5.9-8.8ZM10 12c-3.7 1.4-5.4 4-4.6 6.6.6 2 2.3 3.4 4.5 4-1.2-1.2-1.5-2.6-.6-4.1.7-1.2 1.6-2.1 2.6-2.6-1.1-1-1.8-2.3-1.9-3.9Z"/></svg>; }
 
-function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: PageProps) {
+function StoragePage({ state, enqueue, notice, cancelConstruction, constructionBatchSize }: PageProps) {
   const storageUpgradeInProgress = state.queue.some((item) => item.action === 'upgrade' && (item.targetId === 'iron-chests' || item.targetId === 'steel-chests'));
   const storageUpgradeInProgressLabel = state.queue.some((item) => item.targetId === 'steel-chests') ? 'Steel Chests' : 'Iron Chests';
-  const buildStorage = (key: TrackedKey) => {
+  const buildStorage = (key: TrackedKey, quantity: ConstructionBatchSize = 1) => {
     const fluid = isFluidKey(key);
     if (fluid && !canPurchaseStorageFor(key, fluidKeys, state.research)) return notice('Fluid Handling required');
     if (!fluid && storageUpgradeInProgress) return notice(`finish the ${storageUpgradeInProgressLabel} upgrade before constructing another box`);
@@ -2788,8 +2788,8 @@ function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: P
     const costs = fluid ? storageTankBuildCost : steel ? [{ key: 'steel', amount: STORAGE_STEEL_BOX_COST, source: 'products' as const }] : iron ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }] : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
     const buildSeconds = fluid ? storageTankRecipe.energyRequired : storageBoxBuildSeconds;
     const containerLabel = fluid ? 'storage tank' : steel ? 'steel chest' : iron ? 'iron chest' : 'wooden box';
-    enqueue('storage', `${containerLabel[0].toUpperCase()}${containerLabel.slice(1)} · ${meta[key].label}`, buildSeconds, key, costs);
-    notice(`${containerLabel} for ${meta[key].label} queued`);
+    enqueue('storage', `${containerLabel[0].toUpperCase()}${containerLabel.slice(1)} · ${meta[key].label}`, buildSeconds, key, costs, quantity);
+    notice(`${quantity > 1 ? `${quantity} ` : ''}${containerLabel} for ${meta[key].label} queued`);
   };
   const unlockedKeys = orderedTrackedKeys.filter((key) => unlockedProductKeys(state).has(key));
   const [query, setQuery] = useState('');
@@ -2893,6 +2893,7 @@ function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: P
            const containerIcon = fluid ? 'storage-tank' : steel ? 'steel-chest' : iron ? 'iron-chest' : 'wooden-chest';
            const costs = fluid ? storageTankBuildCost : steel ? [{ key: 'steel', amount: STORAGE_STEEL_BOX_COST, source: 'products' as const }] : iron ? [{ key: 'ironPlate', amount: STORAGE_IRON_BOX_COST, source: 'products' as const }] : [{ key: 'wood', amount: storageBoxWoodCost, source: 'raw' as const }];
           const buildSeconds = fluid ? storageTankRecipe.energyRequired : storageBoxBuildSeconds;
+          const batchCosts = costs.map((cost) => ({ ...cost, amount: cost.amount * constructionBatchSize }));
           const constructionItems = state.queue.filter((item) => item.action === 'storage' && item.targetId === key);
           const isBuilding = constructionItems.length > 0;
           return <section className="data-row rounded-lg p-2.5" key={key} data-testid={`row-storage-${key}`}>
@@ -2902,8 +2903,8 @@ function StoragePage({ state, setState, enqueue, notice, cancelConstruction }: P
                <div className="flex shrink-0 items-center gap-1.5 text-[hsl(var(--secondary))]" title={`${containerCount} ${containerLabel}${containerCount === 1 ? '' : 's'}`}>
                  <ResourceIcon item={containerIcon} size={17} /><span className="mono text-[11px]">{containerCount}</span>
               </div>
-               <button onClick={() => buildStorage(key)} disabled={(fluid && !canPurchase) || (!fluid && storageUpgradeInProgress)} className={`button-base button-ghost !gap-1 !px-2 !py-1.5 ${isBuilding ? 'button-build-active' : ''}`} aria-label={fluid && !canPurchase ? `Fluid Handling required to construct a storage tank for ${meta[key].label}` : !fluid && storageUpgradeInProgress ? `${storageUpgradeInProgressLabel} upgrade in progress` : `Construct another ${containerLabel} for ${meta[key].label}`} title={fluid && !canPurchase ? 'Fluid Handling required' : !fluid && storageUpgradeInProgress ? `${storageUpgradeInProgressLabel} upgrade in progress` : `Construct another ${containerLabel} · ${costs.map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · ${buildSeconds} sec`} data-testid={`button-build-storage-${key}`}>
-                   {fluid && !canPurchase ? <><LockKeyhole size={12} /><span className="hidden sm:inline">Fluid Handling</span></> : !fluid && storageUpgradeInProgress ? <><Clock3 size={12} /><span className="hidden sm:inline">upgrading</span></> : <>{isBuilding ? <Check size={12} /> : <Plus size={12} />}<ResourceIcon item={containerIcon} size={13} /><span className="hidden sm:inline">{fluid ? 'tank' : 'chest'}</span><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]" aria-hidden="true">|</span>{costs.map((cost) => <span className="contents" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{fmt(cost.amount)}</span></span>)}</>}
+               <button onClick={() => buildStorage(key, constructionBatchSize)} disabled={(fluid && !canPurchase) || (!fluid && storageUpgradeInProgress)} className={`button-base button-ghost !gap-1 !px-2 !py-1.5 ${isBuilding ? 'button-build-active' : ''}`} aria-label={fluid && !canPurchase ? `Fluid Handling required to construct a storage tank for ${meta[key].label}` : !fluid && storageUpgradeInProgress ? `${storageUpgradeInProgressLabel} upgrade in progress` : `Construct ${constructionBatchSize} ${containerLabel}${constructionBatchSize === 1 ? '' : 's'} for ${meta[key].label}`} title={fluid && !canPurchase ? 'Fluid Handling required' : !fluid && storageUpgradeInProgress ? `${storageUpgradeInProgressLabel} upgrade in progress` : `Construct ${constructionBatchSize} ${containerLabel}${constructionBatchSize === 1 ? '' : 's'} · ${batchCosts.map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · ${buildSeconds} sec each`} data-testid={`button-build-storage-${key}`}>
+                   {fluid && !canPurchase ? <><LockKeyhole size={12} /><span className="hidden sm:inline">Fluid Handling</span></> : !fluid && storageUpgradeInProgress ? <><Clock3 size={12} /><span className="hidden sm:inline">upgrading</span></> : <>{isBuilding ? <Check size={12} /> : <Plus size={12} />}<span className="mono text-[9px] text-[hsl(var(--primary))]">{constructionBatchSize}</span><ResourceIcon item={containerIcon} size={13} /><span className="hidden sm:inline">{fluid ? 'tank' : 'chest'}</span><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]" aria-hidden="true">|</span>{batchCosts.map((cost) => <span className="contents" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{fmt(cost.amount)}</span></span>)}</>}
               </button>
             </div>
             <div className="mt-2 flex items-center gap-2" aria-label={`${meta[key].label}: ${fmt(amount)} in stock, capacity ${fmt(capacity)}`}>
