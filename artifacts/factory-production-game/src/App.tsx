@@ -537,9 +537,9 @@ const initialState: GameState = {
 };
 
 const nav = [
-  ['factory', '/', Gauge], ['mining', '/mining', Pickaxe], ['production', '/production', Cog], ['power', '/power', Zap],
-  ['storage', '/storage', Box], ['logistics', '/logistics', MoveRight], ['upgrades', '/upgrades', TrendingUp], ['science', '/science', FlaskConical],
-  ['research', '/research', Layers3], ['settings', '/settings', Settings2],
+  ['factory', '/'], ['mining', '/mining'], ['production', '/production'], ['power', '/power'],
+  ['storage', '/storage'], ['logistics', '/logistics'], ['upgrades', '/upgrades'], ['science', '/science'],
+  ['research', '/research'], ['settings', '/settings'],
 ] as const;
 const tabLabel = (key: string) => key === 'factory' ? 'Dashboard' : key === 'mining' ? 'Mining / Raw' : key.charAt(0).toUpperCase() + key.slice(1);
 const routePathFor = (location: string) => location.split(/[?#]/, 1)[0];
@@ -1567,6 +1567,115 @@ const iconFileFor: Record<string, string> = {
 function ResourceIcon({ item, size = 28 }: { item: TrackedKey; size?: number }) {
   return <img src={`${import.meta.env.BASE_URL}item-icons/${iconFileFor[item] ?? item}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
 }
+type NavigationImage = { file: string; source: 'item' | 'research'; label: string };
+const navigationItemImage = (file: string, label: string): NavigationImage => ({ file, source: 'item', label });
+const navigationResearchImage = (file: string, label: string): NavigationImage => ({ file, source: 'research', label });
+const scienceNavigationOrder: NavigationImage[] = [
+  navigationItemImage('automationPack', 'Automation science pack'),
+  navigationItemImage('logisticsPack', 'Logistic science pack'),
+  navigationItemImage('military-science-pack', 'Military science pack'),
+  navigationItemImage('chemical-science-pack', 'Chemical science pack'),
+  navigationItemImage('researchPack', 'Production science pack'),
+  navigationItemImage('utility-science-pack', 'Utility science pack'),
+  navigationItemImage('space-science-pack', 'Space science pack'),
+];
+const scienceNavigationResearchKeys = [
+  'automation-science-pack',
+  'logistic-science-pack',
+  'military-science-pack',
+  'chemical-science-pack',
+  'production-science-pack',
+  'utility-science-pack',
+  'space-science-pack',
+];
+const navigationPowerImagesFor = (state: GameState): NavigationImage[] => {
+  const coal = powerFlowFor(state).powerGeneratedMw;
+  const solar = solarPowerFor(state);
+  const nuclear = nuclearPowerFor(state);
+  if (coal === solar && solar === nuclear) {
+    return [
+      navigationItemImage('boiler', 'Boiler'),
+      navigationItemImage('steam-engine', 'Steam engine'),
+    ];
+  }
+  if (coal >= solar && coal >= nuclear) {
+    return [
+      navigationItemImage('boiler', 'Boiler'),
+      navigationItemImage('steam-engine', 'Steam engine'),
+    ];
+  }
+  if (solar >= nuclear) {
+    return [
+      navigationItemImage('solar-panel', 'Solar panel'),
+      navigationItemImage('accumulator', 'Accumulator'),
+    ];
+  }
+  return [
+    navigationItemImage('nuclear-reactor', 'Nuclear reactor'),
+    navigationItemImage('heat-exchanger', 'Heat exchanger'),
+    navigationItemImage('steam-turbine', 'Steam turbine'),
+  ];
+};
+const navigationImagesFor = (key: string, state: GameState): NavigationImage[] => {
+  if (key === 'factory') {
+    return [
+      navigationItemImage('display-panel', 'Display panel'),
+      navigationItemImage('selector-combinator', 'Selector combinator'),
+    ];
+  }
+  if (key === 'mining') {
+    return [
+      navigationItemImage(state.machineVariants.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill', state.machineVariants.mining === 'electric-mining-drill' ? 'Electric mining drill' : 'Burner mining drill'),
+      navigationItemImage('offshore-pump', 'Offshore pump'),
+    ];
+  }
+  if (key === 'production') {
+    return [
+      navigationItemImage(state.furnaceVariant, prettyLabel(state.furnaceVariant)),
+      navigationItemImage(state.machineVariants.assembly, prettyLabel(state.machineVariants.assembly)),
+    ];
+  }
+  if (key === 'power') return navigationPowerImagesFor(state);
+  if (key === 'storage') {
+    return [
+      navigationItemImage(`${state.storageBoxType}-chest`, `${prettyLabel(state.storageBoxType)} chest`),
+      ...(state.research.includes(FLUID_HANDLING_TECHNOLOGY) ? [navigationItemImage('storage-tank', 'Storage tank')] : []),
+    ];
+  }
+  if (key === 'logistics') {
+    return [
+      navigationItemImage('transport-belt', 'Transport belt'),
+      navigationItemImage('inserter', 'Inserter'),
+    ];
+  }
+  if (key === 'upgrades') {
+    return [
+      navigationResearchImage('module', 'Modules technology'),
+      navigationItemImage('beacon', 'Beacon'),
+    ];
+  }
+  if (key === 'science') {
+    const latestScienceIndex = scienceNavigationResearchKeys.reduce((latest, researchKey, index) => state.research.includes(researchKey) ? index : latest, 0);
+    return [
+      navigationItemImage('lab', 'Lab'),
+      scienceNavigationOrder[latestScienceIndex] ?? scienceNavigationOrder[0],
+    ];
+  }
+  if (key === 'research') return [navigationResearchImage('research-productivity', 'Research productivity')];
+  return [
+    navigationItemImage('red-wire', 'Red wire'),
+    navigationItemImage('green-wire', 'Green wire'),
+  ];
+};
+function NavigationIcon({ pageKey, state, compact = false }: { pageKey: string; state: GameState; compact?: boolean }) {
+  const images = navigationImagesFor(pageKey, state);
+  const imageSize = compact ? (images.length >= 3 ? 12 : 14) : (images.length >= 3 ? 16 : 19);
+  const overlap = compact ? 3 : 4;
+  const width = imageSize + Math.max(0, images.length - 1) * (imageSize - overlap);
+  return <span className="relative inline-flex shrink-0 items-center justify-center" style={{ width, height: imageSize }} role="img" aria-label={images.map((image) => image.label).join(' and ')}>
+    {images.map((image, index) => <img key={`${image.source}-${image.file}`} src={`${import.meta.env.BASE_URL}${image.source === 'research' ? 'research-icons' : 'item-icons'}/${image.file}.png`} width={imageSize} height={imageSize} alt="" aria-hidden="true" className="shrink-0 object-contain" style={{ marginLeft: index === 0 ? 0 : -overlap, zIndex: index + 1 }} />)}
+  </span>;
+}
 function MiningBuildingIcon({ resource, machineVariant, size = 17 }: { resource: RawKey; machineVariant: string; size?: number }) {
   if (resource === 'water') return <ResourceIcon item="offshore-pump" size={size} />;
   if (resource === 'uranium') {
@@ -1784,10 +1893,10 @@ function Shell({ children, state, constructionBatchSize, onConstructionBatchSize
         {activeResearch && <div className="app-header-research" data-testid="header-research-status"><div className="mx-auto flex min-h-8 max-w-[1500px] flex-wrap items-center gap-x-1.5 gap-y-1 px-4 py-2 mono text-[9px] text-[hsl(var(--muted-foreground))] sm:px-6 lg:px-8"><span className="status-dot status-running mini-pulse" /><span>Current research: <strong className="font-semibold text-[hsl(var(--foreground))]">{prettyLabel(activeResearch.name)}</strong></span><span className="ml-auto whitespace-nowrap text-right">Progress: <strong className="font-semibold text-[hsl(var(--primary))]">{activeResearchProgress.toFixed(0)}%</strong> ({activeResearchTimeRemaining === null ? '--' : duration(activeResearchTimeRemaining)})</span></div></div>}
     </header>
     <div className="mx-auto flex min-h-0 w-full max-w-[1500px] flex-1">
-       <aside className="hidden surface rounded-xl p-2 md:sticky md:top-0 md:block md:h-full md:w-[214px] md:shrink-0 md:rounded-none md:border-0 md:border-r md:border-[hsl(var(--sidebar-border))] md:bg-transparent md:p-5 md:shadow-none"><div className="mb-4 hidden px-3 md:block"><span className="eyebrow">Command tabs · 10</span></div><nav className="grid grid-cols-2 gap-1 md:flex md:flex-col" aria-label="Primary navigation">{nav.map(([key, path, Icon]) => <Link key={key} href={path} onClick={(event) => handleNavClick(key, event)} className={`nav-link flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[11px] font-bold no-underline transition-colors ${active === key ? 'bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'}`} data-testid={`link-tab-${key}`}>{navigationAlertDescription(key) ? <span className="sr-only">{navigationAlertDescription(key)} </span> : null}<Icon size={15} /><span>{tabLabel(key)}</span>{navigationAlert(key)}{active === key && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--primary))]" />}</Link>)}</nav></aside>
+       <aside className="hidden surface rounded-xl p-2 md:sticky md:top-0 md:block md:h-full md:w-[214px] md:shrink-0 md:rounded-none md:border-0 md:border-r md:border-[hsl(var(--sidebar-border))] md:bg-transparent md:p-5 md:shadow-none"><div className="mb-4 hidden px-3 md:block"><span className="eyebrow">Command tabs · 10</span></div><nav className="grid grid-cols-2 gap-1 md:flex md:flex-col" aria-label="Primary navigation">{nav.map(([key, path]) => <Link key={key} href={path} onClick={(event) => handleNavClick(key, event)} className={`nav-link flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[11px] font-bold no-underline transition-colors ${active === key ? 'bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'}`} data-testid={`link-tab-${key}`}>{navigationAlertDescription(key) ? <span className="sr-only">{navigationAlertDescription(key)} </span> : null}<NavigationIcon pageKey={key} state={state} /><span>{tabLabel(key)}</span>{navigationAlert(key)}{active === key && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--primary))]" />}</Link>)}</nav></aside>
        <main ref={contentRef} onScroll={() => { if (contentRef.current) scrollPositions.current[active] = contentRef.current.scrollTop; }} className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">{children}</main>
     </div>
-      <div className="tab-rail app-footer fixed inset-x-0 bottom-0 z-30 px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-1 md:hidden"><div className="grid w-full grid-cols-5 grid-rows-2 gap-1">{nav.map(([key, path, Icon]) => <Link key={key} href={path} onClick={(event) => handleNavClick(key, event)} className={`flex min-w-0 w-full flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[9px] font-bold no-underline ${active === key ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-tab-${key}`}>{navigationAlertDescription(key) ? <span className="sr-only">{navigationAlertDescription(key)} </span> : null}<span className="relative grid h-4 w-7 place-items-center"><Icon size={16} />{navigationAlert(key, true)}</span><span className="truncate">{tabLabel(key)}</span></Link>)}</div></div>
+       <div className="tab-rail app-footer fixed inset-x-0 bottom-0 z-30 px-2 pb-[max(6px,env(safe-area-inset-bottom))] pt-1 md:hidden"><div className="grid w-full grid-cols-5 grid-rows-2 gap-1">{nav.map(([key, path]) => <Link key={key} href={path} onClick={(event) => handleNavClick(key, event)} className={`flex min-w-0 w-full flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[9px] font-bold no-underline ${active === key ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))]'}`} data-testid={`link-mobile-tab-${key}`}>{navigationAlertDescription(key) ? <span className="sr-only">{navigationAlertDescription(key)} </span> : null}<span className="relative grid h-4 w-7 place-items-center"><NavigationIcon pageKey={key} state={state} compact />{navigationAlert(key, true)}</span><span className="truncate">{tabLabel(key)}</span></Link>)}</div></div>
   </div>;
 }
 
