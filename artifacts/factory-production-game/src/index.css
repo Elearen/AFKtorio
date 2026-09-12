@@ -64,7 +64,7 @@ body {
 button, input { font: inherit; }
 button { cursor: pointer; }
 
-.app-shell { min-height: 100dvh; position: relative; overflow-x: hidden; }
+.app-shell { min-height: 100dvh; position: relative; min-width: 0; overflow-x: hidden; }
 .app-header {
   border-bottom: 1px solid hsl(var(--border));
   background: linear-gradient(180deg, hsl(0 0% 24% / .98), hsl(0 0% 18% / .98));
@@ -89,7 +89,9 @@ button { cursor: pointer; }
   background-image: repeating-linear-gradient(0deg, transparent 0, transparent 3px, hsl(0 0% 100% / .018) 3px, hsl(0 0% 100% / .018) 4px);
   z-index: 20;
 }
-.mono { font-family: var(--app-font-mono); }
+.mono { font-family: var(--app-font-mono); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.numeric { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.numeric-right { text-align: right; }
 .eyebrow { color: hsl(var(--muted-foreground)); font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
 .surface {
   background: linear-gradient(180deg, hsl(0 0% 24%), hsl(0 0% 20%));

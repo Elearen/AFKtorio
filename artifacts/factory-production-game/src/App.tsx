@@ -1707,26 +1707,26 @@ function UpgradeIconPair({ from, to, fromLabel, toLabel }: { from: ReactNode; to
 }
 function UpgradeFlow({ count, from, to }: { count: number; from: string; to: string }) {
   return <div className="upgrade-flow flex min-w-0 items-center gap-2 rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_9%/.7)] px-2.5 py-2">
-    <span className="mono shrink-0 text-[12px] font-bold text-[hsl(var(--primary))]">{count}×</span>
+    <span className="mono numeric shrink-0 text-[12px] font-bold text-[hsl(var(--primary))]">{count}×</span>
     <span className="min-w-0 truncate text-[10px] font-semibold">{from}</span>
     <MoveRight size={14} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
-    <span className="mono shrink-0 text-[12px] font-bold text-[hsl(var(--secondary))]">{count}×</span>
+    <span className="mono numeric shrink-0 text-[12px] font-bold text-[hsl(var(--secondary))]">{count}×</span>
     <span className="min-w-0 truncate text-right text-[10px] font-semibold">{to}</span>
   </div>;
 }
 function UpgradeCostChips({ costs }: { costs: BuildMaterialCost[] }) {
-  if (!costs.length) return <span className="mono text-[12px] text-[hsl(var(--secondary))]">0</span>;
+  if (!costs.length) return <span className="mono numeric text-[12px] text-[hsl(var(--secondary))]">0</span>;
   return <div className="flex flex-wrap items-center gap-2">{costs.map((cost) => {
     const label = meta[cost.key]?.label ?? prettyLabel(cost.key);
     return <span className="inline-flex items-center gap-1.5" key={`${cost.source}-${cost.key}`} title={`${fmt(cost.amount)} ${label}`} aria-label={`${fmt(cost.amount)} ${label}`}>
       <ResourceIcon item={cost.key} size={18} />
-      <span className="mono text-[11px] font-semibold">{fmt(cost.amount)}</span>
+      <span className="mono numeric numeric-right text-[11px] font-semibold">{fmt(cost.amount)}</span>
     </span>;
   })}</div>;
 }
 function UpgradeTime({ seconds }: { seconds: number }) {
   const label = seconds < 60 ? `${Number(seconds.toFixed(1))}s` : duration(seconds);
-  return <span className="inline-flex shrink-0 items-center gap-1 mono text-[10px] text-[hsl(var(--primary))]" title={`${duration(seconds)} time`}>
+  return <span className="inline-flex shrink-0 items-center gap-1 mono numeric text-[10px] text-[hsl(var(--primary))]" title={`${duration(seconds)} time`}>
     <Clock3 size={11} aria-hidden="true" />{label}
   </span>;
 }
@@ -1757,11 +1757,11 @@ function UpgradeProgress({ count, label, seconds, total, progressStartedAt, prog
   );
   return <div className="construction-panel mt-3 rounded-md p-2.5" aria-live="polite" data-testid={testId}>
     <div className="flex items-center justify-between gap-2">
-      <div className="min-w-0 truncate text-[10px] font-bold">{count} {label} converting</div>
-       <div className="flex shrink-0 items-center gap-2"><span className="mono text-[10px] text-[hsl(var(--primary))]">{duration(seconds)}</span>{cancelUpgrade && <button type="button" onClick={cancelUpgrade} className="grid h-6 w-6 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label="Cancel upgrade" title="Cancel upgrade and refund materials" data-testid={`${testId}-cancel`}><X size={12} /></button>}</div>
+        <div className="min-w-0 truncate text-[10px] font-bold"><span className="numeric">{count}</span> {label} converting</div>
+       <div className="flex shrink-0 items-center gap-2"><span className="mono numeric numeric-right text-[10px] text-[hsl(var(--primary))]">{duration(seconds)}</span>{cancelUpgrade && <button type="button" onClick={cancelUpgrade} className="grid h-6 w-6 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label="Cancel upgrade" title="Cancel upgrade and refund materials" data-testid={`${testId}-cancel`}><X size={12} /></button>}</div>
     </div>
     <div className="mt-2"><Progress value={progress} tone="amber" realtime={progressStartedAt !== undefined && progressDurationMs !== undefined} /></div>
-    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(progress)}% complete</span><span>{total.toFixed(1)}s total</span></div>
+     <div className="mt-1 flex justify-between mono numeric text-[9px] text-[hsl(var(--muted-foreground))]"><span>{Math.floor(progress)}% complete</span><span className="numeric-right">{total.toFixed(1)}s total</span></div>
   </div>;
 }
 function UpgradePowerAdvisory({ testId, machineCount, powerDrawKw, state }: { testId: string; machineCount: number; powerDrawKw: number; state: GameState }) {
@@ -1827,8 +1827,8 @@ function PowerFlowCard({ label, item, firstLabel = 'Available', firstValue, seco
   return <div className="data-row rounded-lg p-2.5" data-testid={testId}>
     <div className="flex items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><ResourceIcon item={item} size={17} /><div className="eyebrow truncate">{label} per second</div></div><Tag tone={status.tone}>{status.label === 'supplied' ? 'adequate' : status.label}</Tag></div>
     <div className="mt-2 grid grid-cols-2 gap-2 text-[9px]">
-      <div className="min-w-0 text-[hsl(var(--muted-foreground))]"><span className="block truncate">{firstLabel}</span><strong className="mono mt-0.5 block text-[11px] text-[hsl(var(--secondary))]">{powerRateLabel(firstValue)}</strong></div>
-      <div className="min-w-0 text-[hsl(var(--muted-foreground))]"><span className="block truncate">Consumed</span><strong className="mono mt-0.5 block text-[11px] text-[hsl(var(--primary))]">{powerRateLabel(secondValue)}</strong></div>
+      <div className="min-w-0 text-[hsl(var(--muted-foreground))]"><span className="block truncate">{firstLabel}</span><strong className="mono numeric mt-0.5 block text-[11px] text-[hsl(var(--secondary))]">{powerRateLabel(firstValue)}</strong></div>
+      <div className="min-w-0 text-[hsl(var(--muted-foreground))]"><span className="block truncate">Consumed</span><strong className="mono numeric mt-0.5 block text-[11px] text-[hsl(var(--primary))]">{powerRateLabel(secondValue)}</strong></div>
     </div>
   </div>;
 }
@@ -1890,7 +1890,7 @@ function Shell({ children, state, constructionBatchSize, onConstructionBatchSize
         <div className="hidden items-center gap-3 lg:flex"><Tag><span className="status-dot status-running mini-pulse" /> simulation live</Tag><span className="mono text-[10px] text-[hsl(var(--muted-foreground))]">SECTOR 07 · LOCAL INSTANCE</span></div>
         <div className="flex items-center gap-2"><span className="mono hidden text-[10px] text-[hsl(var(--muted-foreground))] sm:block">T+ NETWORK</span><ConstructionBatchToggle value={constructionBatchSize} onChange={onConstructionBatchSizeChange} enabled={constructionRoboticsUnlocked} onLocked={() => notice('Construction Robotics Technology Required')} /></div>
       </div>
-        {activeResearch && <div className="app-header-research" data-testid="header-research-status"><div className="mx-auto flex min-h-8 max-w-[1500px] flex-wrap items-center gap-x-1.5 gap-y-1 px-4 py-2 mono text-[9px] text-[hsl(var(--muted-foreground))] sm:px-6 lg:px-8"><span className="status-dot status-running mini-pulse" /><span>Current research: <strong className="font-semibold text-[hsl(var(--foreground))]">{prettyLabel(activeResearch.name)}</strong></span><span className="ml-auto whitespace-nowrap text-right">Progress: <strong className="font-semibold text-[hsl(var(--primary))]">{activeResearchProgress.toFixed(0)}%</strong> ({activeResearchTimeRemaining === null ? '--' : duration(activeResearchTimeRemaining)})</span></div></div>}
+        {activeResearch && <div className="app-header-research" data-testid="header-research-status"><div className="mx-auto flex min-h-8 max-w-[1500px] flex-wrap items-center gap-x-1.5 gap-y-1 px-4 py-2 mono text-[9px] text-[hsl(var(--muted-foreground))] sm:px-6 lg:px-8"><span className="status-dot status-running mini-pulse" /><span>Current research: <strong className="font-semibold text-[hsl(var(--foreground))]">{prettyLabel(activeResearch.name)}</strong></span><span className="numeric numeric-right ml-auto whitespace-nowrap text-right">Progress: <strong className="font-semibold text-[hsl(var(--primary))]">{activeResearchProgress.toFixed(0)}%</strong> ({activeResearchTimeRemaining === null ? '--' : duration(activeResearchTimeRemaining)})</span></div></div>}
     </header>
     <div className="mx-auto flex min-h-0 w-full max-w-[1500px] flex-1">
        <aside className="hidden surface rounded-xl p-2 md:sticky md:top-0 md:block md:h-full md:w-[214px] md:shrink-0 md:rounded-none md:border-0 md:border-r md:border-[hsl(var(--sidebar-border))] md:bg-transparent md:p-5 md:shadow-none"><div className="mb-4 hidden px-3 md:block"><span className="eyebrow">Command tabs · 10</span></div><nav className="grid grid-cols-2 gap-1 md:flex md:flex-col" aria-label="Primary navigation">{nav.map(([key, path]) => <Link key={key} href={path} onClick={(event) => handleNavClick(key, event)} className={`nav-link flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[11px] font-bold no-underline transition-colors ${active === key ? 'bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]' : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'}`} data-testid={`link-tab-${key}`}>{navigationAlertDescription(key) ? <span className="sr-only">{navigationAlertDescription(key)} </span> : null}<NavigationIcon pageKey={key} state={state} /><span>{tabLabel(key)}</span>{navigationAlert(key)}{active === key && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[hsl(var(--primary))]" />}</Link>)}</nav></aside>
@@ -1926,7 +1926,7 @@ function StoredQuantity({ value, manualEvent = 0, children, className = '', titl
 }
 function CompactMetricsRow({ production, peakProduction, demand, peakConsumption, net, storage, capacity, manualOutputEvent = 0, peakWarning = false }: { production: number; peakProduction: number; demand: number; peakConsumption: number; net: number; storage: number; capacity: number; manualOutputEvent?: number; peakWarning?: boolean }) {
   const rate = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
-  const metric = ({ label, value, tone, flashStorage }: { label: string; value: string; tone: string; flashStorage?: boolean }) => <div className="min-w-0 text-center" key={label} title={`${label}: ${value}`}><div className="truncate text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">{label}</div><div className={`mono mt-1 truncate text-[10px] font-semibold ${tone}`}>{flashStorage ? <><StoredQuantity value={storage} manualEvent={manualOutputEvent}>{fmt(storage)}</StoredQuantity>/{fmt(capacity)}</> : value}</div></div>;
+  const metric = ({ label, value, tone, flashStorage }: { label: string; value: string; tone: string; flashStorage?: boolean }) => <div className="min-w-0 text-center" key={label} title={`${label}: ${value}`}><div className="truncate text-[8px] uppercase tracking-[.08em] text-[hsl(var(--muted-foreground))]">{label}</div><div className={`mono numeric mt-1 truncate text-[10px] font-semibold ${tone}`}>{flashStorage ? <><StoredQuantity value={storage} manualEvent={manualOutputEvent}>{fmt(storage)}</StoredQuantity>/{fmt(capacity)}</> : value}</div></div>;
   return <div className="mt-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] px-2 py-2" aria-label="Production metrics">
     <div className="grid grid-cols-3 gap-1">
       {[
@@ -1945,7 +1945,7 @@ function CompactMetricsRow({ production, peakProduction, demand, peakConsumption
   </div>;
 }
 function PowerMetrics({ production, peakProduction, productionUnit, consumption, peakConsumption, consumptionUnit }: { production: number; peakProduction: number; productionUnit: string; consumption: number; peakConsumption: number; consumptionUnit: string }) {
-  const metric = ({ label, value, tone }: { label: string; value: string; tone: string }) => <div className="data-row rounded-lg p-2.5" key={label}><div className="eyebrow">{label}</div><div className={`mono mt-1 text-[13px] ${tone}`}>{value}</div></div>;
+  const metric = ({ label, value, tone }: { label: string; value: string; tone: string }) => <div className="data-row rounded-lg p-2.5" key={label}><div className="eyebrow">{label}</div><div className={`mono numeric mt-1 text-[13px] ${tone}`}>{value}</div></div>;
   return <div className="mt-3 grid grid-cols-2 gap-2">
     {[
       { label: 'production', value: `${production.toFixed(1)} ${productionUnit}`, tone: 'text-[hsl(var(--secondary))]' },
@@ -1960,7 +1960,7 @@ function SteamUtilisation({ label, percent }: { label: string; percent: number }
   return <div className="mt-3 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
     <div className="flex items-center justify-between gap-2">
       <div className="eyebrow">{label}</div>
-      <div className="mono text-[13px] font-semibold text-[hsl(var(--secondary))]">{boundedPercent.toFixed(0)}%</div>
+      <div className="mono numeric numeric-right text-[13px] font-semibold text-[hsl(var(--secondary))]">{boundedPercent.toFixed(0)}%</div>
     </div>
     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[hsl(var(--border))]" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={boundedPercent}>
       <div className="h-full rounded-full bg-[hsl(var(--secondary))] transition-[width]" style={{ width: `${boundedPercent}%` }} />
@@ -2019,12 +2019,12 @@ function BuildProgress({ items, label, cancelConstruction, notice }: { items: Qu
         </div>
       </div>
         <div className="flex min-w-0 max-w-[55%] items-start justify-end gap-2">
-          <span className="mono min-w-0 whitespace-normal break-words text-right text-[10px] leading-3 text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(active.seconds)}</span>
+           <span className="mono numeric numeric-right min-w-0 whitespace-normal break-words text-right text-[10px] leading-3 text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(active.seconds)}</span>
          {cancelConstruction && <button type="button" onClick={() => { cancelConstruction(active.id); notice?.(`${active.target} cancelled · materials refunded`); }} className="grid h-6 w-6 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label={`Cancel ${active.target}`} title="Cancel construction and refund materials" data-testid={`button-cancel-queue-${active.id}`}><X size={12} /></button>}
        </div>
     </div>
     <div className="mt-2"><Progress value={complete} tone="amber" realtime={active.progressStartedAt !== undefined && active.progressDurationMs !== undefined} /></div>
-     <div className="mt-1 flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-1 mono text-[9px] text-[hsl(var(--muted-foreground))]"><span className="shrink-0">{waitingForMaterials ? `${Math.floor(Math.max(0, complete))}% funded` : `${Math.floor(Math.max(0, complete))}% complete`}</span><span className="min-w-0 flex-1 break-words text-right">{waitingForMaterials ? `needs ${missing}` : 'building now'}</span></div>
+      <div className="mt-1 flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-1 mono numeric text-[9px] text-[hsl(var(--muted-foreground))]"><span className="shrink-0">{waitingForMaterials ? `${Math.floor(Math.max(0, complete))}% funded` : `${Math.floor(Math.max(0, complete))}% complete`}</span><span className="min-w-0 flex-1 break-words text-right">{waitingForMaterials ? `needs ${missing}` : 'building now'}</span></div>
   </div>;
 }
 function HandcraftProgress({ job, recipe, simulationSpeed }: { job: HandcraftJob; recipe: Recipe; simulationSpeed: number }) {
@@ -2045,10 +2045,10 @@ function HandcraftProgress({ job, recipe, simulationSpeed }: { job: HandcraftJob
           <div className="mt-1 truncate text-[10px] font-bold">{prettyLabel(job.recipeKey)}</div>
         </div>
       </div>
-      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{finishing ? 'finishing' : `${job.seconds.toFixed(2)}s`}</span>
+       <span className="mono numeric numeric-right shrink-0 text-[10px] text-[hsl(var(--primary))]">{finishing ? 'finishing' : `${job.seconds.toFixed(2)}s`}</span>
     </div>
     <div className="mt-2"><Progress value={complete} tone="amber" realtime={job.progressStartedAt !== undefined && job.progressDurationMs !== undefined} /></div>
-    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{finishing ? 'output will be stored above capacity if needed' : `${Math.floor(complete)}% complete`}</span><span>one item at a time</span></div>
+     <div className="mt-1 flex justify-between mono numeric text-[9px] text-[hsl(var(--muted-foreground))]"><span>{finishing ? 'output will be stored above capacity if needed' : `${Math.floor(complete)}% complete`}</span><span>one item at a time</span></div>
   </div>;
 }
 function ManualMiningProgress({ job, simulationSpeed }: { job: ManualMiningJob; simulationSpeed: number }) {
@@ -2068,10 +2068,10 @@ function ManualMiningProgress({ job, simulationSpeed }: { job: ManualMiningJob; 
           <div className="mt-1 truncate text-[10px] font-bold">{prettyLabel(job.resourceKey)}</div>
         </div>
       </div>
-      <span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{job.seconds.toFixed(2)}s</span>
+       <span className="mono numeric numeric-right shrink-0 text-[10px] text-[hsl(var(--primary))]">{job.seconds.toFixed(2)}s</span>
     </div>
     <div className="mt-2"><Progress value={progress} tone="amber" realtime={job.progressStartedAt !== undefined && job.progressDurationMs !== undefined} /></div>
-    <div className="mt-1 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>{complete}% complete</span><span>one item at a time</span></div>
+     <div className="mt-1 flex justify-between mono numeric text-[9px] text-[hsl(var(--muted-foreground))]"><span>{complete}% complete</span><span>one item at a time</span></div>
   </div>;
 }
 
@@ -2271,7 +2271,7 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
        const progress = waitingForMaterials
       ? Math.min(...(item.costs ?? []).map((cost, index) => (item.reserved?.[index] ?? 0) / Math.max(0.0001, cost.amount) * 100), 0)
        : visualProgressFor(item.seconds, item.total, 1);
-     return <div className="data-row flex items-center gap-3 rounded-lg p-2.5" key={item.id} data-testid={`row-factory-queue-${item.id}`}><div className="grid h-7 w-7 place-items-center rounded-md bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]">{item.action === 'upgrade' ? <TrendingUp size={14} /> : <Hammer size={14} />}</div><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-semibold">{item.target} <span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">· {waitingForMaterials ? 'materials requested' : item.action}</span></div><Progress value={progress} tone="amber" /></div><span className="mono shrink-0 text-[10px] text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(item.seconds)}</span><button type="button" onClick={() => { cancelConstruction(item.id); notice(`${item.target} cancelled · materials refunded`); }} className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label={`Cancel ${item.target}`} title="Cancel construction and refund materials" data-testid={`button-cancel-queue-${item.id}`}><X size={12} /></button></div>;
+     return <div className="data-row flex min-w-0 items-center gap-3 rounded-lg p-2.5" key={item.id} data-testid={`row-factory-queue-${item.id}`}><div className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-[hsl(var(--primary)/.12)] text-[hsl(var(--primary))]">{item.action === 'upgrade' ? <TrendingUp size={14} /> : <Hammer size={14} />}</div><div className="min-w-0 flex-1"><div className="truncate text-[11px] font-semibold">{item.target} <span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">· {waitingForMaterials ? 'materials requested' : item.action}</span></div><Progress value={progress} tone="amber" /></div><span className="mono numeric numeric-right shrink-0 text-[10px] text-[hsl(var(--primary))]">{waitingForMaterials ? 'awaiting materials' : duration(item.seconds)}</span><button type="button" onClick={() => { cancelConstruction(item.id); notice(`${item.target} cancelled · materials refunded`); }} className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-[hsl(var(--destructive)/.45)] text-[hsl(var(--destructive))] transition-colors hover:bg-[hsl(var(--destructive)/.12)]" aria-label={`Cancel ${item.target}`} title="Cancel construction and refund materials" data-testid={`button-cancel-queue-${item.id}`}><X size={12} /></button></div>;
   })}</div> : <div className="rounded-lg border border-dashed border-[hsl(var(--border))] p-4"><div className="flex items-center gap-2 text-[hsl(var(--muted-foreground))]"><Clock3 size={14} /><span className="text-[11px]">Queue clear</span></div><p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">Nothing is under construction. Choose a build from a control tab when the network is ready.</p></div>}</section>;
   return <PageFrame>
     {offlineReportVisible && away >= 60 && recovered > 0 && <div className="surface mb-5 flex flex-col gap-3 rounded-xl border-[hsl(var(--secondary)/.4)] bg-[linear-gradient(100deg,hsl(174_35%_17%/.8),hsl(216_25%_14%/.96))] p-4 sm:flex-row sm:items-center sm:justify-between enter" data-testid="status-offline-production"><div className="flex items-start gap-3"><div className="grid h-10 w-10 place-items-center rounded-lg bg-[hsl(var(--secondary)/.14)] text-[hsl(var(--secondary))]"><RotateCcw size={18} /></div><div><div className="eyebrow text-[hsl(var(--secondary))]">Network recovered</div><div className="mt-1 text-[13px] font-bold">{duration(away)} of offline production reconciled</div><div className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">The line added <span className="mono text-[hsl(var(--secondary))]">{fmt(recovered)} items</span> while the control room was closed.</div></div></div><button onClick={() => { dismissOfflineReport(); notice('offline report acknowledged'); }} className="button-base button-ghost shrink-0" data-testid="button-dismiss-offline">acknowledge <ArrowRight size={13} /></button></div>}
@@ -2288,7 +2288,7 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
         ] : []),
         { label: 'Operating units', value: fmt(active), suffix: 'machines + labs', icon: Activity, color: 'text-[#83d993]' },
         { label: 'Lifetime output', value: fmt(state.totalOutput), suffix: 'items produced', icon: Layers3, color: 'text-[hsl(var(--primary))]' },
-      ].map((metric) => <div className="surface rounded-xl p-3.5" key={metric.label}><div className={`mb-2 flex items-center gap-2 ${metric.color}`}><metric.icon size={14} /><span className="eyebrow">{metric.label}</span></div><div className="mono text-[19px]">{metric.value} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{metric.suffix}</span></div></div>)}
+      ].map((metric) => <div className="surface rounded-xl p-3.5" key={metric.label}><div className={`mb-2 flex items-center gap-2 ${metric.color}`}><metric.icon size={14} /><span className="eyebrow">{metric.label}</span></div><div className="mono numeric text-[19px]">{metric.value} <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{metric.suffix}</span></div></div>)}
     </div>
     {circuitNetworkUnlocked && <><div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
       <section className="surface rounded-xl p-4 sm:p-5 enter enter-delay-2">
@@ -2296,7 +2296,7 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
           <div><SectionTitle detail={`${groupRows.length} groups`}>Network command</SectionTitle><h2 className="mt-1 text-xl font-extrabold tracking-tight">{healthLabel} <span className="mono text-[11px] font-normal text-[hsl(var(--secondary))]">{networkHealth}% ready</span></h2><p className="mt-1 max-w-xl text-[11px] text-[hsl(var(--muted-foreground))]">Live readiness across production, power, raw supply, and storage headroom.</p></div>
           <Gauge size={22} className={networkHealth >= 60 ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'} />
         </div>
-        <div className="mt-4"><Progress value={networkHealth} tone={networkHealth < 60 ? 'red' : networkHealth < 85 ? 'amber' : 'teal'} /><div className="mt-2 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>network readiness</span><span>{historySeconds ? `${Math.round(historySeconds)} sec sampled` : 'sample collection starting'}</span></div></div>
+        <div className="mt-4"><Progress value={networkHealth} tone={networkHealth < 60 ? 'red' : networkHealth < 85 ? 'amber' : 'teal'} /><div className="mt-2 flex justify-between mono numeric text-[9px] text-[hsl(var(--muted-foreground))]"><span>network readiness</span><span className="numeric-right">{historySeconds ? `${Math.round(historySeconds)} sec sampled` : 'sample collection starting'}</span></div></div>
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           {groupRows.map((row) => <div className="data-row rounded-lg p-3" key={row.label}><div className="flex items-center gap-2"><span className="text-[hsl(var(--secondary))]"><IconFor icon={row.icon} /></span><span className="text-[11px] font-bold">{row.label}</span><Tag tone={row.state.tone}>{row.state.label}</Tag></div><div className="mt-2 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{row.state.detail}</div><Link href={row.state.href} className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-[hsl(var(--primary))] no-underline" data-testid={`link-factory-${row.label.toLowerCase().replace(/[^a-z]+/g, '-')}`}>{row.state.action}<ChevronRight size={12} /></Link></div>)}
         </div>
@@ -2307,7 +2307,7 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
         <section className="surface rounded-xl p-4 sm:p-5"><div className="flex items-center justify-between"><SectionTitle detail={historySeconds ? `${Math.round(historySeconds)} sec sampled` : 'no samples'}>Network pulse</SectionTitle><Activity size={15} className="text-[hsl(var(--secondary))]" /></div>{pulseRates.length ? <><div className="grid-lines flex h-20 items-end gap-1 rounded-lg border border-[hsl(var(--border))] px-2 pb-2 pt-3">{pulseRates.map((rate, index) => <div key={`${rate}-${index}`} className="min-h-[3px] flex-1 rounded-t-sm bg-[hsl(var(--secondary)/.68)]" style={{ height: `${Math.max(4, rate / Math.max(pulsePeak, .01) * 100)}%` }} title={`${rate.toFixed(1)} items / min`} />)}</div><div className="mt-2 flex justify-between mono text-[9px] text-[hsl(var(--muted-foreground))]"><span>oldest sample</span><span>now · {observedProduction.toFixed(1)} / min</span></div></> : <div className="grid h-20 place-items-center rounded-lg border border-dashed border-[hsl(var(--border))] text-center"><div><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Waiting for live rate samples</div><div className="mt-1 mono text-[9px] text-[hsl(var(--muted-foreground))]">The chart fills as the simulation ticks.</div></div></div>}</section>
       </div>
     </div>
-    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[hsl(var(--border))] pt-4"><div className="flex items-center gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><Zap size={13} className="text-[hsl(var(--primary))]" /><span>Rated capacity <strong className="mono font-normal text-[hsl(var(--foreground))]">{ratedCapacity.toFixed(1)} items / min</strong> · live units only</span></div><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">LOCAL SAVE · AUTO-COMMIT EVERY TICK</span></div></>}
+       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[hsl(var(--border))] pt-4"><div className="flex items-center gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><Zap size={13} className="text-[hsl(var(--primary))]" /><span>Rated capacity <strong className="mono numeric text-[hsl(var(--foreground))]">{ratedCapacity.toFixed(1)} items / min</strong> · live units only</span></div><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]">LOCAL SAVE · AUTO-COMMIT EVERY TICK</span></div></>}
     </div>
   </PageFrame>;
 }
@@ -2388,7 +2388,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
                   {locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <button type="button" onClick={() => { toggleMiningPause(key); notice(paused ? `${info.label} mining resumed` : `${info.label} mining paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : 'tag-running'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${info.label} mining`} title={paused ? 'Resume automatic mining' : 'Pause automatic mining'} data-testid={`button-toggle-pause-mining-${key}`}>{paused ? 'PAUSED' : <><span className="status-dot status-running" /> auto</>}</button> : <Tag tone="amber">manual</Tag>}
                   {!manualOnly && <div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${machineLabel} count`}>
                     <MiningBuildingIcon resource={key} machineVariant={state.machineVariants.mining} />
-                    <span className="mono text-[13px]">{count}</span>
+                    <span className="mono numeric numeric-right text-[13px]">{count}</span>
                   </div>}
                 </div>
               </div>
@@ -2407,7 +2407,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
           </div>
           {usesFuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-mining-fuel-${key}`}>
             <div className="flex items-center gap-2 text-[10px]"><ResourceIcon item="burner-mining-drill" size={17} /><span className="font-semibold">Burner drill fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">coal usage</span></div>
-            <div className="mt-3 grid grid-cols-2 gap-2"><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{fuelRate.toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / sec</div></div><div><div className="eyebrow">Power draw</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">0.0</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">electricity</div></div></div>
+            <div className="mt-3 grid grid-cols-2 gap-2"><div><div className="eyebrow">Current total</div><div className="mono numeric mt-1 text-[11px] text-[hsl(var(--primary))]">{fuelRate.toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / sec</div></div><div><div className="eyebrow">Power draw</div><div className="mono numeric mt-1 text-[11px] text-[hsl(var(--secondary))]">0.0</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">electricity</div></div></div>
           </div>}
            {coalSelfFueled && <div className="mt-2 rounded-lg border border-[hsl(var(--secondary)/.25)] bg-[hsl(var(--secondary)/.06)] p-3" data-testid={`panel-coal-self-fueled-${key}`}>
             <div className="flex items-center gap-2 text-[10px]"><ResourceIcon item="coal" size={17} /><span className="font-semibold">Coal mining exception</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">no stored fuel</span></div>
@@ -2419,7 +2419,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
            </div>}
            {key === 'water' && <div className="mt-2 rounded-lg border border-[hsl(var(--secondary)/.25)] bg-[hsl(var(--secondary)/.06)] p-3" data-testid="panel-water-pump-output">
              <div className="flex items-center gap-2 text-[10px]"><Waves size={17} className="text-[hsl(var(--secondary))]" /><span className="font-semibold">Pump output</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">rated flow</span></div>
-             <div className="mono mt-2 text-[13px] text-[hsl(var(--secondary))]">{waterPumpPerSecond.toLocaleString('en-US')} water / sec <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per pump</span></div>
+             <div className="mono numeric mt-2 text-[13px] text-[hsl(var(--secondary))]">{waterPumpPerSecond.toLocaleString('en-US')} water / sec <span className="text-[9px] text-[hsl(var(--muted-foreground))]">per pump</span></div>
            </div>}
            {key === 'crudeOil' && <div className="mt-2 rounded-lg border border-[hsl(var(--secondary)/.25)] bg-[hsl(var(--secondary)/.06)] p-3" data-testid="panel-crude-oil-pumpjack-output">
              <div className="flex items-center gap-2 text-[10px]"><ResourceIcon item="pumpjack" size={17} /><span className="font-semibold">Pumpjack output</span><span className="ml-auto text-[9px] text-[hsl(var(--secondary))]">rated flow</span></div>
@@ -2543,7 +2543,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
         <div className="flex items-start gap-3">
           <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
           <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <button type="button" onClick={() => { toggleRecipePause(key); notice(paused ? `${prettyLabel(key)} resumed` : `${prettyLabel(key)} paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : autoCondition.met ? 'tag-running' : 'tag-starved'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${prettyLabel(key)}`} title={paused ? 'Resume automatic production' : 'Pause automatic production'} data-testid={`button-toggle-pause-production-${key}`}>{paused ? 'PAUSED' : <>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</>}</button> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
+              <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <button type="button" onClick={() => { toggleRecipePause(key); notice(paused ? `${prettyLabel(key)} resumed` : `${prettyLabel(key)} paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : autoCondition.met ? 'tag-running' : 'tag-starved'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${prettyLabel(key)}`} title={paused ? 'Resume automatic production' : 'Pause automatic production'} data-testid={`button-toggle-pause-production-${key}`}>{paused ? 'PAUSED' : <>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</>}</button> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono numeric numeric-right text-[13px]">{count}</span></div></div></div>
             <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle · {buildingLabel}</div>
              <div className="mt-1 flex flex-wrap gap-1"><Tag tone={recipeScienceChainFor(recipe, spaceScienceUnlocked) === 'Core' ? 'teal' : 'muted'}>{recipeScienceChainFor(recipe, spaceScienceUnlocked)}</Tag>{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
           </div>
@@ -2646,7 +2646,7 @@ function NuclearRecipeCard({ state, setState, enqueue, notice, cancelConstructio
     <div className="flex items-start gap-3">
       <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <button type="button" onClick={() => { togglePause(); notice(paused ? `${prettyLabel(key)} resumed` : `${prettyLabel(key)} paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : autoCondition.met ? 'tag-running' : 'tag-starved'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${prettyLabel(key)}`} data-testid={`button-toggle-pause-nuclear-${key}`}>{paused ? 'PAUSED' : <>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</>}</button> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono text-[13px]">{count}</span></div></div></div>
+        <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <button type="button" onClick={() => { togglePause(); notice(paused ? `${prettyLabel(key)} resumed` : `${prettyLabel(key)} paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : autoCondition.met ? 'tag-running' : 'tag-starved'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${prettyLabel(key)}`} data-testid={`button-toggle-pause-nuclear-${key}`}>{paused ? 'PAUSED' : <>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</>}</button> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono numeric numeric-right text-[13px]">{count}</span></div></div></div>
         <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{recipeSubtitle}</div>
       </div>
     </div>
@@ -3013,16 +3013,16 @@ function StoragePage({ state, enqueue, notice, cancelConstruction, constructionB
               <div className="resource-orb !h-8 !w-8 shrink-0"><ResourceIcon item={key} size={22} /></div>
                <div className="min-w-0 flex-1"><div className="truncate text-[11px] font-bold">{meta[key].label}</div><div className="text-[9px] text-[hsl(var(--muted-foreground))]">{meta[key].category} · {trackedScienceChainFor(key, state)}</div></div>
                <div className="flex shrink-0 items-center gap-1.5 text-[hsl(var(--secondary))]" title={`${containerCount} ${containerLabel}${containerCount === 1 ? '' : 's'}`}>
-                 <ResourceIcon item={containerIcon} size={17} /><span className="mono text-[11px]">{containerCount}</span>
+                  <ResourceIcon item={containerIcon} size={17} /><span className="mono numeric numeric-right text-[11px]">{containerCount}</span>
               </div>
                <button onClick={() => buildStorage(key, constructionBatchSize)} disabled={(fluid && !canPurchase) || (!fluid && storageUpgradeInProgress)} className={`button-base button-ghost !gap-1 !px-2 !py-1.5 ${isBuilding ? 'button-build-active' : ''}`} aria-label={fluid && !canPurchase ? `Fluid Handling required to construct a storage tank for ${meta[key].label}` : !fluid && storageUpgradeInProgress ? `${storageUpgradeInProgressLabel} upgrade in progress` : `Construct ${constructionBatchSize} ${containerLabel}${constructionBatchSize === 1 ? '' : 's'} for ${meta[key].label}`} title={fluid && !canPurchase ? 'Fluid Handling required' : !fluid && storageUpgradeInProgress ? `${storageUpgradeInProgressLabel} upgrade in progress` : `Construct ${constructionBatchSize} ${containerLabel}${constructionBatchSize === 1 ? '' : 's'} · ${batchCosts.map((cost) => `${cost.amount} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`).join(' + ')} · ${buildSeconds} sec each`} data-testid={`button-build-storage-${key}`}>
-                   {fluid && !canPurchase ? <><LockKeyhole size={12} /><span className="hidden sm:inline">Fluid Handling</span></> : !fluid && storageUpgradeInProgress ? <><Clock3 size={12} /><span className="hidden sm:inline">upgrading</span></> : <>{isBuilding ? <Check size={12} /> : <Plus size={12} />}<span className="mono text-[9px] text-[hsl(var(--primary))]">{constructionBatchSize}</span><ResourceIcon item={containerIcon} size={13} /><span className="hidden sm:inline">{fluid ? 'tank' : 'chest'}</span><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]" aria-hidden="true">|</span>{batchCosts.map((cost) => <span className="contents" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={13} /><span className="mono text-[9px] text-[hsl(var(--primary))]">{fmt(cost.amount)}</span></span>)}</>}
+                    {fluid && !canPurchase ? <><LockKeyhole size={12} /><span className="hidden sm:inline">Fluid Handling</span></> : !fluid && storageUpgradeInProgress ? <><Clock3 size={12} /><span className="hidden sm:inline">upgrading</span></> : <>{isBuilding ? <Check size={12} /> : <Plus size={12} />}<span className="mono numeric numeric-right text-[9px] text-[hsl(var(--primary))]">{constructionBatchSize}</span><ResourceIcon item={containerIcon} size={13} /><span className="hidden sm:inline">{fluid ? 'tank' : 'chest'}</span><span className="mono text-[9px] text-[hsl(var(--muted-foreground))]" aria-hidden="true">|</span>{batchCosts.map((cost) => <span className="contents" key={`${cost.source}-${cost.key}`}><ResourceIcon item={cost.key} size={13} /><span className="mono numeric numeric-right text-[9px] text-[hsl(var(--primary))]">{fmt(cost.amount)}</span></span>)}</>}
               </button>
             </div>
             <div className="mt-2 flex items-center gap-2" aria-label={`${meta[key].label}: ${fmt(amount)} in stock, capacity ${fmt(capacity)}`}>
-              <StoredQuantity value={amount} manualEvent={state.manualOutputEvents[key] ?? 0} className="mono w-12 shrink-0 text-[11px]" title="Current stock">{fmt(amount)}</StoredQuantity>
+              <StoredQuantity value={amount} manualEvent={state.manualOutputEvents[key] ?? 0} className="mono numeric numeric-right w-12 shrink-0 text-[11px]" title="Current stock">{fmt(amount)}</StoredQuantity>
               <div className="min-w-0 flex-1"><Progress value={amount / capacity * 100} /></div>
-              <span className="mono w-14 shrink-0 text-right text-[11px]" title="Total capacity">{fmt(capacity)}</span>
+               <span className="mono numeric numeric-right w-14 shrink-0 text-right text-[11px]" title="Total capacity">{fmt(capacity)}</span>
             </div>
                {isBuilding && <BuildProgress items={constructionItems} label={`${fluid ? 'Storage tank' : steel ? 'Steel chest' : iron ? 'Iron chest' : 'Wooden box'} · ${meta[key].label}`} cancelConstruction={cancelConstruction} notice={notice} />}
           </section>;
