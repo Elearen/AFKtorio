@@ -3999,7 +3999,7 @@ function SettingsPage({ state, setState, saveNow, reset, exportSave, importSave,
         {launchRankingStats && <div className="mt-5 border-t border-[hsl(var(--border))] pt-4" data-testid="section-launch-ranking">
           <SectionTitle>Launch ranking</SectionTitle>
           <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">How do you compare against other players?</p>
-          <button onClick={() => { setRankingError(''); setRankingSubmission(null); setRankingIsPreview(!state.launchRankingEligible); setRankingModalOpen(true); }} className="button-base button-primary mt-3 w-full !py-3 text-[11px]" data-testid="button-check-launch-ranking"><Rocket size={14} /> {state.launchRankingEligible ? 'Check My Launch Ranking' : 'Preview My Relative Ranking'}</button>
+          <button onClick={() => { setRankingError(''); setRankingSubmission(null); setRankingIsPreview(!state.launchRankingEligible); setRankingModalOpen(true); }} className="button-base button-primary mt-3 w-full !py-3 text-[11px]" data-testid="button-check-launch-ranking"><Rocket size={14} /> Check My Launch Ranking</button>
         </div>}
         <div className="mt-5 border-t border-[hsl(var(--border))] pt-4">
           <SectionTitle>Tutorial display</SectionTitle>
