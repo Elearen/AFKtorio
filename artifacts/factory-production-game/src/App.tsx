@@ -51,6 +51,25 @@ type ResearchFilter = 'completed' | 'unlocked' | 'locked';
 type UpgradeFilter = 'completed' | 'available' | 'locked';
 type RecipeScienceFilter = 'all' | RecipeScienceChain;
 type ConstructionBatchSize = 1 | 5 | 10 | 25 | 100;
+const sciencePackFilterKeys: ScienceKey[] = ['automationPack', 'logisticsPack', 'militaryPack', 'chemicalPack', 'productionPack', 'utilityPack', 'spacePack'];
+const sciencePackTechnologyKeys: Record<ScienceKey, ResearchKey> = {
+  automationPack: 'automation-science-pack',
+  logisticsPack: 'logistic-science-pack',
+  militaryPack: 'military-science-pack',
+  chemicalPack: 'chemical-science-pack',
+  productionPack: 'production-science-pack',
+  utilityPack: 'utility-science-pack',
+  spacePack: 'space-science-pack',
+};
+const sciencePackFilterLabels: Record<ScienceKey, string> = {
+  automationPack: 'Automation science pack',
+  logisticsPack: 'Logistic science pack',
+  militaryPack: 'Military science pack',
+  chemicalPack: 'Chemical science pack',
+  productionPack: 'Production science pack',
+  utilityPack: 'Utility science pack',
+  spacePack: 'Space science pack',
+};
 const constructionBatchSizes = [1, 5, 10, 25, 100] as const;
 const normalizeConstructionBatchSize = (value: unknown): ConstructionBatchSize =>
   value === 100 ? 100 : value === 25 ? 25 : value === 10 ? 10 : value === 5 ? 5 : 1;
@@ -3516,7 +3535,18 @@ function ResearchPage({ state, setState, notice }: PageProps) {
   const [detailsTechnology, setDetailsTechnology] = useState<ResearchKey | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<ResearchFilter>('unlocked');
+  const [sciencePackFilterOverrides, setSciencePackFilterOverrides] = useState<Partial<Record<ScienceKey, boolean>>>({});
   const accentFor = (name: string) => ['#65afba', '#df7165', '#dfb05c', '#8ea9db', '#92c86b', '#c9d3d0'][name.length % 6];
+  const sciencePackFilterSelected = useMemo(() => sciencePackFilterKeys.filter((key) => {
+    const technology = technologyMap[sciencePackTechnologyKeys[key]];
+    const defaultSelected = Boolean(technology && technologyPrerequisitesMet(state, technology));
+    return sciencePackFilterOverrides[key] ?? defaultSelected;
+  }), [sciencePackFilterOverrides, state.research]);
+  const sciencePackFilterSelectedSet = useMemo(() => new Set(sciencePackFilterSelected), [sciencePackFilterSelected]);
+  const toggleSciencePackFilter = (key: ScienceKey) => {
+    const selectedByDefault = sciencePackFilterSelectedSet.has(key);
+    setSciencePackFilterOverrides((overrides) => ({ ...overrides, [key]: !selectedByDefault }));
+  };
   const selectResearch = (name: ResearchKey) => {
     setSelected(name);
     if (technologyMap[name]?.researchTrigger) return;
@@ -3560,8 +3590,10 @@ function ResearchPage({ state, setState, notice }: PageProps) {
     const unlocked = !completed && technologyPrerequisitesMet(state, technology);
     const status = completed ? 'completed' : unlocked ? 'unlocked' : 'locked';
     const haystack = `${technology.name} ${technology.prerequisites.join(' ')} ${technology.effects.map((effect) => `${effect.type} ${effect.recipe ?? ''}`).join(' ')}`.toLowerCase();
-    return status === filter && (!query.trim() || haystack.includes(query.trim().toLowerCase()));
-  }), [filter, query, state.research]);
+    const technologySciencePacks = new Set(technology.scienceCosts.map((cost) => keyForSource(cost.pack) as ScienceKey));
+    const matchesSciencePackFilter = sciencePackFilterKeys.every((key) => technologySciencePacks.has(key) === sciencePackFilterSelectedSet.has(key));
+    return status === filter && matchesSciencePackFilter && (!query.trim() || haystack.includes(query.trim().toLowerCase()));
+  }), [filter, query, sciencePackFilterSelectedSet, state.research]);
   const detailItem = detailsTechnology ? technologyMap[detailsTechnology] : undefined;
   const activeResearch = activeResearchFor(state);
   const activeResearchIsLabDriven = Boolean(activeResearch && !activeResearch.researchTrigger && activeResearch.scienceCosts.length);
@@ -3625,6 +3657,12 @@ function ResearchPage({ state, setState, notice }: PageProps) {
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Technology filters">{(['completed', 'unlocked', 'locked'] as ResearchFilter[]).map((option) => <button onClick={() => setFilter(option)} className={`button-base !px-2.5 !py-1.5 text-[9px] uppercase tracking-[.08em] ${filter === option ? 'button-primary' : 'button-ghost'}`} aria-pressed={filter === option} key={option} data-testid={`button-filter-${option}`}>{option === 'locked' ? 'Available' : option} <span className="mono opacity-75">{technologyCounts[option]}</span></button>)}</div>
       </div>
        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[hsl(var(--muted-foreground))]"><span>Selections are researched in the order they are queued.</span><span className="mono">{(state.autoResearch ?? []).length} selected · {visibleTechnologies.length} visible</span></div>
+       <div className="mt-3 flex flex-wrap justify-center gap-1.5 border-t border-[hsl(var(--border))] pt-3" role="group" aria-label="Science pack filters">
+         {sciencePackFilterKeys.map((key) => {
+           const isSelected = sciencePackFilterSelectedSet.has(key);
+           return <button type="button" key={key} onClick={() => toggleSciencePackFilter(key)} className={`button-base !h-9 !w-9 !p-1.5 ${isSelected ? 'button-primary' : 'button-ghost'}`} aria-label={`${sciencePackFilterLabels[key]} filter`} aria-pressed={isSelected} title={sciencePackFilterLabels[key]} data-testid={`button-filter-science-${key}`}><ResourceIcon item={key} size={22} /></button>;
+         })}
+       </div>
     </section>
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
       <section className="space-y-3">{visibleTechnologies.map((technology) => {
