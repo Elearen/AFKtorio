@@ -2278,6 +2278,7 @@ function FactoryPage({ state, setState, away, recovered, offlineReportVisible, d
     <Header eyebrow="Control Room" title="Dashboard" copy="Live production metrics to optimise efficiency." action={<Tag><span className="status-dot status-running mini-pulse" /> line online · {state.simulationSpeed}x</Tag>} />
     {state.tutorialVisible && <div className="mb-5"><TutorialSection state={state} /></div>}
     {constructionQueue}
+    {!circuitNetworkUnlocked && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.08)] p-4" role="status" data-testid="dashboard-metrics-lock-message"><Info size={17} className="mt-0.5 shrink-0 text-[hsl(var(--primary))]" /><p className="text-[11px] leading-5 text-[hsl(var(--foreground))]">Full metrics will be available after unlocking the Circuit Network technology.</p></div>}
     <div data-testid="dashboard-full-metrics">
     <div className={`mb-5 grid grid-cols-2 gap-2 enter enter-delay-1 ${circuitNetworkUnlocked ? 'sm:grid-cols-4' : ''}`}>
       {[
