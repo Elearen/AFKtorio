@@ -3988,7 +3988,7 @@ function SettingsPage({ state, setState, reset, exportSave, importSave, notice, 
             <button onClick={exportSave} className="button-base button-ghost" data-testid="button-export-save"><Save size={13} /> export save</button>
             <button onClick={() => importInputRef.current?.click()} className="button-base button-ghost" data-testid="button-import-save"><RotateCcw size={13} /> import save</button>
             <input ref={importInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) importSave(file); event.target.value = ''; }} data-testid="input-import-save" />
-            <button onClick={() => setConfirm(true)} className="button-base button-ghost text-[hsl(var(--destructive))]" data-testid="button-reset-save"><Trash2 size={13} /> reset progress</button>
+            <button onClick={() => setConfirm(true)} className="button-base button-ghost text-[hsl(var(--destructive))]" data-testid="button-reset-save"><Trash2 size={13} /> new game</button>
           </div>
         </div>
         {confirm && <div className="mt-3 rounded-xl border border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.08)] p-4" data-testid="panel-reset-confirm">
