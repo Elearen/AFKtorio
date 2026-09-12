@@ -78,6 +78,13 @@ type TimedProgress = { progressStartedAt?: number; progressDurationMs?: number }
 type HandcraftJob = { recipeKey: string; seconds: number; total: number } & TimedProgress;
 type ManualMiningJob = { resourceKey: RawKey; seconds: number; total: number } & TimedProgress;
 type RateSample = { seconds: number; production: Record<TrackedKey, number>; manualProduction?: Record<TrackedKey, number>; consumption: Record<TrackedKey, number> };
+type PersistedLaunchStats = {
+  sessionId: string;
+  timeTakenSeconds: number;
+  totalItemsProduced: number;
+  totalSciencePacksProduced: number;
+  totalIronCopperMined: number;
+};
 type GameState = {
   raw: Record<RawKey, number>;
   products: Record<string, number>;
@@ -139,6 +146,7 @@ type GameState = {
   completionStats: Record<string, number> | null;
   winMetrics: WinMetrics | null;
   finishTimestamp: number | null;
+  launchRankingStats: PersistedLaunchStats | null;
   tutorialVisible: boolean;
   welcomeSeen: boolean;
   unedited: boolean;
@@ -525,7 +533,7 @@ const initialState: GameState = {
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, nuclearReactors: 0, heatExchangers: 0, steamTurbines: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], autoResearchEnabled: true, researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
-  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, tutorialVisible: true, welcomeSeen: false, unedited: true, launchRankingEligible: true,
+  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, launchRankingStats: null, tutorialVisible: true, welcomeSeen: false, unedited: true, launchRankingEligible: true,
 };
 
 const nav = [
@@ -536,6 +544,43 @@ const nav = [
 const tabLabel = (key: string) => key === 'factory' ? 'Dashboard' : key === 'mining' ? 'Mining / Raw' : key.charAt(0).toUpperCase() + key.slice(1);
 const routePathFor = (location: string) => location.split(/[?#]/, 1)[0];
 const focusTargetForSearch = (search: string) => new URLSearchParams(search).get('focus');
+
+const normalizePersistedLaunchStats = (value: unknown): PersistedLaunchStats | null => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<PersistedLaunchStats>;
+  if (
+    typeof candidate.sessionId !== 'string'
+    || !Number.isFinite(candidate.timeTakenSeconds)
+    || !Number.isFinite(candidate.totalItemsProduced)
+    || !Number.isFinite(candidate.totalSciencePacksProduced)
+    || !Number.isFinite(candidate.totalIronCopperMined)
+  ) return null;
+  return {
+    sessionId: candidate.sessionId,
+    timeTakenSeconds: Math.max(0, Math.floor(candidate.timeTakenSeconds)),
+    totalItemsProduced: Math.max(0, candidate.totalItemsProduced),
+    totalSciencePacksProduced: Math.max(0, candidate.totalSciencePacksProduced),
+    totalIronCopperMined: Math.max(0, candidate.totalIronCopperMined),
+  };
+};
+
+const launchStatsSnapshotFor = (
+  sessionId: string,
+  gameStartTimestamp: number,
+  finishTimestamp: number | null,
+  metrics: WinMetrics | null,
+): PersistedLaunchStats | null => {
+  if (!metrics) return null;
+  const completedAt = finishTimestamp ?? metrics.timestamp;
+  if (!Number.isFinite(completedAt)) return null;
+  return {
+    sessionId,
+    timeTakenSeconds: Math.max(0, Math.floor((completedAt - gameStartTimestamp) / 1000)),
+    totalItemsProduced: Math.max(0, metrics.totalItemsProduced),
+    totalSciencePacksProduced: Math.max(0, metrics.totalSciencePacksProduced),
+    totalIronCopperMined: Math.max(0, metrics.totalIronMined + metrics.totalCopperMined),
+  };
+};
 
 const rawInfo: Record<RawKey, { label: string; description: string; research?: ResearchKey; needs?: string }> = {
   iron: { label: 'Iron', description: 'Reliable ferrous feedstock for the first production tier.' },
