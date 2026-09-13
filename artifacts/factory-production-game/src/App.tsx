@@ -2444,7 +2444,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
               </div>
               <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{key === 'water' || key === 'crudeOil' ? 'Fluid collection' : 'Raw material'} · {machineLabel}</div>
               <MiningFlow resource={key} machineVariant={state.machineVariants.mining} manualOnly={manualOnly} collectionLabel={collectionLabel} machineLabel={machineLabel} />
-              <div className="mt-1 flex flex-wrap gap-1"><Tag tone={manualCollectionAvailable ? 'amber' : 'muted'}>{collectionLabel}</Tag>{usesFuel && <Tag tone="muted">coal fueled</Tag>}{coalSelfFueled && <Tag>self-fueled</Tag>}{coalElectric && <Tag>no coal input</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
+              <div className="mt-1 flex flex-wrap gap-1">{usesFuel && <Tag tone="muted">coal fueled</Tag>}{coalSelfFueled && <Tag>self-fueled</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
             </div>
           </div>
           {usesFuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-mining-fuel-${key}`}>
