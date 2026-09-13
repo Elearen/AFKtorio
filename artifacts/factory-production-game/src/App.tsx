@@ -1730,7 +1730,30 @@ function MiningBuildingIcon({ resource, machineVariant, size = 17 }: { resource:
   if (burnerMinerKeys.includes(resource)) return <ResourceIcon item={machineVariant} size={size} />;
   return <Pickaxe size={size} />;
 }
-function MiningFlow({ resource, machineVariant, manualOnly, collectionLabel, machineLabel }: { resource: RawKey; machineVariant: string; manualOnly: boolean; collectionLabel: string; machineLabel: string }) {
+const miningFlowNumber = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+function MiningFlow({ resource, state, machineVariant, manualOnly, collectionLabel, machineLabel }: { resource: RawKey; state: GameState; machineVariant: string; manualOnly: boolean; collectionLabel: string; machineLabel: string }) {
+  const recipeResource = ['iron', 'copper', 'stone', 'coal', 'crudeOil', 'uranium'].includes(resource);
+  if (recipeResource) {
+    const grossOutputPerSecond = miningOutputRateFor(state, resource);
+    const cycleSeconds = grossOutputPerSecond > 0 ? 1 / grossOutputPerSecond : 0;
+    const netOutputPerSecond = resource === 'coal' && miningUsesStoredCoal(state)
+      ? Math.max(0, grossOutputPerSecond - burnerMiningDrillCoalPerSecond)
+      : grossOutputPerSecond;
+    const outputAmount = netOutputPerSecond * cycleSeconds;
+    const coalInputAmount = fueledBurnerMinerKeys.includes(resource) && miningUsesStoredCoal(state)
+      ? burnerMiningDrillCoalPerSecond * cycleSeconds
+      : null;
+    const acidInputAmount = resource === 'uranium' ? 1 : null;
+    const inputAmount = coalInputAmount ?? acidInputAmount;
+    const inputItem = coalInputAmount !== null ? 'coal' : acidInputAmount !== null ? 'sulfuric-acid' : null;
+    const flowLabel = `${inputItem ? `${miningFlowNumber(inputAmount ?? 0)} ${inputItem} ` : ''}-> ${miningFlowNumber(outputAmount)} ${rawInfo[resource].label} (${miningFlowNumber(cycleSeconds)}s per machine)`;
+    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
+      {inputItem && <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(inputAmount ?? 0)}</span><ResourceIcon item={inputItem} size={14} /></span>}
+      <ArrowRight size={12} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+      <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(outputAmount)}</span><ResourceIcon item={resource} size={14} /></span>
+      <span className="mono ml-1 shrink-0">({miningFlowNumber(cycleSeconds)}s)</span>
+    </div>;
+  }
   const flowLabel = manualOnly ? `${collectionLabel} for ${rawInfo[resource].label}` : `${collectionLabel} using ${machineLabel} to collect ${rawInfo[resource].label}`;
   return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel}>
     <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={14} /></span>
@@ -2443,7 +2466,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
                 </div>
               </div>
               <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{key === 'water' || key === 'crudeOil' ? 'Fluid collection' : 'Raw material'} · {machineLabel}</div>
-              <MiningFlow resource={key} machineVariant={state.machineVariants.mining} manualOnly={manualOnly} collectionLabel={collectionLabel} machineLabel={machineLabel} />
+              <MiningFlow resource={key} state={state} machineVariant={state.machineVariants.mining} manualOnly={manualOnly} collectionLabel={collectionLabel} machineLabel={machineLabel} />
               <div className="mt-1 flex flex-wrap gap-1">{usesFuel && <Tag tone="muted">coal fueled</Tag>}{coalSelfFueled && <Tag>self-fueled</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
             </div>
           </div>
