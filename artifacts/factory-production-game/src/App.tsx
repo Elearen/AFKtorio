@@ -1586,6 +1586,28 @@ const iconFileFor: Record<string, string> = {
 function ResourceIcon({ item, size = 28 }: { item: TrackedKey; size?: number }) {
   return <img src={`${import.meta.env.BASE_URL}item-icons/${iconFileFor[item] ?? item}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
 }
+function RecipeFlow({ recipe, state, openIngredient, testIdPrefix = 'ingredient' }: { recipe: Recipe; state?: GameState; openIngredient?: (key: TrackedKey) => void; testIdPrefix?: string }) {
+  const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
+  const ingredients = recipe.ingredients.map((ingredient) => `${amountLabel(materialAmount(ingredient))} ${prettyLabel(keyForSource(ingredient.name))}`).join(' + ');
+  const outputs = recipeOutputs(recipe).map(({ key: outputKey, amount }) => `${amountLabel(amount)} ${prettyLabel(outputKey)}`).join(' + ');
+  const recipeAriaLabel = `${ingredients} -> ${outputs} (${recipe.energyRequired}s)`;
+  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={recipeAriaLabel}>
+    {recipe.ingredients.map((ingredient, index) => {
+      const ingredientKey = keyForSource(ingredient.name);
+      const ingredientTarget = ingredientNavigationFor(ingredientKey);
+      const ingredientShortfall = state ? quantityFor(state, ingredientKey) < materialAmount(ingredient) : false;
+      const ingredientClass = `inline-flex items-center gap-1 ${ingredientShortfall ? 'text-[hsl(var(--destructive))]' : ''}`;
+      const content = <><span className="mono">{amountLabel(materialAmount(ingredient))}</span><ResourceIcon item={ingredientKey} size={14} />{index < recipe.ingredients.length - 1 && <span aria-hidden="true">+</span>}</>;
+      if (ingredientTarget && openIngredient) {
+        return <button type="button" className={`${ingredientClass} cursor-pointer border-0 bg-transparent p-0 text-left`} title={`Open ${meta[ingredientKey].label} source`} aria-label={`Open ${meta[ingredientKey].label} source`} onClick={() => openIngredient(ingredientKey)} data-testid={`link-${testIdPrefix}-${ingredientKey}-${index}`} key={`${ingredient.name}-${index}`}>{content}</button>;
+      }
+      return <span className={ingredientClass} key={`${ingredient.name}-${index}`}>{content}</span>;
+    })}
+    <ArrowRight size={12} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+    {recipeOutputs(recipe).map(({ key: outputKey, amount }, index) => <span className="inline-flex items-center gap-1" key={`${outputKey}-${index}`}><span className="mono">{amountLabel(amount)}</span><ResourceIcon item={outputKey} size={14} />{index < recipeOutputs(recipe).length - 1 && <span aria-hidden="true">+</span>}</span>)}
+    <span className="mono ml-1 shrink-0">({recipe.energyRequired}s)</span>
+  </div>;
+}
 type NavigationImage = { file: string; source: 'item' | 'research'; label: string };
 const navigationItemImage = (file: string, label: string): NavigationImage => ({ file, source: 'item', label });
 const navigationResearchImage = (file: string, label: string): NavigationImage => ({ file, source: 'research', label });
@@ -1707,6 +1729,15 @@ function MiningBuildingIcon({ resource, machineVariant, size = 17 }: { resource:
   if (resource === 'crudeOil') return <ResourceIcon item="pumpjack" size={size} />;
   if (burnerMinerKeys.includes(resource)) return <ResourceIcon item={machineVariant} size={size} />;
   return <Pickaxe size={size} />;
+}
+function MiningFlow({ resource, machineVariant, manualOnly, collectionLabel, machineLabel }: { resource: RawKey; machineVariant: string; manualOnly: boolean; collectionLabel: string; machineLabel: string }) {
+  const flowLabel = manualOnly ? `${collectionLabel} for ${rawInfo[resource].label}` : `${collectionLabel} using ${machineLabel} to collect ${rawInfo[resource].label}`;
+  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel}>
+    <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={14} /></span>
+    <ArrowRight size={12} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+    <span className="inline-flex items-center gap-1"><MiningBuildingIcon resource={resource} machineVariant={machineVariant} size={14} /><span>{manualOnly ? 'manual' : machineLabel}</span></span>
+    <span className="mono ml-1 shrink-0">(collection)</span>
+  </div>;
 }
 function BrandLogo({ size = 36 }: { size?: number }) {
   return <img src={`${import.meta.env.BASE_URL}icon-192.png`} width={size} height={size} alt="Factory Planet logo" className="object-contain" />;
@@ -2412,16 +2443,8 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
                 </div>
               </div>
               <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{key === 'water' || key === 'crudeOil' ? 'Fluid collection' : 'Raw material'} · {machineLabel}</div>
+              <MiningFlow resource={key} machineVariant={state.machineVariants.mining} manualOnly={manualOnly} collectionLabel={collectionLabel} machineLabel={machineLabel} />
               <div className="mt-1 flex flex-wrap gap-1"><Tag tone={manualCollectionAvailable ? 'amber' : 'muted'}>{collectionLabel}</Tag>{usesFuel && <Tag tone="muted">coal fueled</Tag>}{coalSelfFueled && <Tag>self-fueled</Tag>}{coalElectric && <Tag>no coal input</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
-            </div>
-          </div>
-          <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
-            <div className="eyebrow mb-2">Collection</div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="resource-chip"><ResourceIcon item={key} size={17} /><strong>{collectionLabel}</strong></span>
-              <ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" />
-              {!manualOnly && <span className="resource-chip"><MiningBuildingIcon resource={key} machineVariant={state.machineVariants.mining} /><strong>{machineLabel}</strong></span>}
-              {manualOnly && <span className="resource-chip"><strong>{machineLabel}</strong></span>}
             </div>
           </div>
           {usesFuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-mining-fuel-${key}`}>
@@ -2565,22 +2588,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
               <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <button type="button" onClick={() => { toggleRecipePause(key); notice(paused ? `${prettyLabel(key)} resumed` : `${prettyLabel(key)} paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : autoCondition.met ? 'tag-running' : 'tag-starved'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${prettyLabel(key)}`} title={paused ? 'Resume automatic production' : 'Pause automatic production'} data-testid={`button-toggle-pause-production-${key}`}>{paused ? 'PAUSED' : <>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</>}</button> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono numeric numeric-right text-[13px]">{count}</span></div></div></div>
             <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{prettyLabel(recipe.category)} · {recipe.energyRequired}s cycle · {buildingLabel}</div>
              <div className="mt-1 flex flex-wrap gap-1"><Tag tone={recipeScienceChainFor(recipe, spaceScienceUnlocked) === 'Core' ? 'teal' : 'muted'}>{recipeScienceChainFor(recipe, spaceScienceUnlocked)}</Tag>{recipe.hidden && <Tag tone="muted">hidden</Tag>}{!recipe.enabled && <Tag tone="muted">research lock</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
-          </div>
-        </div>
-        <div className="mt-4 rounded-lg bg-[hsl(216_24%_10%/.7)] p-3">
-          <div className="eyebrow mb-2">Recipe</div>
-          <div className="flex flex-wrap items-center gap-1.5">
-             {recipe.ingredients.map((material, index) => {
-               const materialKey = keyForSource(material.name);
-               const ingredientShortfall = quantityFor(state, materialKey) < materialAmount(material);
-               const ingredientTarget = ingredientNavigationFor(materialKey);
-               const chipClass = `resource-chip${ingredientShortfall ? ' input-shortfall' : ''}${ingredientTarget ? ' recipe-ingredient-link' : ''}`;
-               return ingredientTarget
-                 ? <button type="button" className={chipClass} title={`Open ${meta[materialKey].label} source`} aria-label={`Open ${meta[materialKey].label} source`} onClick={() => openIngredient(materialKey)} data-testid={`link-ingredient-${materialKey}-${index}`} key={`${material.name}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</button>
-                 : <span className={chipClass} key={`${material.name}-${index}`}><ResourceIcon item={materialKey} size={17} /><strong>{amountLabel(materialAmount(material))}</strong> {meta[materialKey].short}</span>;
-             })}
-            <ArrowRight size={13} className="mx-1 text-[hsl(var(--muted-foreground))]" />
-            {outputs.map(({ key: outputKey, amount }, index) => <span className="resource-chip" style={{ borderColor: `${meta[outputKey].color}66` }} key={`${outputKey}-${index}`}><ResourceIcon item={outputKey} size={17} /><strong>{amountLabel(amount)}</strong> {meta[outputKey].short}</span>)}
+            <RecipeFlow recipe={recipe} state={state} openIngredient={openIngredient} />
           </div>
         </div>
          {autoCondition.label && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-auto-condition-${key}`}><div className="flex items-center justify-between gap-2 text-[10px]"><span className="eyebrow text-[hsl(var(--primary))]">Auto start / stop</span><Tag tone={paused ? 'amber' : autoCondition.met ? 'teal' : 'amber'}>{paused ? 'paused' : autoCondition.met ? 'running' : 'stopped'}</Tag></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{paused ? 'Paused manually. Click PAUSED above to resume.' : <>Runs when <span className="font-semibold text-[hsl(var(--foreground))]">{autoCondition.label}</span>.</>}</div></div>}
@@ -3497,11 +3505,8 @@ function SciencePage({ state, setState, enqueue, notice, cancelConstruction, con
           const currentProduction = unlocked ? productionRateFor(state, key) : 0;
           const currentConsumption = required ? demandRateFor(state, key) : 0;
           const peakConsumption = required ? scienceLabRateFor(state, activeResearch, false) * scienceCostAmountFor(activeResearch, key) : 0;
-           const ingredients = recipe.ingredients.map((ingredient) => `${amountLabel(materialAmount(ingredient))} ${prettyLabel(keyForSource(ingredient.name))}`).join(' + ');
-           const outputs = recipeOutputs(recipe).map(({ key: outputKey, amount }) => `${amountLabel(amount)} ${prettyLabel(outputKey)}`).join(' + ');
-           const recipeAriaLabel = `${ingredients} -> ${outputs} (${recipe.energyRequired}s)`;
            return <article className={`min-w-0 rounded-xl border p-3.5 sm:p-4 ${unlocked ? 'surface-soft' : 'locked-wash opacity-55 grayscale'}`} key={key} data-testid={`card-science-${key}`}>
-             <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item={key} size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{meta[key].label}</h2>{unlocked ? <Tag><span className="status-dot status-running" /> unlocked</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>}</div><div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={recipeAriaLabel}>{recipe.ingredients.map((ingredient, index) => { const ingredientKey = keyForSource(ingredient.name); return <span className="inline-flex items-center gap-1" key={`${ingredient.name}-${index}`}><span className="mono">{amountLabel(materialAmount(ingredient))}</span><ResourceIcon item={ingredientKey} size={14} />{index < recipe.ingredients.length - 1 && <span aria-hidden="true">+</span>}</span>; })}<ArrowRight size={12} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />{recipeOutputs(recipe).map(({ key: outputKey, amount }, index) => <span className="inline-flex items-center gap-1" key={`${outputKey}-${index}`}><span className="mono">{amountLabel(amount)}</span><ResourceIcon item={outputKey} size={14} />{index < recipeOutputs(recipe).length - 1 && <span aria-hidden="true">+</span>}</span>)}<span className="mono ml-1 shrink-0">({recipe.energyRequired}s)</span></div></div></div>
+             <div className="flex items-start gap-3"><div className="resource-orb !h-10 !w-10"><ResourceIcon item={key} size={27} /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{meta[key].label}</h2>{unlocked ? <Tag><span className="status-dot status-running" /> unlocked</Tag> : <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag>}</div><RecipeFlow recipe={recipe} /></div></div>
             <CompactMetricsRow production={currentProduction} peakProduction={productionCapacity} demand={currentConsumption} peakConsumption={peakConsumption} net={currentProduction - currentConsumption} storage={state.products[key] ?? 0} capacity={capFor(state, key)} manualOutputEvent={state.manualOutputEvents[key] ?? 0} />
              <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 text-[9px] text-[hsl(var(--muted-foreground))]"><span className="min-w-0 break-words">{required ? 'required by active research' : 'not required by active research'}</span><span className="min-w-0 break-words text-right"><span className="mono">{recipe.energyRequired}s</span> / cycle · <span className="mono">{amountLabel(recipeOutputs(recipe).reduce((total, output) => total + output.amount, 0))}</span> output</span></div>
           </article>;
