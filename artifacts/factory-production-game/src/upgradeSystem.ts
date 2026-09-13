@@ -125,7 +125,7 @@ export const upgradeData: UpgradeDefinition[] = [
     newMachineLabel: 'Electric Miner',
     newMachineMaterialCost: products([['circuit', 3], ['gear', 5], ['ironPlate', 10]]),
     newMachinePowerDraw: 90,
-    newMachineProductionSpeed: 0.5,
+    newMachineProductionSpeed: 0.7,
   },
   ...([
     { level: 1, speed: 1.2, technology: 'research-speed-1', previous: undefined },

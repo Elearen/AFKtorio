@@ -114,7 +114,7 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
     { key: 'ironPlate', amount: 10, source: 'products' },
   ]);
   assert.equal(mining.newMachinePowerDraw, 90);
-  assert.equal(mining.newMachineProductionSpeed, 0.5);
+  assert.equal(mining.newMachineProductionSpeed, 0.7);
 });
 
 test('Steel Furnaces require Advanced Material Processing research', () => {
