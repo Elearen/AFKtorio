@@ -1598,20 +1598,20 @@ function RecipeFlow({ recipe, state, openIngredient, testIdPrefix = 'ingredient'
   const ingredients = recipe.ingredients.map((ingredient) => `${amountLabel(materialAmount(ingredient))} ${prettyLabel(keyForSource(ingredient.name))}`).join(' + ');
   const outputs = recipeOutputs(recipe).map(({ key: outputKey, amount }) => `${amountLabel(amount)} ${prettyLabel(outputKey)}`).join(' + ');
   const recipeAriaLabel = `${ingredients} -> ${outputs} (${recipe.energyRequired}s)`;
-  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={recipeAriaLabel}>
+  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]" aria-label={recipeAriaLabel}>
     {recipe.ingredients.map((ingredient, index) => {
       const ingredientKey = keyForSource(ingredient.name);
       const ingredientTarget = ingredientNavigationFor(ingredientKey);
       const ingredientShortfall = state ? quantityFor(state, ingredientKey) < materialAmount(ingredient) : false;
       const ingredientClass = `inline-flex items-center gap-1 ${ingredientShortfall ? 'text-[hsl(var(--destructive))]' : ''}`;
-      const content = <><span className="mono">{amountLabel(materialAmount(ingredient))}</span><ResourceIcon item={ingredientKey} size={14} />{index < recipe.ingredients.length - 1 && <span aria-hidden="true">+</span>}</>;
+      const content = <><span className="mono">{amountLabel(materialAmount(ingredient))}</span><ResourceIcon item={ingredientKey} size={16} />{index < recipe.ingredients.length - 1 && <span aria-hidden="true">+</span>}</>;
       if (ingredientTarget && openIngredient) {
         return <button type="button" className={`${ingredientClass} cursor-pointer border-0 bg-transparent p-0 text-left`} title={`Open ${meta[ingredientKey].label} source`} aria-label={`Open ${meta[ingredientKey].label} source`} onClick={() => openIngredient(ingredientKey)} data-testid={`link-${testIdPrefix}-${ingredientKey}-${index}`} key={`${ingredient.name}-${index}`}>{content}</button>;
       }
       return <span className={ingredientClass} key={`${ingredient.name}-${index}`}>{content}</span>;
     })}
-    <ArrowRight size={12} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
-    {recipeOutputs(recipe).map(({ key: outputKey, amount }, index) => <span className="inline-flex items-center gap-1" key={`${outputKey}-${index}`}><span className="mono">{amountLabel(amount)}</span><ResourceIcon item={outputKey} size={14} />{index < recipeOutputs(recipe).length - 1 && <span aria-hidden="true">+</span>}</span>)}
+     <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+     {recipeOutputs(recipe).map(({ key: outputKey, amount }, index) => <span className="inline-flex items-center gap-1" key={`${outputKey}-${index}`}><span className="mono">{amountLabel(amount)}</span><ResourceIcon item={outputKey} size={16} />{index < recipeOutputs(recipe).length - 1 && <span aria-hidden="true">+</span>}</span>)}
     <span className="mono ml-1 shrink-0">({recipe.energyRequired}s)</span>
   </div>;
 }
@@ -1754,26 +1754,26 @@ function MiningFlow({ resource, state, machineVariant, manualOnly, collectionLab
     const inputAmount = coalInputAmount ?? acidInputAmount;
     const inputItem = coalInputAmount !== null ? 'coal' : acidInputAmount !== null ? 'sulfuric-acid' : null;
     const flowLabel = `${inputItem ? `${miningFlowNumber(inputAmount ?? 0)} ${inputItem} ` : ''}-> ${miningFlowNumber(outputAmount)} ${rawInfo[resource].label} (${miningFlowNumber(cycleSeconds)}s per machine)`;
-    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
-      {inputItem && <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(inputAmount ?? 0)}</span><ResourceIcon item={inputItem} size={14} /></span>}
-      <ArrowRight size={12} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
-      <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(outputAmount)}</span><ResourceIcon item={resource} size={14} /></span>
+    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
+      {inputItem && <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(inputAmount ?? 0)}</span><ResourceIcon item={inputItem} size={16} /></span>}
+      <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+      <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(outputAmount)}</span><ResourceIcon item={resource} size={16} /></span>
       <span className="mono ml-1 shrink-0">({miningFlowNumber(cycleSeconds)}s)</span>
     </div>;
   }
   if (manualOnly) {
     const flowLabel = `manual -> 1 ${rawInfo[resource].label}`;
-    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
-      <span className="inline-flex items-center gap-1"><MiningBuildingIcon resource={resource} machineVariant={machineVariant} size={14} /><span>manual</span></span>
-      <ArrowRight size={12} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
-      <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={14} /></span>
+    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
+      <span className="inline-flex items-center gap-1"><MiningBuildingIcon resource={resource} machineVariant={machineVariant} size={16} /><span>manual</span></span>
+      <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+      <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={16} /></span>
     </div>;
   }
   const flowLabel = manualOnly ? `${collectionLabel} for ${rawInfo[resource].label}` : `${collectionLabel} using ${machineLabel} to collect ${rawInfo[resource].label}`;
-  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel}>
-    <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={14} /></span>
-    <ArrowRight size={12} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
-    <span className="inline-flex items-center gap-1"><MiningBuildingIcon resource={resource} machineVariant={machineVariant} size={14} /><span>{manualOnly ? 'manual' : machineLabel}</span></span>
+  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel}>
+    <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={16} /></span>
+    <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+    <span className="inline-flex items-center gap-1"><MiningBuildingIcon resource={resource} machineVariant={machineVariant} size={16} /><span>{manualOnly ? 'manual' : machineLabel}</span></span>
     <span className="mono ml-1 shrink-0">(collection)</span>
   </div>;
 }
