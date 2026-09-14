@@ -1,8 +1,16 @@
 export const updateHistorySourceUrl = 'https://1drv.ms/t/c/41f8ca83fd4ca79d/IQASjG_buEfiSpV2qKvtef3mAcAfAjdACGMBPaXcXRq3zeQ';
 
-export const updateHistoryContent = `12/09/26
+export const updateHistoryContent = `13/09/26
+
+UI updates, mostly related to readability, excess clutter and highlighting bottlenecks.
+
+Rebalanced coal mining to match base game. Fixed power badges for water bottlenecks.
+
+12/09/26
 
 Added save export/import. Edited saves don't get permanently saved in the rankings, but you can still compare your result.
+
+Navbar visual update. Moved build quantity toggle to banner header.
 
 11/09/26
 
