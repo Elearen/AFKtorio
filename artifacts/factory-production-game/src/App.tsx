@@ -1598,7 +1598,7 @@ function RecipeFlow({ recipe, state, openIngredient, testIdPrefix = 'ingredient'
   const ingredients = recipe.ingredients.map((ingredient) => `${amountLabel(materialAmount(ingredient))} ${prettyLabel(keyForSource(ingredient.name))}`).join(' + ');
   const outputs = recipeOutputs(recipe).map(({ key: outputKey, amount }) => `${amountLabel(amount)} ${prettyLabel(outputKey)}`).join(' + ');
   const recipeAriaLabel = `${ingredients} -> ${outputs} (${recipe.energyRequired}s)`;
-  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]" aria-label={recipeAriaLabel}>
+  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[12px] text-[hsl(var(--muted-foreground))]" aria-label={recipeAriaLabel}>
     {recipe.ingredients.map((ingredient, index) => {
       const ingredientKey = keyForSource(ingredient.name);
       const ingredientTarget = ingredientNavigationFor(ingredientKey);
@@ -1754,7 +1754,7 @@ function MiningFlow({ resource, state, machineVariant, manualOnly, collectionLab
     const inputAmount = coalInputAmount ?? acidInputAmount;
     const inputItem = coalInputAmount !== null ? 'coal' : acidInputAmount !== null ? 'sulfuric-acid' : null;
     const flowLabel = `${inputItem ? `${miningFlowNumber(inputAmount ?? 0)} ${inputItem} ` : ''}-> ${miningFlowNumber(outputAmount)} ${rawInfo[resource].label} (${miningFlowNumber(cycleSeconds)}s per machine)`;
-    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
+    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[12px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
       {inputItem && <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(inputAmount ?? 0)}</span><ResourceIcon item={inputItem} size={16} /></span>}
       <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
       <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(outputAmount)}</span><ResourceIcon item={resource} size={16} /></span>
@@ -1763,14 +1763,14 @@ function MiningFlow({ resource, state, machineVariant, manualOnly, collectionLab
   }
   if (manualOnly) {
     const flowLabel = `manual -> 1 ${rawInfo[resource].label}`;
-    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
+    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[12px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
       <span className="inline-flex items-center gap-1"><MiningBuildingIcon resource={resource} machineVariant={machineVariant} size={16} /><span>manual</span></span>
       <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
       <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={16} /></span>
     </div>;
   }
   const flowLabel = manualOnly ? `${collectionLabel} for ${rawInfo[resource].label}` : `${collectionLabel} using ${machineLabel} to collect ${rawInfo[resource].label}`;
-  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel}>
+  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[12px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel}>
     <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={16} /></span>
     <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
     <span className="inline-flex items-center gap-1"><MiningBuildingIcon resource={resource} machineVariant={machineVariant} size={16} /><span>{manualOnly ? 'manual' : machineLabel}</span></span>
