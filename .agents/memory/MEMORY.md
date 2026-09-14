@@ -8,6 +8,7 @@
 - [Navigation scroll behavior](navigation-scroll.md) — mobile tabs stay in a 5×2 rail and each route owns its scroll position.
 - [Coal mining exception](coal-mining-exception.md) — coal miners self-fuel and report net yield without consuming stored coal.
 - [Power generation model](power-generation-model.md) — boilers consume coal/water for virtual steam, engines convert it to power, and unlocked solar is zero-input.
+- [Power and storage warning semantics](power-and-storage-warning-semantics.md) — steam badges compare potential boiler and engine capacity; actual water shortages stay on water, and storage warning text is red.
 - [Storage chest tiers](storage-chest-tiers.md) — item-storage chest material is a global tier; fluid tanks remain independent and are never affected by chest upgrades.
 - [Furnace conversion](furnace-upgrade.md) — Steel Furnaces convert existing smelters globally; new construction follows the active furnace recipe.
 - [Milestone migration](milestone-migration.md) — missing milestone metadata means no notification was explicitly viewed; preserve progress and surface earned thresholds once.
