@@ -1739,6 +1739,14 @@ function MiningBuildingIcon({ resource, machineVariant, size = 17 }: { resource:
 }
 const miningFlowNumber = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
 function MiningFlow({ resource, state, machineVariant, manualOnly, collectionLabel, machineLabel }: { resource: RawKey; state: GameState; machineVariant: string; manualOnly: boolean; collectionLabel: string; machineLabel: string }) {
+  if (resource === 'water') {
+    const flowLabel = `-> ${waterPumpPerSecond} water (1s)`;
+    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[12px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid="recipe-mining-water">
+      <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+      <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(waterPumpPerSecond)}</span><ResourceIcon item="water" size={16} /></span>
+      <span className="mono ml-1 shrink-0">(1s)</span>
+    </div>;
+  }
   const recipeResource = ['iron', 'copper', 'stone', 'coal', 'crudeOil', 'uranium'].includes(resource);
   if (recipeResource) {
     const grossOutputPerSecond = miningOutputRateFor(state, resource);
@@ -2480,9 +2488,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
                   </div>}
                 </div>
               </div>
-              <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{key === 'water' || key === 'crudeOil' ? 'Fluid collection' : 'Raw material'} · {machineLabel}</div>
               <MiningFlow resource={key} state={state} machineVariant={state.machineVariants.mining} manualOnly={manualOnly} collectionLabel={collectionLabel} machineLabel={machineLabel} />
-              <div className="mt-1 flex flex-wrap gap-1">{usesFuel && <Tag tone="muted">coal fueled</Tag>}{coalSelfFueled && <Tag>self-fueled</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
             </div>
           </div>
           {usesFuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-mining-fuel-${key}`}>
