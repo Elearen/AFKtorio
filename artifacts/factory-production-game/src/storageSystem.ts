@@ -5,7 +5,7 @@ export type StorageState = {
 };
 
 export type StorageBoxType = 'wooden' | 'iron' | 'steel';
-export const FLUID_STORAGE_BASE_CAPACITY = 100;
+export const FLUID_STORAGE_BASE_CAPACITY = 500;
 export const STORAGE_BOX_CAPACITY = 180;
 export const SPACE_SCIENCE_STORAGE_CAPACITY = 1000;
 export const STORAGE_IRON_BOX_CAPACITY = 400;

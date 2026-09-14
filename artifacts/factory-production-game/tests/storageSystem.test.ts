@@ -28,7 +28,7 @@ import {
 const fluidKeys = new Set(['water', 'crudeOil']);
 const trackedKeys = ['water', 'crudeOil', 'iron'];
 
-test('fluid storage starts at 100 units without a tank', () => {
+test('fluid storage starts at 500 units without a tank', () => {
   const initial = createInitialStorageState(trackedKeys, fluidKeys);
 
   assert.equal(initial.storage.water, FLUID_STORAGE_BASE_CAPACITY);
@@ -68,7 +68,7 @@ test('Fluid Handling gates fluid storage purchases but not item boxes', () => {
   assert.equal(canPurchaseStorageFor('iron', fluidKeys, []), true);
 });
 
-test('legacy fluid box capacity is migrated to the 100-unit base and saved tanks are preserved', () => {
+test('legacy fluid box capacity is migrated to the 500-unit base and saved tanks are preserved', () => {
   const migrated = migrateStorageState({
     trackedKeys,
     fluidKeys,
