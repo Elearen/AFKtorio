@@ -1737,44 +1737,11 @@ function MiningBuildingIcon({ resource, machineVariant, size = 17 }: { resource:
   if (burnerMinerKeys.includes(resource)) return <ResourceIcon item={machineVariant} size={size} />;
   return <Pickaxe size={size} />;
 }
-const miningFlowNumber = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
-function MiningFlow({ resource, state, machineVariant, manualOnly, collectionLabel, machineLabel }: { resource: RawKey; state: GameState; machineVariant: string; manualOnly: boolean; collectionLabel: string; machineLabel: string }) {
-  const recipeResource = ['iron', 'copper', 'stone', 'coal', 'crudeOil', 'uranium'].includes(resource);
-  if (recipeResource) {
-    const grossOutputPerSecond = miningOutputRateFor(state, resource);
-    const cycleSeconds = grossOutputPerSecond > 0 ? 1 / grossOutputPerSecond : 0;
-    const netOutputPerSecond = resource === 'coal' && miningUsesStoredCoal(state)
-      ? Math.max(0, grossOutputPerSecond - burnerMiningDrillCoalPerSecond)
-      : grossOutputPerSecond;
-    const outputAmount = netOutputPerSecond * cycleSeconds;
-    const coalInputAmount = fueledBurnerMinerKeys.includes(resource) && miningUsesStoredCoal(state)
-      ? burnerMiningDrillCoalPerSecond * cycleSeconds
-      : null;
-    const acidInputAmount = resource === 'uranium' ? 1 : null;
-    const inputAmount = coalInputAmount ?? acidInputAmount;
-    const inputItem = coalInputAmount !== null ? 'coal' : acidInputAmount !== null ? 'sulfuric-acid' : null;
-    const flowLabel = `${inputItem ? `${miningFlowNumber(inputAmount ?? 0)} ${inputItem} ` : ''}-> ${miningFlowNumber(outputAmount)} ${rawInfo[resource].label} (${miningFlowNumber(cycleSeconds)}s per machine)`;
-    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[12px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
-      {inputItem && <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(inputAmount ?? 0)}</span><ResourceIcon item={inputItem} size={16} /></span>}
-      <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
-      <span className="inline-flex items-center gap-1"><span className="mono">{miningFlowNumber(outputAmount)}</span><ResourceIcon item={resource} size={16} /></span>
-      <span className="mono ml-1 shrink-0">({miningFlowNumber(cycleSeconds)}s)</span>
-    </div>;
-  }
-  if (manualOnly) {
-    const flowLabel = `manual -> 1 ${rawInfo[resource].label}`;
-    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[12px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
-      <span className="inline-flex items-center gap-1"><MiningBuildingIcon resource={resource} machineVariant={machineVariant} size={16} /><span>manual</span></span>
-      <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
-      <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={16} /></span>
-    </div>;
-  }
-  const flowLabel = manualOnly ? `${collectionLabel} for ${rawInfo[resource].label}` : `${collectionLabel} using ${machineLabel} to collect ${rawInfo[resource].label}`;
-  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[12px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel}>
-    <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={16} /></span>
-    <ArrowRight size={13} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
-    <span className="inline-flex items-center gap-1"><MiningBuildingIcon resource={resource} machineVariant={machineVariant} size={16} /><span>{manualOnly ? 'manual' : machineLabel}</span></span>
-    <span className="mono ml-1 shrink-0">(collection)</span>
+function MiningWaterFlow() {
+  return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[12px] text-[hsl(var(--muted-foreground))]" aria-label="-> 1200 water (1s)" data-testid="recipe-mining-water">
+    <ArrowRight size={13} className="shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+    <span className="inline-flex items-center gap-1"><span className="mono">1200</span><ResourceIcon item="water" size={16} /></span>
+    <span className="mono ml-1 shrink-0">(1s)</span>
   </div>;
 }
 function BrandLogo({ size = 36 }: { size?: number }) {
@@ -2459,7 +2426,6 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
         const isBuilding = constructionItems.length > 0;
         const machineLabel = manualOnly ? 'Manual collection only' : key === 'water' ? 'Water Pump' : key === 'crudeOil' ? 'Pumpjack' : key === 'uranium' ? 'Acid-powered Uranium Miner' : miningMachineLabelFor(state);
         const constructionLabel = key === 'water' ? 'Water pump' : key === 'crudeOil' ? 'Crude oil pumpjack' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} ${miningMachineLabelFor(state).toLowerCase()}`;
-        const collectionLabel = manualCollectionAvailable ? 'manual collection' : 'machine extraction';
         const manualCollectionControl = <button onClick={() => tap(key)} disabled={!manualCollectionAvailable} className={`button-base flex-1 !py-2 ${manualCollectionAvailable ? count ? 'button-ghost' : 'button-primary' : 'button-ghost opacity-60'}`} aria-label={manualCollectionAvailable ? `Collect ${info.label} manually` : `${info.label} requires a machine`} title={manualCollectionAvailable ? 'Collect manually' : 'This material requires a machine'} data-testid={`button-tap-${key}`}>
           {!manualCollectionAvailable ? <><LockKeyhole size={13} /> machine only</> : manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} /> collect manually</>}
         </button>;
@@ -2481,8 +2447,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
                 </div>
               </div>
               <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{key === 'water' || key === 'crudeOil' ? 'Fluid collection' : 'Raw material'} · {machineLabel}</div>
-              <MiningFlow resource={key} state={state} machineVariant={state.machineVariants.mining} manualOnly={manualOnly} collectionLabel={collectionLabel} machineLabel={machineLabel} />
-              <div className="mt-1 flex flex-wrap gap-1">{usesFuel && <Tag tone="muted">coal fueled</Tag>}{coalSelfFueled && <Tag>self-fueled</Tag>}{locked && <Tag tone="muted">research lock</Tag>}</div>
+               {key === 'water' && <MiningWaterFlow />}
             </div>
           </div>
           {usesFuel && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-mining-fuel-${key}`}>
