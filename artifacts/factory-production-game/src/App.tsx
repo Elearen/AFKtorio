@@ -2988,7 +2988,7 @@ function StoragePage({ state, enqueue, notice, cancelConstruction, constructionB
     .map((cost) => `${fmt(cost.amount * count)} ${meta[cost.key]?.short ?? prettyLabel(cost.key).toLowerCase()}`)
     .join(' + ');
   return <PageFrame>
-     <Header eyebrow="Buffer control" title="Storage" copy={`${state.storageBoxType === 'steel' ? 'Item buffers use steel chests.' : state.storageBoxType === 'iron' ? 'Item buffers use iron chests.' : 'Item buffers use wooden boxes.'} Fluids start with 100 units of base capacity, then expand with storage tanks after Fluid Handling research.`} action={<Tag><Box size={11} /> {visibleKeys.length} visible items</Tag>} />
+     <Header eyebrow="Buffer control" title="Storage" copy={`${state.storageBoxType === 'steel' ? 'Item buffers use steel chests.' : state.storageBoxType === 'iron' ? 'Item buffers use iron chests.' : 'Item buffers use wooden boxes.'} Fluids start with 500 units of base capacity, then expand with storage tanks after Fluid Handling research.`} action={<Tag><Box size={11} /> {visibleKeys.length} visible items</Tag>} />
     <section className="surface mb-5 rounded-xl p-3 sm:p-4" data-testid="panel-bulk-storage-upgrades">
       <div className="mb-3 eyebrow">Bulk storage expansion</div>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -3053,6 +3053,7 @@ function StoragePage({ state, enqueue, notice, cancelConstruction, constructionB
         {visibleKeys.map((key) => {
           const amount = quantityFor(state, key);
           const capacity = capFor(state, key);
+           const storageWarning = peakDemandRateFor(state, key) / 60 > capacity;
           const fluid = isFluidKey(key);
           const canPurchase = canPurchaseStorageFor(key, fluidKeys, state.research);
           const containerCount = containerCountFor(state, key);
@@ -3077,9 +3078,9 @@ function StoragePage({ state, enqueue, notice, cancelConstruction, constructionB
               </button>
             </div>
             <div className="mt-2 flex items-center gap-2" aria-label={`${meta[key].label}: ${fmt(amount)} in stock, capacity ${fmt(capacity)}`}>
-              <StoredQuantity value={amount} manualEvent={state.manualOutputEvents[key] ?? 0} className="mono numeric numeric-right w-12 shrink-0 text-[11px]" title="Current stock">{fmt(amount)}</StoredQuantity>
-              <div className="min-w-0 flex-1"><Progress value={amount / capacity * 100} /></div>
-               <span className="mono numeric numeric-right w-14 shrink-0 text-right text-[11px]" title="Total capacity">{fmt(capacity)}</span>
+               <StoredQuantity value={amount} manualEvent={state.manualOutputEvents[key] ?? 0} className={`mono numeric numeric-right w-12 shrink-0 text-[11px] ${storageWarning ? 'text-[hsl(var(--primary))]' : ''}`} title="Current stock">{fmt(amount)}</StoredQuantity>
+               <div className="min-w-0 flex-1"><Progress value={amount / capacity * 100} tone={storageWarning ? 'amber' : 'teal'} /></div>
+                <span className={`mono numeric numeric-right w-14 shrink-0 text-right text-[11px] ${storageWarning ? 'text-[hsl(var(--primary))]' : ''}`} title="Total capacity">{fmt(capacity)}</span>
             </div>
                {isBuilding && <BuildProgress items={constructionItems} label={`${fluid ? 'Storage tank' : steel ? 'Steel chest' : iron ? 'Iron chest' : 'Wooden box'} · ${meta[key].label}`} cancelConstruction={cancelConstruction} notice={notice} />}
           </section>;
