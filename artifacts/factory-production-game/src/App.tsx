@@ -1754,6 +1754,14 @@ function MiningFlow({ resource, state, machineVariant, manualOnly, collectionLab
       <span className="mono ml-1 shrink-0">({miningFlowNumber(cycleSeconds)}s)</span>
     </div>;
   }
+  if (manualOnly) {
+    const flowLabel = `manual -> 1 ${rawInfo[resource].label}`;
+    return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel} data-testid={`recipe-mining-${resource}`}>
+      <span className="inline-flex items-center gap-1"><MiningBuildingIcon resource={resource} machineVariant={machineVariant} size={14} /><span>manual</span></span>
+      <ArrowRight size={12} className="mx-1 shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+      <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={14} /></span>
+    </div>;
+  }
   const flowLabel = manualOnly ? `${collectionLabel} for ${rawInfo[resource].label}` : `${collectionLabel} using ${machineLabel} to collect ${rawInfo[resource].label}`;
   return <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 text-[9px] text-[hsl(var(--muted-foreground))]" aria-label={flowLabel}>
     <span className="inline-flex items-center gap-1"><span className="mono">1</span><ResourceIcon item={resource} size={14} /></span>
