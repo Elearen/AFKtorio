@@ -44,9 +44,13 @@ test('boiler steam scales to the limiting coal or water input', () => {
   const waterLimited = flow({ water: 3 });
 
   assert.equal(coalLimited.boilerInputRatio, 0.5);
+  assert.equal(coalLimited.boilerCoalRatio, 0.5);
+  assert.equal(coalLimited.boilerWaterRatio, 1);
   assert.equal(coalLimited.steamProduced, 30);
   assert.equal(coalLimited.powerGeneratedMw, 0.9);
   assert.equal(waterLimited.boilerInputRatio, 0.5);
+  assert.equal(waterLimited.boilerCoalRatio, 1);
+  assert.equal(waterLimited.boilerWaterRatio, 0.5);
   assert.equal(waterLimited.steamProduced, 30);
   assert.equal(waterLimited.powerGeneratedMw, 0.9);
 });

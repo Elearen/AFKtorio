@@ -944,20 +944,27 @@ const inputStatusFor = (state: GameState, key: RawKey, requiredPerSecond: number
   }
   return { tone: 'red', label: 'insufficient', detail: `${fmt(state.raw[key])} stored · ${flowPerSecond.toFixed(1)} / ${requiredPerSecond.toFixed(1)} per sec flow` };
 };
-const boilerInputStatusFor = (state: GameState, key: 'coal' | 'water') => inputStatusFor(state, key, (key === 'coal' ? boilerPeakCoalUsageFor(state) : boilerPeakWaterUsageFor(state)) / 60);
-const steamEngineInputStatusFor = (state: GameState): SupplyStatus => {
-  const requiredPerSecond = steamEnginePeakSteamUsageFor(state) / 60;
-  if (requiredPerSecond <= 0) return { tone: 'muted', label: 'not required', detail: 'no steam engine load' };
-  const steamFlowPerSecond = boilerSteamRateFor(state) / 60;
-  const coalStatus = boilerInputStatusFor(state, 'coal');
-  const waterStatus = boilerInputStatusFor(state, 'water');
-  if (steamFlowPerSecond >= requiredPerSecond && coalStatus.label === 'sufficient' && waterStatus.label === 'sufficient') {
-    return { tone: 'teal', label: 'sufficient', detail: `${steamFlowPerSecond.toFixed(1)} / ${requiredPerSecond.toFixed(1)} steam per sec from boilers` };
+const boilerInputStatusFor = (state: GameState, key: 'coal' | 'water') => {
+  const requiredPerSecond = (key === 'coal' ? boilerPeakCoalUsageFor(state) : boilerPeakWaterUsageFor(state)) / 60;
+  const flow = powerFlowFor(state);
+  const actualRatio = key === 'coal' ? flow.boilerCoalRatio : flow.boilerWaterRatio;
+  if (requiredPerSecond > 0 && actualRatio < 0.999999) {
+    return {
+      tone: 'red' as const,
+      label: 'limited',
+      detail: `${fmt(state.raw[key])} stored · ${powerRateLabel(key === 'coal' ? flow.boilerCoalConsumed : flow.boilerWaterConsumed)} / ${powerRateLabel(key === 'coal' ? flow.boilerCoalDemand : flow.boilerWaterDemand)} per sec demand`,
+    };
   }
-  if (steamFlowPerSecond >= requiredPerSecond && coalStatus.label !== 'insufficient' && waterStatus.label !== 'insufficient') {
-    return { tone: 'amber', label: 'buffered', detail: `steam capacity is ready · boiler inputs rely on stored buffers` };
+  return inputStatusFor(state, key, requiredPerSecond);
+};
+const steamCapacityStatusFor = (state: GameState): SupplyStatus => {
+  const potentialSteamPerSecond = boilerPeakSteamRateFor(state) / 60;
+  const engineCapacityPerSecond = steamEnginePeakSteamUsageFor(state) / 60;
+  if (engineCapacityPerSecond <= 0) return { tone: 'muted', label: 'not required', detail: 'no steam engine load' };
+  if (potentialSteamPerSecond >= engineCapacityPerSecond) {
+    return { tone: 'teal', label: 'sufficient', detail: `${powerRateLabel(potentialSteamPerSecond)} potential / ${powerRateLabel(engineCapacityPerSecond)} engine capacity per sec` };
   }
-  return { tone: 'red', label: 'limited', detail: `${steamFlowPerSecond.toFixed(1)} / ${requiredPerSecond.toFixed(1)} steam per sec available` };
+  return { tone: 'red', label: 'limited', detail: `${powerRateLabel(potentialSteamPerSecond)} potential / ${powerRateLabel(engineCapacityPerSecond)} engine capacity per sec` };
 };
 const manualProductionRateFor = (state: GameState, key: TrackedKey) => {
   const history = state.rateHistory ?? [];
@@ -2020,7 +2027,7 @@ function CompactMetricsRow({ production, peakProduction, demand, peakConsumption
       {[
          { label: 'peak production', value: `${peakProduction.toFixed(1)}/m`, tone: peakWarning ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--secondary)/.7)]' },
          { label: 'peak consumption', value: `${peakConsumption.toFixed(1)}/m`, tone: peakWarning ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--primary)/.7)]' },
-         { label: 'storage', value: `${fmt(storage)}/${fmt(capacity)}`, tone: storageWarning ? 'text-[hsl(var(--primary))]' : 'text-[hsl(var(--foreground))]', flashStorage: true },
+         { label: 'storage', value: `${fmt(storage)}/${fmt(capacity)}`, tone: storageWarning ? 'text-[hsl(var(--destructive))]' : 'text-[hsl(var(--foreground))]', flashStorage: true },
       ].map(metric)}
     </div>
   </div>;
@@ -2749,7 +2756,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
   const requiredAccumulators = requiredSolarAccumulatorsFor(state);
   const solarEfficiency = solarPanelEfficiencyFor(state);
   const accumulatorCoverage = requiredAccumulators > 0 ? Math.min(1, accumulatorCount / requiredAccumulators) : 0;
-  const steamEngineSteamStatus = steamEngineInputStatusFor(state);
+  const steamEngineSteamStatus = steamCapacityStatusFor(state);
   const powerFlow = powerFlowFor(state);
   const nuclearFlow = nuclearPowerFlowFor(state);
   const boilerCoalRate = powerFlow.boilerCoalConsumed;
@@ -2762,11 +2769,7 @@ function PowerPage({ state, setState, enqueue, notice, cancelConstruction, const
   const lockedPowerFlowStatus: SupplyStatus = { tone: 'muted', label: 'locked', detail: 'research Steam Power' };
   const boilerCoalFlowStatus = steam ? powerFlowBadgeFor(boilerInputStatusFor(state, 'coal')) : lockedPowerFlowStatus;
   const boilerWaterFlowStatus = steam ? powerFlowBadgeFor(boilerInputStatusFor(state, 'water')) : lockedPowerFlowStatus;
-  const boilerSteamFlowStatus: SupplyStatus = !steam
-    ? lockedPowerFlowStatus
-    : boilerInputRatio >= 0.999999
-      ? { tone: 'teal', label: 'supplied', detail: `${powerRateLabel(boilerSteamRate)} steam / sec available` }
-      : { tone: 'red', label: 'limited', detail: `${powerRateLabel(boilerSteamRate)} steam / sec available` };
+  const boilerSteamFlowStatus = steam ? powerFlowBadgeFor(steamCapacityStatusFor(state)) : lockedPowerFlowStatus;
   const steamEngineSteamFlowStatus = steam ? powerFlowBadgeFor(steamEngineSteamStatus) : lockedPowerFlowStatus;
   const boilerConstructionItems = state.queue.filter((item) => item.action === 'boiler');
   const steamEngineConstructionItems = state.queue.filter((item) => item.action === 'steamEngine');
@@ -3078,9 +3081,9 @@ function StoragePage({ state, enqueue, notice, cancelConstruction, constructionB
               </button>
             </div>
             <div className="mt-2 flex items-center gap-2" aria-label={`${meta[key].label}: ${fmt(amount)} in stock, capacity ${fmt(capacity)}`}>
-               <StoredQuantity value={amount} manualEvent={state.manualOutputEvents[key] ?? 0} className={`mono numeric numeric-right w-12 shrink-0 text-[11px] ${storageWarning ? 'text-[hsl(var(--primary))]' : ''}`} title="Current stock">{fmt(amount)}</StoredQuantity>
+               <StoredQuantity value={amount} manualEvent={state.manualOutputEvents[key] ?? 0} className={`mono numeric numeric-right w-12 shrink-0 text-[11px] ${storageWarning ? 'text-[hsl(var(--destructive))]' : ''}`} title="Current stock">{fmt(amount)}</StoredQuantity>
                <div className="min-w-0 flex-1"><Progress value={amount / capacity * 100} tone={storageWarning ? 'amber' : 'teal'} /></div>
-                <span className={`mono numeric numeric-right w-14 shrink-0 text-right text-[11px] ${storageWarning ? 'text-[hsl(var(--primary))]' : ''}`} title="Total capacity">{fmt(capacity)}</span>
+                <span className={`mono numeric numeric-right w-14 shrink-0 text-right text-[11px] ${storageWarning ? 'text-[hsl(var(--destructive))]' : ''}`} title="Total capacity">{fmt(capacity)}</span>
             </div>
                {isBuilding && <BuildProgress items={constructionItems} label={`${fluid ? 'Storage tank' : steel ? 'Steel chest' : iron ? 'Iron chest' : 'Wooden box'} · ${meta[key].label}`} cancelConstruction={cancelConstruction} notice={notice} />}
           </section>;

@@ -16,6 +16,8 @@ export type PowerFlowInput = {
 
 export type PowerFlow = {
   boilerInputRatio: number;
+  boilerCoalRatio: number;
+  boilerWaterRatio: number;
   boilerCoalDemand: number;
   boilerWaterDemand: number;
   boilerCoalConsumed: number;
@@ -50,6 +52,8 @@ export const calculatePowerFlow = (input: PowerFlowInput): PowerFlow => {
 
   return {
     boilerInputRatio,
+    boilerCoalRatio: coalRatio,
+    boilerWaterRatio: waterRatio,
     boilerCoalDemand,
     boilerWaterDemand,
     boilerCoalConsumed,
