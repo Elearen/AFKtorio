@@ -27,3 +27,15 @@ Added storage item filters.
 09/09/26
 
 Added batch construction, unlocked with construction robotics. Worker robot speed upgrades increase construction speed.`;
+
+const updateHistoryFingerprintFor = (content: string) => {
+  let hash = 2166136261;
+  for (let index = 0; index < content.length; index += 1) {
+    hash ^= content.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `fnv1a-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+};
+
+export const updateHistoryVersion = updateHistoryFingerprintFor(updateHistoryContent);
+export const updateHistoryChangedSince = (savedVersion: unknown) => savedVersion !== updateHistoryVersion;
