@@ -32,7 +32,7 @@ import { launchRankingComparisonsFor, type LaunchRankingComparisons } from './la
 import { primaryOutputFor } from './productionOutput';
 import { prioritizeDisplayOrder } from './displayOrder';
 import { sessionIdForStartTimestamp } from './sessionId';
-import { updateHistoryContent } from './updateHistory';
+import { updateHistoryChangedSince, updateHistoryContent, updateHistoryVersion } from './updateHistory';
 import { saveFileTextFor, stateFromSaveFileText } from './saveFile';
 import {
   Activity, ArrowRight, ArrowUp, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
@@ -172,6 +172,7 @@ type GameState = {
   welcomeSeen: boolean;
   unedited: boolean;
   launchRankingEligible: boolean;
+  updateHistoryVersion: string;
 };
 
 const SAVE_KEY = 'factory-production-game-save-v2';
@@ -577,7 +578,7 @@ const initialState: GameState = {
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, nuclearReactors: 0, heatExchangers: 0, steamTurbines: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], autoResearchEnabled: true, researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
-  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, launchRankingStats: null, tutorialVisible: true, welcomeSeen: false, unedited: true, launchRankingEligible: true,
+  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, launchRankingStats: null, tutorialVisible: true, welcomeSeen: false, unedited: true, launchRankingEligible: true, updateHistoryVersion,
 };
 
 const nav = [
@@ -1435,7 +1436,8 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
 function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(SAVE_KEY) ?? 'null') as Partial<GameState> | null;
-    if (!parsed) return { state: initialState, away: 0, recovered: 0, newGame: true };
+    if (!parsed) return { state: initialState, away: 0, recovered: 0, newGame: true, updateHistoryMigration: false };
+    const updateHistoryMigration = updateHistoryChangedSince(parsed.updateHistoryVersion);
     const gameStartTimestamp = typeof parsed.gameStartTimestamp === 'number' && Number.isFinite(parsed.gameStartTimestamp) ? parsed.gameStartTimestamp : Date.now();
     const sessionId = typeof parsed.sessionId === 'string' && parsed.sessionId.trim().length > 0
       ? parsed.sessionId
@@ -1596,6 +1598,7 @@ function loadState() {
        welcomeSeen: migratedMilestones.welcomeSeen,
       unedited: parsed.unedited !== false,
       launchRankingEligible: parsed.launchRankingEligible !== false,
+       updateHistoryVersion,
     } as GameState;
     if (state.rocketLaunched && state.finishTimestamp === null && state.winMetrics) {
       state.finishTimestamp = state.winMetrics.timestamp;
@@ -1607,8 +1610,8 @@ function loadState() {
     const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
     const before = state.totalOutput;
     const recovered = simulate(state, away, Date.now(), { offline: true });
-    return { state: recovered, away, recovered: recovered.totalOutput - before, newGame: false };
-  } catch { return { state: initialState, away: 0, recovered: 0, newGame: true }; }
+    return { state: recovered, away, recovered: recovered.totalOutput - before, newGame: false, updateHistoryMigration };
+  } catch { return { state: initialState, away: 0, recovered: 0, newGame: true, updateHistoryMigration: false }; }
 }
 
 const iconFileFor: Record<string, string> = {
@@ -4146,11 +4149,10 @@ function UpdateHistoryModal({ onClose }: { onClose: () => void }) {
   </div>;
 }
 
-function SettingsPage({ state, setState, reset, exportSave, importSave, notice, replayMilestone }: PageProps) {
+function SettingsPage({ state, setState, reset, exportSave, importSave, notice, replayMilestone, openUpdateHistory }: PageProps) {
   const [confirm, setConfirm] = useState(false);
   const [rankingModalOpen, setRankingModalOpen] = useState(false);
   const [rankingResultsOpen, setRankingResultsOpen] = useState(false);
-  const [updateHistoryOpen, setUpdateHistoryOpen] = useState(false);
   const [rankingSubmission, setRankingSubmission] = useState<LaunchRankingSubmission | null>(null);
   const [rankingIsPreview, setRankingIsPreview] = useState(false);
   const [rankingPreviewLoading, setRankingPreviewLoading] = useState(false);
@@ -4239,14 +4241,13 @@ function SettingsPage({ state, setState, reset, exportSave, importSave, notice, 
         <ChevronRight size={16} className="shrink-0 text-[hsl(var(--muted-foreground))]" />
       </button>)}</div> : <div className="mt-4 rounded-lg border border-dashed border-[hsl(var(--border))] p-3 text-[10px] text-[hsl(var(--muted-foreground))]">No milestones unlocked yet.</div>}
     </section>
-    <button type="button" onClick={() => setUpdateHistoryOpen(true)} className="button-base button-ghost mt-5 w-full !py-3 text-[11px]" data-testid="button-open-update-history"><Clock3 size={14} /> view update history</button>
-    {updateHistoryOpen && <UpdateHistoryModal onClose={() => setUpdateHistoryOpen(false)} />}
+    <button type="button" onClick={openUpdateHistory} className="button-base button-ghost mt-5 w-full !py-3 text-[11px]" data-testid="button-open-update-history"><Clock3 size={14} /> view update history</button>
     {rankingModalOpen && launchRankingStats && <LaunchRankingModal stats={launchRankingStats} submission={rankingSubmission} canSubmit={state.launchRankingEligible} isSubmitting={submitLaunchRanking.isPending || rankingPreviewLoading} error={rankingError} onSubmit={submitRanking} onViewResults={() => setRankingResultsOpen(true)} onClose={() => { if (!submitLaunchRanking.isPending && !rankingPreviewLoading) setRankingModalOpen(false); }} />}
     {rankingResultsOpen && rankingSubmission && <LaunchRankingResultsModal submission={rankingSubmission} preview={rankingIsPreview} onClose={() => setRankingResultsOpen(false)} />}
   </PageFrame>;
 }
 
-type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[], quantity?: ConstructionBatchSize) => void; cancelConstruction: (id: string) => void; constructionVisualTiming: (total: number) => Pick<QueueItem, 'progressStartedAt' | 'progressDurationMs'>; constructionBatchSize: ConstructionBatchSize; setConstructionBatchSize: (value: ConstructionBatchSize) => void; reset: () => void; exportSave: () => void; importSave: (file: File) => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
+type PageProps = { state: GameState; setState: Dispatch<SetStateAction<GameState>>; enqueue: (action: QueueItem['action'], target: string, seconds: number, targetId?: string, costs?: BuildMaterialCost[], quantity?: ConstructionBatchSize) => void; cancelConstruction: (id: string) => void; constructionVisualTiming: (total: number) => Pick<QueueItem, 'progressStartedAt' | 'progressDurationMs'>; constructionBatchSize: ConstructionBatchSize; setConstructionBatchSize: (value: ConstructionBatchSize) => void; reset: () => void; exportSave: () => void; importSave: (file: File) => void; notice: (message: string) => void; replayMilestone: (milestone: MilestoneKey) => void; openUpdateHistory: () => void; away: number; recovered: number; offlineReportVisible: boolean; dismissOfflineReport: () => void };
 
 function PageFrame({ children }: { children: ReactNode }) { return <div className="mx-auto max-w-[1240px] px-4 pb-28 pt-7 sm:px-6 md:px-8 md:pb-10">{children}</div>; }
 
@@ -4268,6 +4269,7 @@ function Game() {
   const [away] = useState(initial.away);
   const [recovered] = useState(initial.recovered);
   const [offlineReportVisible, setOfflineReportVisible] = useState(initial.away >= 60 && initial.recovered > 0);
+  const [updateHistoryOpen, setUpdateHistoryOpen] = useState(initial.updateHistoryMigration);
   const [toast, setToast] = useState('');
   const [endgameModal, setEndgameModal] = useState<'rocket-ready' | 'game-complete' | null>(null);
   const [replayMilestone, setReplayMilestone] = useState<MilestoneKey | null>(null);
@@ -4365,6 +4367,7 @@ function Game() {
     localStorage.removeItem(SAVE_KEY);
     setEndgameModal(null);
     setReplayMilestone(null);
+    setUpdateHistoryOpen(false);
     setOfflineReportVisible(false);
     navigate('/');
     const newState = { ...initialState, unedited: true, launchRankingEligible: true, lastSeen: timestamp, gameStartTimestamp: timestamp, sessionId: sessionIdForStartTimestamp(timestamp), storage: { ...initialState.storage }, storageBoxes: { ...initialState.storageBoxes }, storageTanks: { ...initialState.storageTanks }, raw: { ...initialState.raw }, products: { ...initialState.products }, rateHistory: [] };
@@ -4455,7 +4458,7 @@ function Game() {
   });
   const constructionRoboticsUnlocked = state.research.includes('construction-robotics');
   const constructionBatchSize = constructionRoboticsUnlocked ? state.constructionBatchSize : 1;
-  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 })), reset, exportSave, importSave, notice, replayMilestone: setReplayMilestone, away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
+  const props = { state, setState, enqueue, cancelConstruction, constructionVisualTiming, constructionBatchSize, setConstructionBatchSize: (value: ConstructionBatchSize) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 })), reset, exportSave, importSave, notice, replayMilestone: setReplayMilestone, openUpdateHistory: () => setUpdateHistoryOpen(true), away, recovered, offlineReportVisible, dismissOfflineReport: () => setOfflineReportVisible(false) };
   const pageKey = nav.find(([key, path]) => path === routePathFor(location))?.[0] ?? 'factory';
   let page: ReactNode;
   if (pageKey === 'mining') page = <MiningPage {...props} />;
@@ -4471,7 +4474,7 @@ function Game() {
   const replayingWelcome = replayMilestone === 'crash-landed';
   const replayingGameComplete = replayMilestone === 'game-complete';
   const popupMilestone = replayingGameComplete ? null : replayMilestone && replayMilestone !== 'crash-landed' ? replayMilestone : state.milestoneNotifications[0] ?? null;
-  return <Shell state={state} constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={(value) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 }))} constructionRoboticsUnlocked={constructionRoboticsUnlocked} notice={notice}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{(!state.welcomeSeen || replayingWelcome) && <WelcomeModal replay={state.welcomeSeen} onBegin={() => { if (replayingWelcome) setReplayMilestone(null); else setState((current) => ({ ...current, welcomeSeen: true, unlockedMilestones: current.unlockedMilestones.includes('crash-landed') ? current.unlockedMilestones : [...current.unlockedMilestones, 'crash-landed'] })); }} />}{popupMilestone && <MilestoneModal milestone={popupMilestone} onDismiss={() => { if (replayMilestone && replayMilestone !== 'crash-landed') setReplayMilestone(null); else setState((current) => ({ ...current, milestoneNotifications: current.milestoneNotifications.slice(1) })); }} />}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{(endgameModal === 'game-complete' || replayingGameComplete) && <GameCompleteModal gameStartTimestamp={state.gameStartTimestamp} finishTimestamp={state.finishTimestamp} winMetrics={state.winMetrics} onClose={replayingGameComplete ? () => setReplayMilestone(null) : finishGame} />}</Shell>;
+  return <Shell state={state} constructionBatchSize={constructionBatchSize} onConstructionBatchSizeChange={(value) => setState((s) => ({ ...s, constructionBatchSize: s.research.includes('construction-robotics') ? value : 1 }))} constructionRoboticsUnlocked={constructionRoboticsUnlocked} notice={notice}>{page}{toast && <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[hsl(var(--primary)/.4)] bg-[hsl(216_25%_13%/.97)] px-4 py-2 mono text-[10px] text-[hsl(var(--primary))] shadow-xl md:bottom-6" role="status" data-testid="status-toast">{toast}</div>}{updateHistoryOpen && <UpdateHistoryModal onClose={() => setUpdateHistoryOpen(false)} />}{(!state.welcomeSeen || replayingWelcome) && <WelcomeModal replay={state.welcomeSeen} onBegin={() => { if (replayingWelcome) setReplayMilestone(null); else setState((current) => ({ ...current, welcomeSeen: true, unlockedMilestones: current.unlockedMilestones.includes('crash-landed') ? current.unlockedMilestones : [...current.unlockedMilestones, 'crash-landed'] })); }} />}{popupMilestone && <MilestoneModal milestone={popupMilestone} onDismiss={() => { if (replayMilestone && replayMilestone !== 'crash-landed') setReplayMilestone(null); else setState((current) => ({ ...current, milestoneNotifications: current.milestoneNotifications.slice(1) })); }} />}{state.researchNotifications.length > 0 && <ResearchCompletionModal state={state} setState={setState} />}{endgameModal === 'rocket-ready' && <RocketReadyModal onLaunch={launchRocket} />}{(endgameModal === 'game-complete' || replayingGameComplete) && <GameCompleteModal gameStartTimestamp={state.gameStartTimestamp} finishTimestamp={state.finishTimestamp} winMetrics={state.winMetrics} onClose={replayingGameComplete ? () => setReplayMilestone(null) : finishGame} />}</Shell>;
 }
 
 function App() { return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Game /></WouterRouter>; }
