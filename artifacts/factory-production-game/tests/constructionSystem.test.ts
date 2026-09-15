@@ -13,6 +13,7 @@ import {
   normalizeConstructionQueue,
   refundConstructionMaterials,
   reserveConstructionMaterials,
+  reserveStoredConstructionBuildings,
   type ConstructionQueueItem,
 } from '../src/constructionSystem.js';
 
@@ -35,6 +36,27 @@ test('construction reserves available materials and waits for the remainder', ()
   assert.deepEqual(request.reserved, [5, 2]);
   assert.equal(request.started, true);
   assert.equal(request.seconds, 10);
+});
+
+test('construction consumes stored buildings before raw material costs', () => {
+  const inventory = { raw: { stone: 20 }, products: { boiler: 2, pipe: 4 } };
+  const stored = reserveStoredConstructionBuildings(inventory, 'boiler', 2);
+
+  assert.equal(stored, 2);
+  assert.deepEqual(inventory, { raw: { stone: 20 }, products: { boiler: 0, pipe: 4 } });
+});
+
+test('construction can combine stored buildings with raw material funding for a partial batch', () => {
+  const inventory = { raw: { stone: 5 }, products: { boiler: 1, pipe: 4 } };
+  const stored = reserveStoredConstructionBuildings(inventory, 'boiler', 2);
+  const reserved = reserveConstructionMaterials(inventory, [
+    { key: 'stone', amount: 5, source: 'raw' as const },
+    { key: 'pipe', amount: 4, source: 'products' as const },
+  ]);
+
+  assert.equal(stored, 1);
+  assert.deepEqual(reserved, [5, 4]);
+  assert.deepEqual(inventory, { raw: { stone: 0 }, products: { boiler: 0, pipe: 0 } });
 });
 
 test('construction requests take produced output before storage and honor queue order', () => {
@@ -142,6 +164,25 @@ test('cancelling a queue item refunds paid and reserved materials without applyi
   assert.deepEqual(refunded, {
     raw: { stone: 180 },
     products: { circuit: 185 },
+  });
+});
+
+test('cancelling a queue item refunds consumed stored buildings', () => {
+  const refunded = refundConstructionMaterials({
+    raw: {},
+    products: { boiler: 0 },
+  }, {
+    action: 'boiler',
+    seconds: 8,
+    total: 10,
+    storedBuildingKey: 'boiler',
+    storedBuildingQuantity: 1,
+    started: true,
+  });
+
+  assert.deepEqual(refunded, {
+    raw: {},
+    products: { boiler: 1 },
   });
 });
 

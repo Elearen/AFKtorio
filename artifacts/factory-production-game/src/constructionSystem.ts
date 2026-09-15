@@ -12,6 +12,8 @@ export type ConstructionQueueItem = {
   total: number;
   costs?: BuildMaterialCost[];
   reserved?: number[];
+  storedBuildingKey?: string;
+  storedBuildingQuantity?: number;
   started?: boolean;
   progressStartedAt?: number;
   progressDurationMs?: number;
@@ -59,6 +61,17 @@ export const constructionCanBeFullyFunded = (
   inventory: ConstructionInventory,
   costs: BuildMaterialCost[],
 ) => costs.every((cost) => (inventory[cost.source][cost.key] ?? 0) >= cost.amount - EPSILON);
+
+export const reserveStoredConstructionBuildings = (
+  inventory: ConstructionInventory,
+  buildingKey: string,
+  quantity: number,
+) => {
+  const available = Math.max(0, inventory.products[buildingKey] ?? 0);
+  const reserved = Math.min(Math.max(0, quantity), available);
+  if (reserved > 0) inventory.products[buildingKey] -= reserved;
+  return reserved;
+};
 
 export const hasWaitingConstruction = (
   queue: ConstructionQueueItem[],
@@ -117,6 +130,9 @@ export const refundConstructionMaterials = (
     const target = cost.source === 'raw' ? raw : products;
     target[cost.key] = (target[cost.key] ?? 0) + reserved;
   });
+  if (item.storedBuildingKey && (item.storedBuildingQuantity ?? 0) > 0) {
+    products[item.storedBuildingKey] = (products[item.storedBuildingKey] ?? 0) + item.storedBuildingQuantity!;
+  }
 
   return { raw, products };
 };

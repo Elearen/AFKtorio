@@ -7,7 +7,7 @@ import { technologyCatalog, type TechnologyDefinition } from './technologyCatalo
 import { technologyOrder } from './technologyOrder';
 import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, spaceScienceRecipeMachineCountAfterUnlock, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
 import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, centrifugeCraftingSpeed, centrifugePowerKw, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, electricFurnaceCraftingSpeed, electricFurnacePowerKw, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
-import { activateReadyConstruction, constructionCanBeFullyFunded, constructionDurationFor, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials } from './constructionSystem';
+import { activateReadyConstruction, constructionCanBeFullyFunded, constructionDurationFor, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials, reserveStoredConstructionBuildings } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import { calculateNuclearPowerFlow, type NuclearPowerFlow } from './nuclearPowerSystem';
 import { burnerMinerFuelRatioFor, burnerMinerNeedsFuel, miningPowerRatioFor } from './miningSystem';
@@ -89,6 +89,8 @@ type QueueItem = {
   machineCount?: number;
   costs?: BuildMaterialCost[];
   reserved?: number[];
+  storedBuildingKey?: string;
+  storedBuildingQuantity?: number;
   started?: boolean;
   progressStartedAt?: number;
   progressDurationMs?: number;
@@ -395,6 +397,29 @@ const automatedRecipeInputsFor = (state: GameState, recipe: Recipe) => {
 const furnaceLabelFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? 'Electric Furnace' : state.furnaceVariant === 'steel-furnace' ? 'Steel Furnace' : 'Stone Furnace';
 const furnaceBuildRecipeFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? electricFurnaceRecipe : state.furnaceVariant === 'steel-furnace' ? steelFurnaceRecipe : stoneFurnaceRecipe;
 const productionBuildingFor = (state: GameState, recipe: Recipe) => recipe.name === 'space-science-pack' ? 'rocket-silo' : isSmeltingRecipe(recipe) ? state.furnaceVariant : isOilRefineryRecipe(recipe) ? 'oil-refinery' : isChemicalPlantRecipe(recipe) ? 'chemical-plant' : isCentrifugeRecipe(recipe) ? 'centrifuge' : state.machineVariants.assembly;
+const constructionBuildingKeyFor = (state: GameState, action: QueueItem['action'], targetId?: string) => {
+  if (action === 'miner') return state.machineVariants.mining;
+  if (action === 'pump') return 'offshore-pump';
+  if (action === 'pumpjack') return 'pumpjack';
+  if (action === 'uraniumMiner') return 'uranium-miner';
+  if (action === 'assembler' || action === 'furnace') {
+    const recipe = targetId ? recipeMap[targetId] : undefined;
+    return recipe ? productionBuildingFor(state, recipe) : state.machineVariants.assembly;
+  }
+  if (action === 'lab') return 'lab';
+  if (action === 'boiler') return 'boiler';
+  if (action === 'steamEngine') return 'steam-engine';
+  if (action === 'solarPanel') return 'solar-panel';
+  if (action === 'accumulator') return 'accumulator';
+  if (action === 'nuclearReactor') return 'nuclear-reactor';
+  if (action === 'heatExchanger') return 'heat-exchanger';
+  if (action === 'steamTurbine') return 'steam-turbine';
+  if (action === 'storage') return targetId && fluidKeys.has(targetId as TrackedKey)
+    ? 'storage-tank'
+    : state.storageBoxType === 'steel' ? 'steel-chest' : state.storageBoxType === 'iron' ? 'iron-chest' : 'wooden-chest';
+  if (action === 'rocketSilo') return 'rocket-silo';
+  return undefined;
+};
 const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
 const trackedKeys: TrackedKey[] = Array.from(new Set([
   ...rawKeys,
@@ -4358,11 +4383,19 @@ function Game() {
     if (action === 'rocketParts' && (!s.rocketSiloBuilt || s.rocketPartsBuilt >= ROCKET_PART_TARGET || s.queue.some((item) => item.action === 'rocketParts'))) return s;
     const quantity = normalizeConstructionBatchSize(requestedQuantity);
     const totalSeconds = constructionDurationFor(seconds, quantity, s.workerRobotSpeedLevel);
-    const requestCosts = costs?.map((cost) => ({ ...cost, amount: cost.amount * quantity }));
+    const buildingKey = constructionBuildingKeyFor(s, action, targetId);
+    const availableStoredBuildings = buildingKey ? Math.min(quantity, Math.max(0, s.products[buildingKey] ?? 0)) : 0;
+    const remainingQuantity = quantity - availableStoredBuildings;
+    const requestCosts = remainingQuantity > 0
+      ? costs?.map((cost) => ({ ...cost, amount: cost.amount * remainingQuantity }))
+      : undefined;
     const affordable = !requestCosts?.length || constructionCanBeFullyFunded({ raw: s.raw, products: s.products }, requestCosts);
     if (!affordable && hasWaitingConstruction(s.queue, action, targetId)) return s;
     const raw = { ...s.raw };
     const products = { ...s.products };
+    const storedBuildingQuantity = buildingKey
+      ? reserveStoredConstructionBuildings({ raw, products }, buildingKey, quantity)
+      : 0;
     const reserved = requestCosts?.length ? reserveConstructionMaterials({ raw, products }, requestCosts) : undefined;
     const started = !requestCosts?.length || reserved?.every((amount, index) => amount >= requestCosts[index].amount - 0.000001);
     const visualTiming = started ? constructionVisualTiming(totalSeconds) : {};
@@ -4376,6 +4409,8 @@ function Game() {
       quantity,
       costs: requestCosts,
       reserved,
+      storedBuildingKey: storedBuildingQuantity > 0 ? buildingKey : undefined,
+      storedBuildingQuantity: storedBuildingQuantity > 0 ? storedBuildingQuantity : undefined,
       started,
       ...visualTiming,
     };
