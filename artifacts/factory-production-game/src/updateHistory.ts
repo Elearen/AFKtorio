@@ -1,6 +1,14 @@
 export const updateHistorySourceUrl = 'https://1drv.ms/t/c/41f8ca83fd4ca79d/IQASjG_buEfiSpV2qKvtef3mAcAfAjdACGMBPaXcXRq3zeQ';
 
-export const updateHistoryContent = `13/09/26
+export const updateHistoryContent = `15/09/26
+
+Mall update!
+
+Buildings in storage that have been made from non-core recipes are now used as a priority when constructing new buildings.
+
+This is not mandatory, construction still uses raw materials if no stored buildings are available, but I know many of you will love this.
+
+13/09/26
 
 UI updates, mostly related to readability, excess clutter and highlighting bottlenecks.
 
