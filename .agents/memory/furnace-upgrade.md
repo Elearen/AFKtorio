@@ -3,8 +3,8 @@ name: Furnace conversion
 description: Global Steel Furnace conversion behavior and construction distinction
 ---
 
-The Steel Furnace upgrade is a factory-wide conversion of all constructed stone furnaces. Its cost and duration come from the Steel Furnace recipe, and additional furnace construction follows the active variant recipe after conversion. The converted operating variant doubles smelting speed and halves coal per item.
+The furnace upgrade path is factory-wide: the Steel Furnace and Electric Furnace conversions affect all constructed furnaces, while Electric Furnace module levels are cumulative global variants. Additional furnace construction follows the active base furnace recipe after conversion; module variants use the Electric Furnace recipe. Electric module power is 256/276/272 kW for levels 1/2/3, while electric smelting remains coal-free and at the Electric Furnace base speed.
 
 **Why:** Existing production cards aggregate furnace counts by recipe, so a single saved variant keeps every smelting line consistent after one timed conversion without introducing per-card machine state.
 
-**How to apply:** Keep furnace construction timing and ingredients recipe-derived, selecting Stone Furnace before conversion and Steel Furnace after it. Apply the global furnace variant to smelting rate, fuel demand, icons, labels, and upgrade completion.
+**How to apply:** Keep furnace construction timing and ingredients recipe-derived, selecting Stone Furnace, Steel Furnace, or Electric Furnace as the base recipe. Keep the operational `furnaceVariant` synchronized with the generic `machineVariants.furnace` entry so ranked module upgrades, save migration, completion, power draw, fuel demand, icons, labels, and recipe effects all use the same global state.

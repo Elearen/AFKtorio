@@ -17,6 +17,7 @@ import {
   electricFurnacePrerequisiteMet,
   electricFurnaceUpgradeCostPerFurnace,
   electricFurnaceUpgradeTimePerFurnace,
+  electricFurnaceRecipeNames,
   steelFurnacePrerequisiteMet,
   assemblyMachineRecipeKeys,
   upgradeMap,
@@ -133,6 +134,36 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   assert.ok(!assemblyMachineRecipeKeys.includes('plastic-bar'));
   assert.ok(!assemblyMachineRecipeKeys.includes('uranium-processing'));
   assert.ok(!assemblyMachineRecipeKeys.includes('space-science-pack'));
+
+  const furnaceModules = upgradeMap['electric-furnace-modules-1'];
+  assert.equal(furnaceModules.machineGroup, 'furnace');
+  assert.equal(furnaceModules.prerequisiteMachineVariant, 'electric-furnace');
+  assert.deepEqual(furnaceModules.prerequisiteTechnologies, ['productivity-module', 'speed-module', 'efficiency-module']);
+  assert.equal(furnaceModules.newMachinePowerDraw, 256);
+  assert.equal(furnaceModules.powerDrawIncrease, 76);
+  assert.equal(furnaceModules.previousMachinePowerDraw, electricFurnacePowerKw);
+  assert.equal(furnaceModules.newMachineProductionSpeed, electricFurnaceCraftingSpeed);
+  assert.equal(furnaceModules.recipeProductivityBonus, 0.04);
+  assert.equal(furnaceModules.recipeSpeedBonus, 0.15);
+  assert.deepEqual(furnaceModules.affectedRecipes, electricFurnaceRecipeNames);
+
+  const furnaceModules2 = upgradeMap['electric-furnace-modules-2'];
+  assert.equal(furnaceModules2.prerequisiteUpgrade, 'electric-furnace-modules-1');
+  assert.equal(furnaceModules2.newMachinePowerDraw, 276);
+  assert.equal(furnaceModules2.powerDrawIncrease, 20);
+  assert.equal(furnaceModules2.previousMachinePowerDraw, 256);
+  assert.equal(furnaceModules2.recipeProductivityBonus, 0.02);
+  assert.equal(furnaceModules2.recipeSpeedBonus, 0.05);
+  assert.deepEqual(furnaceModules2.affectedRecipes, electricFurnaceRecipeNames);
+
+  const furnaceModules3 = upgradeMap['electric-furnace-modules-3'];
+  assert.equal(furnaceModules3.prerequisiteUpgrade, 'electric-furnace-modules-2');
+  assert.equal(furnaceModules3.newMachinePowerDraw, 272);
+  assert.equal(furnaceModules3.powerDrawChange, -4);
+  assert.equal(furnaceModules3.previousMachinePowerDraw, 276);
+  assert.equal(furnaceModules3.recipeProductivityBonus, 0.04);
+  assert.equal(furnaceModules3.recipeSpeedBonus, 0.15);
+  assert.deepEqual(furnaceModules3.affectedRecipes, electricFurnaceRecipeNames);
 
   const expectedLabSpeeds = [1.2, 1.5, 1.9, 2.4, 2.9, 3.5];
   expectedLabSpeeds.forEach((speed, index) => {
@@ -377,6 +408,63 @@ test('chemical plant module upgrades scale per chemical plant and preserve the r
   assert.equal(upgradeInstalledFor(modulesThree, 'chemical-plant-modules-1'), true);
   assert.equal(upgradeInstalledFor(modulesThree, 'chemical-plant-modules-2'), true);
   assert.equal(upgradeInstalledFor(modulesThree, 'chemical-plant-modules-3'), true);
+});
+
+test('electric furnace module upgrades scale per furnace and preserve the ranked chain', () => {
+  const moduleProducts = {
+    'productivity-module': 3,
+    'speed-module': 3,
+    'efficiency-module': 3,
+    'productivity-module-2': 3,
+    'speed-module-2': 3,
+    'efficiency-module-2': 3,
+    'productivity-module-3': 3,
+    'speed-module-3': 3,
+    'efficiency-module-3': 3,
+  };
+  const initial = baseState({
+    research: ['productivity-module', 'speed-module', 'efficiency-module'],
+    products: moduleProducts,
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill', furnace: 'electric-furnace' },
+    machineCounts: { assembly: 0, mining: 0, furnace: 3 },
+  });
+  const first = beginUpgrade(initial, 'electric-furnace-modules-1', 'electric-furnace-1');
+  assert.equal(first.ok, true);
+  if (!first.ok) return;
+  assert.equal(first.job.machineCount, 3);
+  assert.equal(first.job.total, 3);
+  assert.deepEqual(first.totalCosts, [
+    { key: 'productivity-module', amount: 3, source: 'products' },
+    { key: 'speed-module', amount: 3, source: 'products' },
+    { key: 'efficiency-module', amount: 3, source: 'products' },
+  ]);
+
+  const modulesOne = applyUpgradeCompletion(initial.machineVariants, 'electric-furnace-modules-1');
+  assert.equal(modulesOne.furnace, 'electric-furnace-modules-1');
+  const second = beginUpgrade({
+    ...initial,
+    queue: [],
+    products: first.state.products,
+    machineVariants: modulesOne,
+    research: [...initial.research, 'productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+  }, 'electric-furnace-modules-2', 'electric-furnace-2');
+  assert.equal(second.ok, true);
+  if (!second.ok) return;
+
+  const modulesTwo = applyUpgradeCompletion(modulesOne, 'electric-furnace-modules-2');
+  const third = beginUpgrade({
+    ...initial,
+    queue: [],
+    products: second.state.products,
+    machineVariants: modulesTwo,
+    research: [...second.state.research, 'productivity-module-3', 'speed-module-3', 'efficiency-module-3'],
+  }, 'electric-furnace-modules-3', 'electric-furnace-3');
+  assert.equal(third.ok, true);
+  const modulesThree = applyUpgradeCompletion(modulesTwo, 'electric-furnace-modules-3');
+  assert.equal(modulesThree.furnace, 'electric-furnace-modules-3');
+  assert.equal(upgradeInstalledFor(modulesThree, 'electric-furnace-modules-1'), true);
+  assert.equal(upgradeInstalledFor(modulesThree, 'electric-furnace-modules-2'), true);
+  assert.equal(upgradeInstalledFor(modulesThree, 'electric-furnace-modules-3'), true);
 });
 
 test('oil refinery module upgrades scale per refinery and preserve the ranked chain', () => {
@@ -779,7 +867,7 @@ test('save migration keeps valid state, removes legacy upgrade jobs, and allows 
     ],
   });
 
-  assert.deepEqual(migrated.machineVariants, { assembly: 'assembling-machine-2', mining: 'burner-mining-drill', chemical: 'chemical-plant', oilRefinery: 'oil-refinery' });
+  assert.deepEqual(migrated.machineVariants, { assembly: 'assembling-machine-2', mining: 'burner-mining-drill', furnace: 'stone-furnace', chemical: 'chemical-plant', oilRefinery: 'oil-refinery' });
   assert.deepEqual(migrated.queue.map((item) => item.id), ['build', 'valid']);
 });
 
@@ -816,7 +904,7 @@ test('save migration preserves Assembly Machine 3 state and jobs', () => {
     queue: [{ id: 'assembly-3', action: 'upgrade', target: 'Upgrade production to Assembly Machine 3', targetId: 'assembly-machine-3', machineCount: 5, seconds: 1, total: 2.5 }],
   });
 
-  assert.deepEqual(migrated.machineVariants, { assembly: 'assembling-machine-3', mining: 'burner-mining-drill', chemical: 'chemical-plant', oilRefinery: 'oil-refinery' });
+  assert.deepEqual(migrated.machineVariants, { assembly: 'assembling-machine-3', mining: 'burner-mining-drill', furnace: 'stone-furnace', chemical: 'chemical-plant', oilRefinery: 'oil-refinery' });
   assert.equal(migrated.queue[0].targetId, 'assembly-machine-3');
 });
 

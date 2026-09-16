@@ -1,7 +1,7 @@
 import { recipeCatalog } from './recipeCatalog.js';
-import { chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, oilRefineryCraftingSpeed, oilRefineryPowerKw, oilRefineryRecipeNames } from './productionSystem.js';
+import { chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, electricFurnaceCraftingSpeed, electricFurnacePowerKw, oilRefineryCraftingSpeed, oilRefineryPowerKw, oilRefineryRecipeNames } from './productionSystem.js';
 
-export type MachineGroup = 'assembly' | 'mining' | 'pumpjack' | 'chemical' | 'oilRefinery';
+export type MachineGroup = 'assembly' | 'mining' | 'pumpjack' | 'chemical' | 'oilRefinery' | 'furnace';
 export const MINING_MODULES_UPGRADE_ID = 'mining-modules-1';
 export const MINING_MODULES_2_UPGRADE_ID = 'mining-modules-2';
 export const MINING_MODULES_3_UPGRADE_ID = 'mining-modules-3';
@@ -17,6 +17,9 @@ export const CHEMICAL_PLANT_MODULES_3_UPGRADE_ID = 'chemical-plant-modules-3';
 export const OIL_REFINERY_MODULES_UPGRADE_ID = 'oil-refinery-modules-1';
 export const OIL_REFINERY_MODULES_2_UPGRADE_ID = 'oil-refinery-modules-2';
 export const OIL_REFINERY_MODULES_3_UPGRADE_ID = 'oil-refinery-modules-3';
+export const ELECTRIC_FURNACE_MODULES_UPGRADE_ID = 'electric-furnace-modules-1';
+export const ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID = 'electric-furnace-modules-2';
+export const ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID = 'electric-furnace-modules-3';
 export type UpgradeKey =
   | 'assembly-machine-2'
   | 'assembly-machine-3'
@@ -36,6 +39,9 @@ export type UpgradeKey =
   | typeof OIL_REFINERY_MODULES_UPGRADE_ID
   | typeof OIL_REFINERY_MODULES_2_UPGRADE_ID
   | typeof OIL_REFINERY_MODULES_3_UPGRADE_ID
+  | typeof ELECTRIC_FURNACE_MODULES_UPGRADE_ID
+  | typeof ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID
+  | typeof ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID
   | 'research-speed-1'
   | 'research-speed-2'
   | 'research-speed-3'
@@ -69,6 +75,7 @@ export type MachineVariants = {
   pumpjack?: string;
   chemical?: string;
   oilRefinery?: string;
+  furnace?: string;
 };
 export type MachineCounts = {
   assembly: number;
@@ -76,6 +83,7 @@ export type MachineCounts = {
   pumpjack?: number;
   chemical?: number;
   oilRefinery?: number;
+  furnace?: number;
 };
 const assemblyMachineExcludedRecipeNames = new Set([
   'basic-oil-processing',
@@ -85,6 +93,7 @@ const assemblyMachineExcludedRecipeNames = new Set([
   ...chemicalPlantRecipeNames,
 ]);
 const smeltingRecipeNames = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
+export const electricFurnaceRecipeNames = [...smeltingRecipeNames];
 export const assemblyMachineRecipeKeys = recipeCatalog
   .filter((recipe) => !smeltingRecipeNames.has(recipe.name)
     && recipe.category !== 'centrifuging'
@@ -584,6 +593,84 @@ export const upgradeData: UpgradeDefinition[] = [
     recipeProductivityBonus: 0.04,
     recipeSpeedBonus: 0.15,
   },
+  {
+    id: ELECTRIC_FURNACE_MODULES_UPGRADE_ID,
+    name: 'Upgrade Electric Furnaces to Modules 1',
+    copy: 'Install productivity, speed, and efficiency modules in every Electric Furnace.',
+    prerequisiteTechnology: 'productivity-module',
+    prerequisiteTechnologies: ['productivity-module', 'speed-module', 'efficiency-module'],
+    prerequisiteMachineVariant: 'electric-furnace',
+    relevantMachine: 'Electric Furnace',
+    machineGroup: 'furnace',
+    upgradeCostPerMachine: products([
+      ['productivity-module', 1],
+      ['speed-module', 1],
+      ['efficiency-module', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'electric-furnace-modules-1',
+    newMachineLabel: 'Electric Furnace + L1 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 256,
+    powerDrawIncrease: 76,
+    previousMachinePowerDraw: electricFurnacePowerKw,
+    newMachineProductionSpeed: electricFurnaceCraftingSpeed,
+    affectedRecipes: electricFurnaceRecipeNames,
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
+  {
+    id: ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID,
+    name: 'Upgrade Electric Furnaces to Modules 2',
+    copy: 'Install level 2 productivity, speed, and efficiency modules in every Electric Furnace.',
+    prerequisiteTechnology: 'productivity-module-2',
+    prerequisiteTechnologies: ['productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+    prerequisiteUpgrade: ELECTRIC_FURNACE_MODULES_UPGRADE_ID,
+    relevantMachine: 'Electric Furnace + L1 Modules',
+    machineGroup: 'furnace',
+    upgradeCostPerMachine: products([
+      ['productivity-module-2', 1],
+      ['speed-module-2', 1],
+      ['efficiency-module-2', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'electric-furnace-modules-2',
+    newMachineLabel: 'Electric Furnace + L2 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 276,
+    powerDrawIncrease: 20,
+    previousMachinePowerDraw: 256,
+    newMachineProductionSpeed: electricFurnaceCraftingSpeed,
+    affectedRecipes: electricFurnaceRecipeNames,
+    recipeProductivityBonus: 0.02,
+    recipeSpeedBonus: 0.05,
+  },
+  {
+    id: ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID,
+    name: 'Upgrade Electric Furnaces to Modules 3',
+    copy: 'Install level 3 productivity, speed, and efficiency modules in every Electric Furnace.',
+    prerequisiteTechnology: 'productivity-module-3',
+    prerequisiteTechnologies: ['productivity-module-3', 'speed-module-3', 'efficiency-module-3'],
+    prerequisiteUpgrade: ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID,
+    relevantMachine: 'Electric Furnace + L2 Modules',
+    machineGroup: 'furnace',
+    upgradeCostPerMachine: products([
+      ['productivity-module-3', 1],
+      ['speed-module-3', 1],
+      ['efficiency-module-3', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'electric-furnace-modules-3',
+    newMachineLabel: 'Electric Furnace + L3 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 272,
+    powerDrawChange: -4,
+    previousMachinePowerDraw: 276,
+    newMachineProductionSpeed: electricFurnaceCraftingSpeed,
+    affectedRecipes: electricFurnaceRecipeNames,
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
   ...([
     { level: 1, speed: 1.2, technology: 'research-speed-1', previous: undefined },
     { level: 2, speed: 1.5, technology: 'research-speed-2', previous: 'research-speed-1' },
@@ -742,6 +829,14 @@ const machineVariantRank: Record<MachineGroup, Record<string, number>> = {
     'oil-refinery-modules-2': 3,
     'oil-refinery-modules-3': 4,
   },
+  furnace: {
+    'stone-furnace': 1,
+    'steel-furnace': 2,
+    'electric-furnace': 3,
+    'electric-furnace-modules-1': 4,
+    'electric-furnace-modules-2': 5,
+    'electric-furnace-modules-3': 6,
+  },
 };
 
 export const upgradeInstalledFor = (machineVariants: MachineVariants, upgradeId: string) => {
@@ -789,6 +884,12 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
           ? 'electric-mining-drill-modules-1'
           : savedVariants.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
   };
+  const savedFurnace = savedVariants.furnace;
+  if (savedFurnace === 'stone-furnace' || savedFurnace === 'steel-furnace' || savedFurnace === 'electric-furnace' || savedFurnace === 'electric-furnace-modules-1' || savedFurnace === 'electric-furnace-modules-2' || savedFurnace === 'electric-furnace-modules-3') {
+    machineVariants.furnace = savedFurnace;
+  } else {
+    machineVariants.furnace = 'stone-furnace';
+  }
   const savedChemical = savedVariants.chemical;
   if (savedChemical === 'chemical-plant' || savedChemical === 'chemical-plant-modules-1' || savedChemical === 'chemical-plant-modules-2' || savedChemical === 'chemical-plant-modules-3') {
     machineVariants.chemical = savedChemical;

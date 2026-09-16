@@ -12,7 +12,7 @@ import { calculatePowerFlow } from './powerSystem';
 import { calculateNuclearPowerFlow, type NuclearPowerFlow } from './nuclearPowerSystem';
 import { burnerMinerFuelRatioFor, burnerMinerNeedsFuel, miningPowerRatioFor } from './miningSystem';
 import {
-  ASSEMBLY_MODULES_2_UPGRADE_ID, ASSEMBLY_MODULES_3_UPGRADE_ID, ASSEMBLY_MODULES_UPGRADE_ID, CHEMICAL_PLANT_MODULES_2_UPGRADE_ID, CHEMICAL_PLANT_MODULES_3_UPGRADE_ID, CHEMICAL_PLANT_MODULES_UPGRADE_ID, MINING_MODULES_2_UPGRADE_ID, MINING_MODULES_3_UPGRADE_ID, MINING_MODULES_UPGRADE_ID, OIL_PROCESSING_UPGRADE_ID, OIL_REFINERY_MODULES_2_UPGRADE_ID, OIL_REFINERY_MODULES_3_UPGRADE_ID, OIL_REFINERY_MODULES_UPGRADE_ID, PUMPJACK_MODULES_2_UPGRADE_ID, PUMPJACK_MODULES_3_UPGRADE_ID, PUMPJACK_MODULES_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
+  ASSEMBLY_MODULES_2_UPGRADE_ID, ASSEMBLY_MODULES_3_UPGRADE_ID, ASSEMBLY_MODULES_UPGRADE_ID, CHEMICAL_PLANT_MODULES_2_UPGRADE_ID, CHEMICAL_PLANT_MODULES_3_UPGRADE_ID, CHEMICAL_PLANT_MODULES_UPGRADE_ID, ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID, ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID, ELECTRIC_FURNACE_MODULES_UPGRADE_ID, MINING_MODULES_2_UPGRADE_ID, MINING_MODULES_3_UPGRADE_ID, MINING_MODULES_UPGRADE_ID, OIL_PROCESSING_UPGRADE_ID, OIL_REFINERY_MODULES_2_UPGRADE_ID, OIL_REFINERY_MODULES_3_UPGRADE_ID, OIL_REFINERY_MODULES_UPGRADE_ID, PUMPJACK_MODULES_2_UPGRADE_ID, PUMPJACK_MODULES_3_UPGRADE_ID, PUMPJACK_MODULES_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
   kovarexConditionMet, migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeInstalledFor, upgradeMap,
   ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY, ELECTRIC_FURNACE_UPGRADE_ID, electricFurnacePrerequisiteMet, electricFurnaceUpgradeCostPerFurnace, electricFurnaceUpgradeTimePerFurnace, steelFurnacePrerequisiteMet, type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
@@ -153,7 +153,7 @@ type GameState = {
   constructionBatchSize: ConstructionBatchSize;
   rateHistory: RateSample[];
   machineVariants: MachineVariants;
-  furnaceVariant: 'stone-furnace' | 'steel-furnace' | 'electric-furnace';
+  furnaceVariant: 'stone-furnace' | 'steel-furnace' | 'electric-furnace' | 'electric-furnace-modules-1' | 'electric-furnace-modules-2' | 'electric-furnace-modules-3';
   totalOutput: number;
   lastSeen: number;
   gameStartTimestamp: number;
@@ -398,10 +398,24 @@ const assemblyMachineUsesThreeVariant = (variant: string) =>
 const assemblyMachineConstructionVariantFor = (state: GameState) =>
   assemblyMachineUsesThreeVariant(state.machineVariants.assembly) ? 'assembling-machine-3'
     : state.machineVariants.assembly === 'assembling-machine-2' ? 'assembling-machine-2' : 'assembling-machine-1';
-const furnaceCraftingSpeedFor = (state: GameState) => state.furnaceVariant === 'electric-furnace'
+const isElectricFurnaceVariant = (variant: GameState['furnaceVariant']) => variant === 'electric-furnace'
+  || variant === ELECTRIC_FURNACE_MODULES_UPGRADE_ID
+  || variant === ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID
+  || variant === ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID;
+const electricFurnacePowerFor = (state: GameState) => state.furnaceVariant === ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID
+  ? upgradeMap[ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID].newMachinePowerDraw
+  : state.furnaceVariant === ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID
+    ? upgradeMap[ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID].newMachinePowerDraw
+    : state.furnaceVariant === ELECTRIC_FURNACE_MODULES_UPGRADE_ID
+      ? upgradeMap[ELECTRIC_FURNACE_MODULES_UPGRADE_ID].newMachinePowerDraw
+      : electricFurnacePowerKw;
+const furnaceConstructionVariantFor = (state: GameState) => isElectricFurnaceVariant(state.furnaceVariant)
+  ? 'electric-furnace'
+  : state.furnaceVariant;
+const furnaceCraftingSpeedFor = (state: GameState) => isElectricFurnaceVariant(state.furnaceVariant)
   ? electricFurnaceCraftingSpeed
   : state.furnaceVariant === 'steel-furnace' ? steelFurnaceCraftingSpeed : 1;
-const furnaceFuelMultiplierFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? 0 : state.furnaceVariant === 'steel-furnace' ? 0.5 : 1;
+const furnaceFuelMultiplierFor = (state: GameState) => isElectricFurnaceVariant(state.furnaceVariant) ? 0 : state.furnaceVariant === 'steel-furnace' ? 0.5 : 1;
 const automatedRecipeInputsFor = (state: GameState, recipe: Recipe) => {
   const inputs = automatedRecipeInputs(recipe);
   if (isSmeltingRecipe(recipe) && inputs.coal) {
@@ -409,9 +423,16 @@ const automatedRecipeInputsFor = (state: GameState, recipe: Recipe) => {
   }
   return inputs;
 };
-const furnaceLabelFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? 'Electric Furnace' : state.furnaceVariant === 'steel-furnace' ? 'Steel Furnace' : 'Stone Furnace';
-const furnaceBuildRecipeFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? electricFurnaceRecipe : state.furnaceVariant === 'steel-furnace' ? steelFurnaceRecipe : stoneFurnaceRecipe;
-const productionBuildingFor = (state: GameState, recipe: Recipe) => recipe.name === 'space-science-pack' ? 'rocket-silo' : isSmeltingRecipe(recipe) ? state.furnaceVariant : isOilRefineryRecipe(recipe) ? 'oil-refinery' : isChemicalPlantRecipe(recipe) ? 'chemical-plant' : isCentrifugeRecipe(recipe) ? 'centrifuge' : assemblyMachineConstructionVariantFor(state);
+const furnaceLabelFor = (state: GameState) => state.furnaceVariant === ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID
+  ? 'Electric Furnace + L3 Modules'
+  : state.furnaceVariant === ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID
+    ? 'Electric Furnace + L2 Modules'
+    : state.furnaceVariant === ELECTRIC_FURNACE_MODULES_UPGRADE_ID
+      ? 'Electric Furnace + L1 Modules'
+      : state.furnaceVariant === 'electric-furnace' ? 'Electric Furnace' : state.furnaceVariant === 'steel-furnace' ? 'Steel Furnace' : 'Stone Furnace';
+const furnaceBuildRecipeFor = (state: GameState) => furnaceConstructionVariantFor(state) === 'electric-furnace'
+  ? electricFurnaceRecipe : state.furnaceVariant === 'steel-furnace' ? steelFurnaceRecipe : stoneFurnaceRecipe;
+const productionBuildingFor = (state: GameState, recipe: Recipe) => recipe.name === 'space-science-pack' ? 'rocket-silo' : isSmeltingRecipe(recipe) ? furnaceConstructionVariantFor(state) : isOilRefineryRecipe(recipe) ? 'oil-refinery' : isChemicalPlantRecipe(recipe) ? 'chemical-plant' : isCentrifugeRecipe(recipe) ? 'centrifuge' : assemblyMachineConstructionVariantFor(state);
 const constructionBuildingKeyFor = (state: GameState, action: QueueItem['action'], targetId?: string) => {
   if (action === 'miner') return state.machineVariants.mining === 'electric-mining-drill-modules-1' || state.machineVariants.mining === 'electric-mining-drill-modules-2' || state.machineVariants.mining === 'electric-mining-drill-modules-3' ? 'electric-mining-drill' : state.machineVariants.mining;
   if (action === 'pump') return 'offshore-pump';
@@ -552,7 +573,7 @@ const recipeBuildCosts = (recipe: Recipe): BuildMaterialCost[] => Object.entries
 }));
 const legacyUpgradeCostsFor = (item: QueueItem): BuildMaterialCost[] | undefined => {
   if (item.action !== 'upgrade' || item.costs?.length || !item.targetId || !item.machineCount || item.machineCount <= 0) return undefined;
-  if (item.targetId === 'assembly-machine-2' || item.targetId === 'assembly-machine-3' || item.targetId === 'electric-mining-drill' || item.targetId === MINING_MODULES_UPGRADE_ID || item.targetId === MINING_MODULES_2_UPGRADE_ID || item.targetId === MINING_MODULES_3_UPGRADE_ID || item.targetId === PUMPJACK_MODULES_UPGRADE_ID || item.targetId === PUMPJACK_MODULES_2_UPGRADE_ID || item.targetId === PUMPJACK_MODULES_3_UPGRADE_ID || item.targetId === CHEMICAL_PLANT_MODULES_UPGRADE_ID || item.targetId === CHEMICAL_PLANT_MODULES_2_UPGRADE_ID || item.targetId === CHEMICAL_PLANT_MODULES_3_UPGRADE_ID || item.targetId === OIL_REFINERY_MODULES_UPGRADE_ID || item.targetId === OIL_REFINERY_MODULES_2_UPGRADE_ID || item.targetId === OIL_REFINERY_MODULES_3_UPGRADE_ID) {
+  if (item.targetId === 'assembly-machine-2' || item.targetId === 'assembly-machine-3' || item.targetId === 'electric-mining-drill' || item.targetId === MINING_MODULES_UPGRADE_ID || item.targetId === MINING_MODULES_2_UPGRADE_ID || item.targetId === MINING_MODULES_3_UPGRADE_ID || item.targetId === PUMPJACK_MODULES_UPGRADE_ID || item.targetId === PUMPJACK_MODULES_2_UPGRADE_ID || item.targetId === PUMPJACK_MODULES_3_UPGRADE_ID || item.targetId === CHEMICAL_PLANT_MODULES_UPGRADE_ID || item.targetId === CHEMICAL_PLANT_MODULES_2_UPGRADE_ID || item.targetId === CHEMICAL_PLANT_MODULES_3_UPGRADE_ID || item.targetId === OIL_REFINERY_MODULES_UPGRADE_ID || item.targetId === OIL_REFINERY_MODULES_2_UPGRADE_ID || item.targetId === OIL_REFINERY_MODULES_3_UPGRADE_ID || item.targetId === ELECTRIC_FURNACE_MODULES_UPGRADE_ID || item.targetId === ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID || item.targetId === ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID) {
     const upgrade = upgradeMap[item.targetId];
     return scaledBuildCosts(upgrade.upgradeCostPerMachine, item.machineCount);
   }
@@ -603,7 +624,7 @@ const initialState: GameState = {
   oilProcessingAdvanced: false,
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, nuclearReactors: 0, heatExchangers: 0, steamTurbines: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
-  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], autoResearchEnabled: true, researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill', pumpjack: 'pumpjack', chemical: 'chemical-plant', oilRefinery: 'oil-refinery' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
+  labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], autoResearchEnabled: true, researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill', pumpjack: 'pumpjack', chemical: 'chemical-plant', oilRefinery: 'oil-refinery', furnace: 'stone-furnace' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
   totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, launchRankingStats: null, tutorialVisible: true, welcomeSeen: false, unedited: true, launchRankingEligible: true, updateHistoryVersion, recipeProductivity: {}, recipeSpeed: {},
 };
 
@@ -819,7 +840,7 @@ const electricPowerDraw = (state: GameState) => {
     return total + (recipe && !isSmeltingRecipe(recipe) && !recipePausedFor(state, recipeKey) ? count * assemblyMachinePowerFor(state, recipe) : 0);
   }, 0);
   const activeSmeltingFurnaceCount = Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => total + (recipePausedFor(state, recipeKey) ? 0 : state.assemblers[recipeKey] ?? 0), 0);
-  const furnacePower = state.furnaceVariant === 'electric-furnace' ? activeSmeltingFurnaceCount * electricFurnacePowerKw : 0;
+  const furnacePower = isElectricFurnaceVariant(state.furnaceVariant) ? activeSmeltingFurnaceCount * electricFurnacePowerFor(state) : 0;
   const activeElectricMinerCount = activeElectricMinerCountFor(state);
   const activeUraniumMinerCount = activeUraniumMinerCountFor(state);
   const electricMiningPower = electricMiningVariantFor(state)
@@ -836,13 +857,15 @@ const electricPowerRatioFor = (state: GameState, seconds = 1) => {
 };
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
 const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.pumpjacks + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels + state.accumulators;
-const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => (upgrade.id === MINING_MODULES_UPGRADE_ID || upgrade.id === MINING_MODULES_2_UPGRADE_ID || upgrade.id === MINING_MODULES_3_UPGRADE_ID)
+  const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => (upgrade.id === MINING_MODULES_UPGRADE_ID || upgrade.id === MINING_MODULES_2_UPGRADE_ID || upgrade.id === MINING_MODULES_3_UPGRADE_ID)
   ? electricMiningVariantFor(state) ? electricMinerCountFor(state) : 0
   : (upgrade.id === CHEMICAL_PLANT_MODULES_UPGRADE_ID || upgrade.id === CHEMICAL_PLANT_MODULES_2_UPGRADE_ID || upgrade.id === CHEMICAL_PLANT_MODULES_3_UPGRADE_ID)
     ? chemicalPlantCountFor(state)
     : (upgrade.id === OIL_REFINERY_MODULES_UPGRADE_ID || upgrade.id === OIL_REFINERY_MODULES_2_UPGRADE_ID || upgrade.id === OIL_REFINERY_MODULES_3_UPGRADE_ID)
       ? oilRefineryCountFor(state)
-      : upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state), pumpjack: state.pumpjacks, chemical: chemicalPlantCountFor(state), oilRefinery: oilRefineryCountFor(state) }, upgrade, state.labs);
+      : (upgrade.id === ELECTRIC_FURNACE_MODULES_UPGRADE_ID || upgrade.id === ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID || upgrade.id === ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID)
+        ? isElectricFurnaceVariant(state.furnaceVariant) ? smeltingFurnaceCountFor(state) : 0
+        : upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state), pumpjack: state.pumpjacks, chemical: chemicalPlantCountFor(state), oilRefinery: oilRefineryCountFor(state), furnace: smeltingFurnaceCountFor(state) }, upgrade, state.labs);
 const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-3'
   ? 'Electric Miner + L3 Modules'
   : state.machineVariants.mining === 'electric-mining-drill-modules-2'
@@ -1367,7 +1390,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     const count = state.assemblers[key] ?? 0;
     if (!count || recipePausedFor(state, key)) return;
     const recipe = recipeMap[key];
-    const machinePowerRatio = isSmeltingRecipe(recipe) && state.furnaceVariant !== 'electric-furnace' ? 1 : powerRatio;
+    const machinePowerRatio = isSmeltingRecipe(recipe) && !isElectricFurnaceVariant(state.furnaceVariant) ? 1 : powerRatio;
     const storageThrottle = offline ? 1 : recipeStorageThrottleFor(state, recipe, machinePowerRatio);
     // Progress represents an in-flight cycle, not a queue of completed
     // cycles. Clamp legacy/starved backlog before advancing the line so a
@@ -1524,8 +1547,10 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
         state.storage = Object.fromEntries(trackedKeys.map((key) => [key, storageCapacityFor(state, key)])) as Record<TrackedKey, number>;
       } else if (upgradeId === 'steel-furnaces' && state.furnaceVariant === 'stone-furnace') {
         state.furnaceVariant = 'steel-furnace';
+        state.machineVariants = { ...state.machineVariants, furnace: 'steel-furnace' };
       } else if (upgradeId === ELECTRIC_FURNACE_UPGRADE_ID && state.furnaceVariant === 'steel-furnace') {
         state.furnaceVariant = 'electric-furnace';
+        state.machineVariants = { ...state.machineVariants, furnace: 'electric-furnace' };
       } else if (upgradeId === OIL_PROCESSING_UPGRADE_ID && !state.oilProcessingAdvanced) {
         const machineCount = item.machineCount ?? state.assemblers['basic-oil-processing'] ?? 0;
         state.assemblers = applyOilProcessingUpgradeCompletion(state.assemblers, machineCount);
@@ -1539,6 +1564,10 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
         state.labSpeedLevel = applyLabSpeedUpgradeCompletion(state.labSpeedLevel, upgradeId);
       } else {
         state.machineVariants = applyUpgradeCompletion(state.machineVariants, upgradeId);
+        const completedMachineVariant = upgradeMap[upgradeId as keyof typeof upgradeMap]?.machineGroup === 'furnace'
+          ? state.machineVariants.furnace
+          : undefined;
+        if (completedMachineVariant) state.furnaceVariant = completedMachineVariant as GameState['furnaceVariant'];
          const completedUpgrade = upgradeMap[upgradeId as keyof typeof upgradeMap];
          if (completedUpgrade?.affectedRecipes?.length) {
            const productivity = { ...state.recipeProductivity };
@@ -1584,9 +1613,15 @@ function loadState() {
       return storage;
     })();
     const storageBoxType = parsed.storageBoxType === 'steel' ? 'steel' : parsed.storageBoxType === 'iron' ? 'iron' : 'wooden';
-    const furnaceVariant = parsed.furnaceVariant === 'electric-furnace'
-      ? 'electric-furnace'
-      : parsed.furnaceVariant === 'steel-furnace' ? 'steel-furnace' : 'stone-furnace';
+     const furnaceVariant = parsed.furnaceVariant === ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID
+       ? ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID
+       : parsed.furnaceVariant === ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID
+         ? ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID
+         : parsed.furnaceVariant === ELECTRIC_FURNACE_MODULES_UPGRADE_ID
+           ? ELECTRIC_FURNACE_MODULES_UPGRADE_ID
+           : parsed.furnaceVariant === 'electric-furnace'
+             ? 'electric-furnace'
+             : parsed.furnaceVariant === 'steel-furnace' ? 'steel-furnace' : 'stone-furnace';
     const migratedStorage = migrateStorageState({
       trackedKeys,
       fluidKeys,
@@ -1686,7 +1721,7 @@ function loadState() {
         delete consumption.researchPack;
         return { ...sample, production, consumption };
       }) : [],
-       machineVariants: { ...initialState.machineVariants, ...migratedUpgradeState.machineVariants },
+       machineVariants: { ...initialState.machineVariants, ...migratedUpgradeState.machineVariants, furnace: furnaceVariant },
       labSpeedLevel: migratedUpgradeState.labSpeedLevel,
       queue: normalizeConstructionQueue(migratedUpgradeState.queue.map((item) => {
         const normalizedItem = { ...item, quantity: normalizeConstructionBatchSize((item as Partial<QueueItem>).quantity) };
@@ -2872,7 +2907,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
           </div>
         </div>
          {autoCondition.label && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-auto-condition-${key}`}><div className="flex items-center justify-between gap-2 text-[10px]"><span className="eyebrow text-[hsl(var(--primary))]">Auto start / stop</span><Tag tone={paused ? 'amber' : autoCondition.met ? 'teal' : 'amber'}>{paused ? 'paused' : autoCondition.met ? 'running' : 'stopped'}</Tag></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{paused ? 'Paused manually. Click PAUSED above to resume.' : <>Runs when <span className="font-semibold text-[hsl(var(--foreground))]">{autoCondition.label}</span>.</>}</div></div>}
-         {smelting && recipe.fuel && state.furnaceVariant !== 'electric-furnace' && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
+         {smelting && recipe.fuel && !isElectricFurnaceVariant(state.furnaceVariant) && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
           <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} manualOutputEvent={primaryOutput ? state.manualOutputEvents[primaryOutput.key] ?? 0 : 0} storageWarning={Boolean(primaryOutput && peakDemandRate / 60 > capFor(state, primaryOutput.key))} />
             <div className="mt-4 flex gap-2">{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${constructionBatchSize} ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-${count ? 'build-more' : 'build'}-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct' : `construct ${constructionBatchSize}`} <ResourceIcon item={building} size={13} /></>}</button></div>
            {isBuilding && <BuildProgress items={constructionItems} label={buildingLabel} cancelConstruction={cancelConstruction} notice={notice} />}
@@ -3365,7 +3400,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
   const furnaceUpgradeTotalSeconds = steelFurnaceRecipe.energyRequired * furnaceCount;
   const furnaceUpgradeMissing = furnaceUpgradeComplete || !furnaceCount ? '' : missingBuildMaterials(state, furnaceUpgradeCosts);
   const furnaceUpgradePrerequisiteMet = steelFurnacePrerequisiteMet(state.research);
-  const electricFurnaceUpgradeComplete = state.furnaceVariant === 'electric-furnace';
+  const electricFurnaceUpgradeComplete = isElectricFurnaceVariant(state.furnaceVariant);
   const electricFurnaceUpgradeQueued = activeUpgrade?.targetId === ELECTRIC_FURNACE_UPGRADE_ID;
   const electricFurnaceUpgradeCosts = scaledBuildCosts(electricFurnaceUpgradeCostPerFurnace, furnaceCount);
   const electricFurnaceUpgradeTotalSeconds = electricFurnaceUpgradeTimePerFurnace * furnaceCount;
@@ -3389,8 +3424,8 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
       raw: state.raw,
       products: state.products,
       research: state.research,
-      machineVariants: state.machineVariants,
-      machineCounts: { assembly: electricAssemblerCount(state), mining: machineCountForUpgrade(state, { ...upgrade, machineGroup: 'mining' }), pumpjack: state.pumpjacks, chemical: chemicalPlantCountFor(state), oilRefinery: oilRefineryCountFor(state) },
+      machineVariants: { ...state.machineVariants, furnace: state.furnaceVariant },
+      machineCounts: { assembly: electricAssemblerCount(state), mining: machineCountForUpgrade(state, { ...upgrade, machineGroup: 'mining' }), pumpjack: state.pumpjacks, chemical: chemicalPlantCountFor(state), oilRefinery: oilRefineryCountFor(state), furnace: smeltingFurnaceCountFor(state) },
       labCount: state.labs,
       labSpeedLevel: state.labSpeedLevel,
       queue: state.queue,
@@ -3546,13 +3581,16 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     [OIL_REFINERY_MODULES_3_UPGRADE_ID]: 19,
     'steel-furnaces': 20,
     [ELECTRIC_FURNACE_UPGRADE_ID]: 21,
-    'research-speed-1': 22,
-    'research-speed-2': 23,
-    'research-speed-3': 24,
-    'research-speed-4': 25,
-    'research-speed-5': 26,
-    'research-speed-6': 27,
-    [OIL_PROCESSING_UPGRADE_ID]: 28,
+    [ELECTRIC_FURNACE_MODULES_UPGRADE_ID]: 22,
+    [ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID]: 23,
+    [ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID]: 24,
+    'research-speed-1': 25,
+    'research-speed-2': 26,
+    'research-speed-3': 27,
+    'research-speed-4': 28,
+    'research-speed-5': 29,
+    'research-speed-6': 30,
+    [OIL_PROCESSING_UPGRADE_ID]: 31,
   };
   const upgradeAvailabilityRank = (complete: boolean, prerequisiteMet: boolean) => complete ? 2 : prerequisiteMet ? 0 : 1;
   const upgradeStatus = (complete: boolean, queued: boolean, canStart: boolean, missing: string, prerequisiteMet: boolean, machineCount: number) =>
@@ -3675,6 +3713,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
       const isOilRefineryModuleUpgrade = item.id === OIL_REFINERY_MODULES_UPGRADE_ID || item.id === OIL_REFINERY_MODULES_2_UPGRADE_ID || item.id === OIL_REFINERY_MODULES_3_UPGRADE_ID;
       const isPumpjackModuleUpgrade = item.id === PUMPJACK_MODULES_UPGRADE_ID || item.id === PUMPJACK_MODULES_2_UPGRADE_ID || item.id === PUMPJACK_MODULES_3_UPGRADE_ID;
       const isMiningModuleUpgrade = item.id === MINING_MODULES_UPGRADE_ID || item.id === MINING_MODULES_2_UPGRADE_ID || item.id === MINING_MODULES_3_UPGRADE_ID;
+       const isElectricFurnaceModuleUpgrade = item.id === ELECTRIC_FURNACE_MODULES_UPGRADE_ID || item.id === ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID || item.id === ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID;
       const totalCosts = scaledBuildCosts(item.upgradeCostPerMachine, machineCount);
       const missing = complete || !machineCount ? '' : missingBuildMaterials(state, totalCosts);
       const conversionCount = activeUpgrade?.machineCount ?? machineCount;
@@ -3695,6 +3734,8 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
             ? 'electric-mining-drill'
             : isPumpjackModuleUpgrade
               ? 'pumpjack'
+             : isElectricFurnaceModuleUpgrade
+               ? 'electric-furnace'
             : 'burner-mining-drill';
       const fromLabel = isLabSpeedUpgrade
         ? 'Science Lab'
@@ -3732,11 +3773,17 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
               ? 'Electric Miner + L1 Modules'
               : item.id === MINING_MODULES_3_UPGRADE_ID
                 ? 'Electric Miner + L2 Modules'
+             : item.id === ELECTRIC_FURNACE_MODULES_UPGRADE_ID
+               ? 'Electric Furnace'
+             : item.id === ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID
+               ? 'Electric Furnace + L1 Modules'
+             : item.id === ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID
+               ? 'Electric Furnace + L2 Modules'
             : 'Burner Mining Drill';
       const toMachine = isLabSpeedUpgrade
         ? 'lab'
-        : isAssemblyModuleUpgrade || isChemicalPlantModuleUpgrade || isOilRefineryModuleUpgrade || isMiningModuleUpgrade || isPumpjackModuleUpgrade
-          ? (isAssemblyModuleUpgrade ? 'assembling-machine-3' : isChemicalPlantModuleUpgrade ? 'chemical-plant' : isOilRefineryModuleUpgrade ? 'oil-refinery' : isMiningModuleUpgrade ? 'electric-mining-drill' : 'pumpjack')
+         : isAssemblyModuleUpgrade || isChemicalPlantModuleUpgrade || isOilRefineryModuleUpgrade || isMiningModuleUpgrade || isPumpjackModuleUpgrade || isElectricFurnaceModuleUpgrade
+           ? (isAssemblyModuleUpgrade ? 'assembling-machine-3' : isChemicalPlantModuleUpgrade ? 'chemical-plant' : isOilRefineryModuleUpgrade ? 'oil-refinery' : isMiningModuleUpgrade ? 'electric-mining-drill' : isPumpjackModuleUpgrade ? 'pumpjack' : 'electric-furnace')
           : item.newMachine;
       const prerequisiteLabel = [...prerequisiteTechnologies, ...(item.prerequisiteMachineVariant ? [prettyLabel(item.prerequisiteMachineVariant)] : []), ...(item.prerequisiteUpgrade ? [upgradeMap[item.prerequisiteUpgrade].name] : [])].join(' + ') || undefined;
       const powerMachineLabel = item.machineGroup === 'mining'
@@ -3747,7 +3794,9 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
             ? 'Chemical Plant'
             : item.machineGroup === 'oilRefinery'
               ? 'Oil Refinery'
-              : 'Pumpjack';
+               : item.machineGroup === 'furnace'
+                 ? 'Electric Furnace'
+                 : 'Pumpjack';
       const detail: UpgradeInfo = {
         id: item.id,
         title: item.name,
@@ -3784,6 +3833,8 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
                  ? 'Affected chemical-plant recipes: all Chemical Plant recipes.'
                : item.machineGroup === 'oilRefinery'
                  ? 'Affected oil-refinery recipes: Basic Oil Processing and Advanced Oil Processing.'
+                : item.machineGroup === 'furnace'
+                  ? 'Affected smelting recipes: Iron Plate, Copper Plate, Steel Plate, and Stone Brick.'
                : `${item.machineGroup === 'pumpjack' ? 'Affected pumpjack output' : 'Affected mining lines'}: ${item.affectedRecipes.map((recipe) => prettyLabel(recipe)).join(', ')}.`,
             item.recipeProductivityBonus !== undefined ? `Productivity bonus: +${item.recipeProductivityBonus * 100}%.` : '',
             item.recipeSpeedBonus !== undefined ? `Speed bonus: +${item.recipeSpeedBonus * 100}%.` : '',
@@ -3803,7 +3854,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
           flow={!complete ? <UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} /> : undefined}
           progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId={`panel-upgrade-progress-${item.id}`} cancelUpgrade={cancelActiveUpgrade} /> : undefined}
            meta={<UpgradeMetaGrid prerequisite={[...prerequisiteTechnologies, ...(item.prerequisiteMachineVariant ? [prettyLabel(item.prerequisiteMachineVariant)] : []), ...(item.prerequisiteUpgrade ? [upgradeMap[item.prerequisiteUpgrade].name] : [])].join(' + ')} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? toMachine : fromMachine} size={17} />} />}
-          powerAdvisory={!complete && machineCount > 0 && (item.id === MINING_MODULES_UPGRADE_ID || item.id === MINING_MODULES_2_UPGRADE_ID || item.id === PUMPJACK_MODULES_UPGRADE_ID || item.id === PUMPJACK_MODULES_2_UPGRADE_ID || item.id === ASSEMBLY_MODULES_UPGRADE_ID || item.id === ASSEMBLY_MODULES_2_UPGRADE_ID || item.id === CHEMICAL_PLANT_MODULES_UPGRADE_ID || item.id === CHEMICAL_PLANT_MODULES_2_UPGRADE_ID || item.id === OIL_REFINERY_MODULES_UPGRADE_ID || item.id === OIL_REFINERY_MODULES_2_UPGRADE_ID || item.id === 'electric-mining-drill' || item.id === 'assembly-machine-2' || item.id === 'assembly-machine-3')
+           powerAdvisory={!complete && machineCount > 0 && (item.id === MINING_MODULES_UPGRADE_ID || item.id === MINING_MODULES_2_UPGRADE_ID || item.id === PUMPJACK_MODULES_UPGRADE_ID || item.id === PUMPJACK_MODULES_2_UPGRADE_ID || item.id === ASSEMBLY_MODULES_UPGRADE_ID || item.id === ASSEMBLY_MODULES_2_UPGRADE_ID || item.id === CHEMICAL_PLANT_MODULES_UPGRADE_ID || item.id === CHEMICAL_PLANT_MODULES_2_UPGRADE_ID || item.id === OIL_REFINERY_MODULES_UPGRADE_ID || item.id === OIL_REFINERY_MODULES_2_UPGRADE_ID || item.id === ELECTRIC_FURNACE_MODULES_UPGRADE_ID || item.id === ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID || item.id === ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID || item.id === 'electric-mining-drill' || item.id === 'assembly-machine-2' || item.id === 'assembly-machine-3')
             ? <UpgradePowerAdvisory
               testId={`panel-upgrade-power-${item.id}`}
               machineCount={machineCount}
