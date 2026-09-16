@@ -3255,34 +3255,34 @@ const rawTechnologyCatalog: TechnologyDefinition[] = [
     "scienceCosts": [
       {
         "pack": "automation-science-pack",
-        "amount": 999999999
+        "amount": 1
       },
       {
         "pack": "logistic-science-pack",
-        "amount": 999999999
+        "amount": 1
       },
       {
         "pack": "chemical-science-pack",
-        "amount": 999999999
+        "amount": 1
       },
       {
         "pack": "military-science-pack",
-        "amount": 999999999
+        "amount": 1
       },
       {
         "pack": "production-science-pack",
-        "amount": 999999999
+        "amount": 1
       },
       {
         "pack": "utility-science-pack",
-        "amount": 999999999
+        "amount": 1
       },
       {
         "pack": "space-science-pack",
-        "amount": 999999999
+        "amount": 1
       }
     ],
-    "count": 1,
+    "count": 999999999,
     "time": 30,
     "effects": [
       {

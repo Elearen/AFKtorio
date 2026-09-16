@@ -50,14 +50,15 @@ test('AI-Powered Infinite Research requires every science pack after Space Scien
   assert.ok(aiResearch);
   assert.deepEqual(aiResearch.prerequisites, ['space-science-pack']);
   assert.deepEqual(aiResearch.scienceCosts, [
-    { pack: 'automation-science-pack', amount: 999999999 },
-    { pack: 'logistic-science-pack', amount: 999999999 },
-    { pack: 'chemical-science-pack', amount: 999999999 },
-    { pack: 'military-science-pack', amount: 999999999 },
-    { pack: 'production-science-pack', amount: 999999999 },
-    { pack: 'utility-science-pack', amount: 999999999 },
-    { pack: 'space-science-pack', amount: 999999999 },
+    { pack: 'automation-science-pack', amount: 1 },
+    { pack: 'logistic-science-pack', amount: 1 },
+    { pack: 'chemical-science-pack', amount: 1 },
+    { pack: 'military-science-pack', amount: 1 },
+    { pack: 'production-science-pack', amount: 1 },
+    { pack: 'utility-science-pack', amount: 1 },
+    { pack: 'space-science-pack', amount: 1 },
   ]);
+  assert.equal(aiResearch.count, 999999999);
   assert.deepEqual(aiResearch.effects, [
     { type: 'custom', description: 'Unlock the secrets of the universe' },
   ]);

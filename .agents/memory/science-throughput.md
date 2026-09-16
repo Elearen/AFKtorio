@@ -9,6 +9,12 @@ The active research selection is shared between the Research and Science tabs. L
 
 **How to apply:** Treat research-unit speed as labs × lab speed ÷ base research time, with lab speed 1 and a 30-second fallback. Multiply fractional progress by each pack amount for pack demand; stop progress when any required pack is exhausted. Current SPM comes from recent consumption and peak SPM is supply-bottlenecked.
 
+Technology science costs are per research unit; represent a large total investment with `count` or `countFormula`, not a giant per-unit pack amount.
+
+**Why:** Per-unit amounts feed live peak-consumption calculations, so encoding a billion-unit endgame requirement as a billion packs per unit creates impossible displayed rates.
+
+**How to apply:** Keep normal lab-cycle pack costs comparable to other technologies and put the total scale in the technology's research-unit count.
+
 Auto research is an ordered selection, not a parallel scheduler: the first checked incomplete technology in catalog order owns the labs, and later checked technologies wait until it completes.
 
 The Science tab's lab card reports aggregate current and peak science-pack usage alongside lab cycle capacity and shared construction-queue progress for new labs.
