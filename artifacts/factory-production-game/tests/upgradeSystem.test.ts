@@ -18,6 +18,7 @@ import {
   electricFurnaceUpgradeCostPerFurnace,
   electricFurnaceUpgradeTimePerFurnace,
   steelFurnacePrerequisiteMet,
+  assemblyMachineRecipeKeys,
   upgradeMap,
   upgradeInstalledFor,
   type UpgradeStartState,
@@ -86,6 +87,52 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   assert.equal(productionThree.prerequisiteTechnology, 'automation-3');
   assert.equal(productionThree.prerequisiteUpgrade, 'assembly-machine-2');
 
+  const assemblyModules = upgradeMap['assembly-modules-1'];
+  assert.equal(assemblyModules.name, 'Upgrade Assembly Machines to Modules 1');
+  assert.deepEqual(assemblyModules.prerequisiteTechnologies, ['productivity-module', 'speed-module', 'efficiency-module']);
+  assert.equal(assemblyModules.prerequisiteUpgrade, 'assembly-machine-3');
+  assert.deepEqual(assemblyModules.upgradeCostPerMachine, [
+    { key: 'productivity-module', amount: 1, source: 'products' },
+    { key: 'speed-module', amount: 1, source: 'products' },
+    { key: 'efficiency-module', amount: 1, source: 'products' },
+  ]);
+  assert.equal(assemblyModules.upgradeTimePerMachine, 1);
+  assert.equal(assemblyModules.newMachine, 'assembling-machine-3-modules-1');
+  assert.equal(assemblyModules.newMachinePowerDraw, 534);
+  assert.equal(assemblyModules.powerDrawIncrease, 159);
+  assert.equal(assemblyModules.previousMachinePowerDraw, 375);
+  assert.equal(assemblyModules.recipeProductivityBonus, 0.04);
+  assert.equal(assemblyModules.recipeSpeedBonus, 0.15);
+
+  const assemblyModules2 = upgradeMap['assembly-modules-2'];
+  assert.equal(assemblyModules2.prerequisiteUpgrade, 'assembly-modules-1');
+  assert.deepEqual(assemblyModules2.prerequisiteTechnologies, ['productivity-module-2', 'speed-module-2', 'efficiency-module-2']);
+  assert.equal(assemblyModules2.newMachine, 'assembling-machine-3-modules-2');
+  assert.equal(assemblyModules2.newMachinePowerDraw, 575);
+  assert.equal(assemblyModules2.powerDrawIncrease, 41);
+  assert.equal(assemblyModules2.previousMachinePowerDraw, 534);
+  assert.equal(assemblyModules2.recipeProductivityBonus, 0.02);
+  assert.equal(assemblyModules2.recipeSpeedBonus, 0.05);
+
+  const assemblyModules3 = upgradeMap['assembly-modules-3'];
+  assert.equal(assemblyModules3.prerequisiteUpgrade, 'assembly-modules-2');
+  assert.deepEqual(assemblyModules3.prerequisiteTechnologies, ['productivity-module-3', 'speed-module-3', 'efficiency-module-3']);
+  assert.equal(assemblyModules3.newMachine, 'assembling-machine-3-modules-3');
+  assert.equal(assemblyModules3.newMachinePowerDraw, 568);
+  assert.equal(assemblyModules3.powerDrawChange, -7);
+  assert.equal(assemblyModules3.previousMachinePowerDraw, 575);
+  assert.equal(assemblyModules3.recipeProductivityBonus, 0.04);
+  assert.equal(assemblyModules3.recipeSpeedBonus, 0.15);
+  assert.deepEqual(assemblyModules.affectedRecipes, assemblyMachineRecipeKeys);
+  assert.deepEqual(assemblyModules2.affectedRecipes, assemblyMachineRecipeKeys);
+  assert.deepEqual(assemblyModules3.affectedRecipes, assemblyMachineRecipeKeys);
+  assert.ok(assemblyMachineRecipeKeys.includes('iron-gear-wheel'));
+  assert.ok(assemblyMachineRecipeKeys.includes('assembling-machine-1'));
+  assert.ok(!assemblyMachineRecipeKeys.includes('iron-plate'));
+  assert.ok(!assemblyMachineRecipeKeys.includes('plastic-bar'));
+  assert.ok(!assemblyMachineRecipeKeys.includes('uranium-processing'));
+  assert.ok(!assemblyMachineRecipeKeys.includes('space-science-pack'));
+
   const expectedLabSpeeds = [1.2, 1.5, 1.9, 2.4, 2.9, 3.5];
   expectedLabSpeeds.forEach((speed, index) => {
     const level = index + 1;
@@ -128,8 +175,9 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   assert.equal(miningModules.upgradeTimePerMachine, 1);
   assert.equal(miningModules.newMachine, 'electric-mining-drill-modules-1');
   assert.equal(miningModules.newMachineLabel, 'Electric Miner + L1 Modules');
-  assert.equal(miningModules.newMachinePowerDraw, 534);
-  assert.equal(miningModules.powerDrawIncrease, 159);
+  assert.equal(miningModules.newMachinePowerDraw, 128);
+  assert.equal(miningModules.powerDrawIncrease, 38);
+  assert.equal(miningModules.previousMachinePowerDraw, 90);
   assert.equal(miningModules.recipeProductivityBonus, 0.04);
   assert.equal(miningModules.recipeSpeedBonus, 0.15);
   assert.deepEqual(miningModules.affectedRecipes, ['stone', 'coal', 'copper', 'iron', 'uranium']);
@@ -146,9 +194,9 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   assert.equal(miningModules2.upgradeTimePerMachine, 1);
   assert.equal(miningModules2.newMachine, 'electric-mining-drill-modules-2');
   assert.equal(miningModules2.newMachineLabel, 'Electric Miner + L2 Modules');
-  assert.equal(miningModules2.newMachinePowerDraw, 575);
-  assert.equal(miningModules2.powerDrawIncrease, 42);
-  assert.equal(miningModules2.previousMachinePowerDraw, 534);
+  assert.equal(miningModules2.newMachinePowerDraw, 138);
+  assert.equal(miningModules2.powerDrawIncrease, 10);
+  assert.equal(miningModules2.previousMachinePowerDraw, 128);
   assert.equal(miningModules2.recipeProductivityBonus, 0.02);
   assert.equal(miningModules2.recipeSpeedBonus, 0.05);
   assert.deepEqual(miningModules2.affectedRecipes, ['stone', 'coal', 'copper', 'iron', 'uranium']);
@@ -165,9 +213,9 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   assert.equal(miningModules3.upgradeTimePerMachine, 1);
   assert.equal(miningModules3.newMachine, 'electric-mining-drill-modules-3');
   assert.equal(miningModules3.newMachineLabel, 'Electric Miner + L3 Modules');
-  assert.equal(miningModules3.newMachinePowerDraw, 568);
-  assert.equal(miningModules3.powerDrawChange, -7);
-  assert.equal(miningModules3.previousMachinePowerDraw, 575);
+  assert.equal(miningModules3.newMachinePowerDraw, 136);
+  assert.equal(miningModules3.powerDrawChange, -2);
+  assert.equal(miningModules3.previousMachinePowerDraw, 138);
   assert.equal(miningModules3.recipeProductivityBonus, 0.04);
   assert.equal(miningModules3.recipeSpeedBonus, 0.15);
   assert.deepEqual(miningModules3.affectedRecipes, ['stone', 'coal', 'copper', 'iron', 'uranium']);

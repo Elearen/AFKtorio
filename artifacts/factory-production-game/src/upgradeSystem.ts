@@ -1,3 +1,6 @@
+import { recipeCatalog } from './recipeCatalog.js';
+import { chemicalPlantRecipeNames } from './productionSystem.js';
+
 export type MachineGroup = 'assembly' | 'mining' | 'pumpjack';
 export const MINING_MODULES_UPGRADE_ID = 'mining-modules-1';
 export const MINING_MODULES_2_UPGRADE_ID = 'mining-modules-2';
@@ -5,6 +8,9 @@ export const MINING_MODULES_3_UPGRADE_ID = 'mining-modules-3';
 export const PUMPJACK_MODULES_UPGRADE_ID = 'pumpjack-modules-1';
 export const PUMPJACK_MODULES_2_UPGRADE_ID = 'pumpjack-modules-2';
 export const PUMPJACK_MODULES_3_UPGRADE_ID = 'pumpjack-modules-3';
+export const ASSEMBLY_MODULES_UPGRADE_ID = 'assembly-modules-1';
+export const ASSEMBLY_MODULES_2_UPGRADE_ID = 'assembly-modules-2';
+export const ASSEMBLY_MODULES_3_UPGRADE_ID = 'assembly-modules-3';
 export type UpgradeKey =
   | 'assembly-machine-2'
   | 'assembly-machine-3'
@@ -15,6 +21,9 @@ export type UpgradeKey =
   | typeof PUMPJACK_MODULES_UPGRADE_ID
   | typeof PUMPJACK_MODULES_2_UPGRADE_ID
   | typeof PUMPJACK_MODULES_3_UPGRADE_ID
+  | typeof ASSEMBLY_MODULES_UPGRADE_ID
+  | typeof ASSEMBLY_MODULES_2_UPGRADE_ID
+  | typeof ASSEMBLY_MODULES_3_UPGRADE_ID
   | 'research-speed-1'
   | 'research-speed-2'
   | 'research-speed-3'
@@ -52,6 +61,20 @@ export type MachineCounts = {
   mining: number;
   pumpjack?: number;
 };
+const assemblyMachineExcludedRecipeNames = new Set([
+  'basic-oil-processing',
+  'advanced-oil-processing',
+  'rocket-part',
+  'space-science-pack',
+  ...chemicalPlantRecipeNames,
+]);
+const smeltingRecipeNames = new Set(['iron-plate', 'copper-plate', 'steel-plate', 'stone-brick']);
+export const assemblyMachineRecipeKeys = recipeCatalog
+  .filter((recipe) => !smeltingRecipeNames.has(recipe.name)
+    && recipe.category !== 'centrifuging'
+    && recipe.category !== 'rocket-building'
+    && !assemblyMachineExcludedRecipeNames.has(recipe.name))
+  .map((recipe) => recipe.name);
 export type UpgradeDefinition = {
   id: UpgradeKey;
   name: string;
@@ -141,6 +164,84 @@ export const upgradeData: UpgradeDefinition[] = [
     newMachineProductionSpeed: 1.25,
   },
   {
+    id: ASSEMBLY_MODULES_UPGRADE_ID,
+    name: 'Upgrade Assembly Machines to Modules 1',
+    copy: 'Install productivity, speed, and efficiency modules in every Assembly Machine 3.',
+    prerequisiteTechnology: 'productivity-module',
+    prerequisiteTechnologies: ['productivity-module', 'speed-module', 'efficiency-module'],
+    prerequisiteUpgrade: 'assembly-machine-3',
+    relevantMachine: 'Assembly Machine 3',
+    machineGroup: 'assembly',
+    upgradeCostPerMachine: products([
+      ['productivity-module', 1],
+      ['speed-module', 1],
+      ['efficiency-module', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'assembling-machine-3-modules-1',
+    newMachineLabel: 'Assembly Machine 3 + L1 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 534,
+    powerDrawIncrease: 159,
+    previousMachinePowerDraw: 375,
+    newMachineProductionSpeed: 1.25,
+    affectedRecipes: assemblyMachineRecipeKeys,
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
+  {
+    id: ASSEMBLY_MODULES_2_UPGRADE_ID,
+    name: 'Upgrade Assembly Machines to Modules 2',
+    copy: 'Install level 2 productivity, speed, and efficiency modules in every Assembly Machine 3.',
+    prerequisiteTechnology: 'productivity-module-2',
+    prerequisiteTechnologies: ['productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+    prerequisiteUpgrade: ASSEMBLY_MODULES_UPGRADE_ID,
+    relevantMachine: 'Assembly Machine 3 + L1 Modules',
+    machineGroup: 'assembly',
+    upgradeCostPerMachine: products([
+      ['productivity-module-2', 1],
+      ['speed-module-2', 1],
+      ['efficiency-module-2', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'assembling-machine-3-modules-2',
+    newMachineLabel: 'Assembly Machine 3 + L2 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 575,
+    powerDrawIncrease: 41,
+    previousMachinePowerDraw: 534,
+    newMachineProductionSpeed: 1.25,
+    affectedRecipes: assemblyMachineRecipeKeys,
+    recipeProductivityBonus: 0.02,
+    recipeSpeedBonus: 0.05,
+  },
+  {
+    id: ASSEMBLY_MODULES_3_UPGRADE_ID,
+    name: 'Upgrade Assembly Machines to Modules 3',
+    copy: 'Install level 3 productivity, speed, and efficiency modules in every Assembly Machine 3.',
+    prerequisiteTechnology: 'productivity-module-3',
+    prerequisiteTechnologies: ['productivity-module-3', 'speed-module-3', 'efficiency-module-3'],
+    prerequisiteUpgrade: ASSEMBLY_MODULES_2_UPGRADE_ID,
+    relevantMachine: 'Assembly Machine 3 + L2 Modules',
+    machineGroup: 'assembly',
+    upgradeCostPerMachine: products([
+      ['productivity-module-3', 1],
+      ['speed-module-3', 1],
+      ['efficiency-module-3', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'assembling-machine-3-modules-3',
+    newMachineLabel: 'Assembly Machine 3 + L3 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 568,
+    powerDrawChange: -7,
+    previousMachinePowerDraw: 575,
+    newMachineProductionSpeed: 1.25,
+    affectedRecipes: assemblyMachineRecipeKeys,
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
+  {
     id: 'electric-mining-drill',
     name: 'Upgrade Mining to Electric Mining',
     copy: 'Replace every burner mining drill with an Electric Miner and remove the coal requirement.',
@@ -173,8 +274,9 @@ export const upgradeData: UpgradeDefinition[] = [
     newMachine: 'electric-mining-drill-modules-1',
     newMachineLabel: 'Electric Miner + L1 Modules',
     newMachineMaterialCost: [],
-    newMachinePowerDraw: 534,
-    powerDrawIncrease: 159,
+    newMachinePowerDraw: 128,
+    powerDrawIncrease: 38,
+    previousMachinePowerDraw: 90,
     newMachineProductionSpeed: 0.7,
     affectedRecipes: ['stone', 'coal', 'copper', 'iron', 'uranium'],
     recipeProductivityBonus: 0.04,
@@ -198,9 +300,9 @@ export const upgradeData: UpgradeDefinition[] = [
     newMachine: 'electric-mining-drill-modules-2',
     newMachineLabel: 'Electric Miner + L2 Modules',
     newMachineMaterialCost: [],
-    newMachinePowerDraw: 575,
-    powerDrawIncrease: 42,
-    previousMachinePowerDraw: 534,
+    newMachinePowerDraw: 138,
+    powerDrawIncrease: 10,
+    previousMachinePowerDraw: 128,
     newMachineProductionSpeed: 0.7,
     affectedRecipes: ['stone', 'coal', 'copper', 'iron', 'uranium'],
     recipeProductivityBonus: 0.02,
@@ -224,9 +326,9 @@ export const upgradeData: UpgradeDefinition[] = [
     newMachine: 'electric-mining-drill-modules-3',
     newMachineLabel: 'Electric Miner + L3 Modules',
     newMachineMaterialCost: [],
-    newMachinePowerDraw: 568,
-    powerDrawChange: -7,
-    previousMachinePowerDraw: 575,
+    newMachinePowerDraw: 136,
+    powerDrawChange: -2,
+    previousMachinePowerDraw: 138,
     newMachineProductionSpeed: 0.7,
     affectedRecipes: ['stone', 'coal', 'copper', 'iron', 'uranium'],
     recipeProductivityBonus: 0.04,
@@ -435,6 +537,9 @@ const machineVariantRank: Record<MachineGroup, Record<string, number>> = {
     'assembling-machine-1': 1,
     'assembling-machine-2': 2,
     'assembling-machine-3': 3,
+    'assembling-machine-3-modules-1': 4,
+    'assembling-machine-3-modules-2': 5,
+    'assembling-machine-3-modules-3': 6,
   },
   mining: {
     'burner-mining-drill': 1,
@@ -477,11 +582,17 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
     ? record.machineVariants as Partial<MachineVariants>
     : {};
   const machineVariants: MachineVariants = {
-    assembly: savedVariants.assembly === 'assembling-machine-3'
-      ? 'assembling-machine-3'
-      : savedVariants.assembly === 'assembling-machine-2'
-        ? 'assembling-machine-2'
-        : 'assembling-machine-1',
+    assembly: savedVariants.assembly === 'assembling-machine-3-modules-3'
+      ? 'assembling-machine-3-modules-3'
+      : savedVariants.assembly === 'assembling-machine-3-modules-2'
+        ? 'assembling-machine-3-modules-2'
+        : savedVariants.assembly === 'assembling-machine-3-modules-1'
+          ? 'assembling-machine-3-modules-1'
+          : savedVariants.assembly === 'assembling-machine-3'
+            ? 'assembling-machine-3'
+            : savedVariants.assembly === 'assembling-machine-2'
+              ? 'assembling-machine-2'
+              : 'assembling-machine-1',
     mining: savedVariants.mining === 'electric-mining-drill-modules-3'
       ? 'electric-mining-drill-modules-3'
       : savedVariants.mining === 'electric-mining-drill-modules-2'
