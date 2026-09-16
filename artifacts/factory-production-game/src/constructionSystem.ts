@@ -51,6 +51,18 @@ export const constructionDurationFor = (
   );
 };
 
+export const constructionDurationReductionPercentFor = (
+  singleBuildingSeconds: number,
+  quantity: number,
+  workerRobotSpeedLevel: number,
+) => {
+  const buildingQuantity = Math.max(0, quantity);
+  const baseDuration = Math.max(0, singleBuildingSeconds) * buildingQuantity;
+  if (baseDuration <= 0) return 0;
+  const reducedDuration = constructionDurationFor(singleBuildingSeconds, quantity, workerRobotSpeedLevel);
+  return Math.max(0, (1 - reducedDuration / baseDuration) * 100);
+};
+
 export const constructionVisualDurationMsFor = (total: number, millisecondsUntilNextTick: number) =>
   Math.max(0, millisecondsUntilNextTick) + Math.max(0, constructionTickCountFor(total) - 1) * 1000;
 

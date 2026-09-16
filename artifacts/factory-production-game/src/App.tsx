@@ -7,7 +7,7 @@ import { technologyCatalog, type TechnologyDefinition } from './technologyCatalo
 import { technologyOrder } from './technologyOrder';
 import { canBuildRocketSilo, queueSpaceScienceNotification, recipeBuildCostsForRocket, rocketPartBatchTimeFor, rocketPartCountAfterConstruction, ROCKET_PART_TARGET, scaleRocketCosts, spaceScienceRecipeMachineCountAfterUnlock, unlockSpaceScienceAfterLaunch } from './rocketSiloSystem';
 import { assemblyMachineOneCraftingSpeed, chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, centrifugeCraftingSpeed, centrifugePowerKw, craftingSpeedFor, cycleBudgetFor, cyclesPerMinuteFor, electricFurnaceCraftingSpeed, electricFurnacePowerKw, isAutomatedOnlyRecipe, oilRefineryCraftingSpeed, oilRefineryPowerKw, steelFurnaceCraftingSpeed } from './productionSystem';
-import { activateReadyConstruction, constructionCanBeFullyFunded, constructionDurationFor, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials, reserveStoredConstructionBuildings } from './constructionSystem';
+import { activateReadyConstruction, constructionCanBeFullyFunded, constructionDurationFor, constructionDurationReductionPercentFor, constructionTickCountFor, constructionVisualDurationMsFor, constructionVisualProgressFor, fulfillConstructionReservation, hasWaitingConstruction, normalizeConstructionQueue, refundConstructionMaterials, reserveConstructionMaterials, reserveStoredConstructionBuildings } from './constructionSystem';
 import { calculatePowerFlow } from './powerSystem';
 import { calculateNuclearPowerFlow, type NuclearPowerFlow } from './nuclearPowerSystem';
 import { burnerMinerFuelRatioFor, burnerMinerNeedsFuel, miningPowerRatioFor } from './miningSystem';
@@ -2008,12 +2008,24 @@ function UpgradeCostChips({ costs }: { costs: BuildMaterialCost[] }) {
     </span>;
   })}</div>;
 }
+function UpgradeRobotReductionNote({ percent }: { percent: number }) {
+  if (percent <= 0.05) return null;
+  const label = Number(percent.toFixed(1));
+  return <div className="mt-2 flex items-center gap-1.5 text-[9px] text-[hsl(var(--secondary))]" data-testid="note-upgrade-robot-reduction">
+    <img src={`${import.meta.env.BASE_URL}item-icons/construction-robot.png`} width={15} height={15} alt="" aria-hidden="true" className="h-[15px] w-[15px] object-contain" />
+    <span>-{label}% upgrade time from worker robots</span>
+  </div>;
+}
 function UpgradeTime({ seconds }: { seconds: number }) {
   const label = seconds < 60 ? `${Number(seconds.toFixed(1))}s` : duration(seconds);
   return <span className="inline-flex shrink-0 items-center gap-1 mono numeric text-[10px] text-[hsl(var(--primary))]" title={`${duration(seconds)} time`}>
     <Clock3 size={11} aria-hidden="true" />{label}
   </span>;
 }
+const upgradeDurationFor = (singleMachineSeconds: number, machineCount: number, workerRobotSpeedLevel: number) =>
+  machineCount > 0 ? constructionDurationFor(singleMachineSeconds, machineCount, workerRobotSpeedLevel) : 0;
+const upgradeDurationReductionPercentFor = (singleMachineSeconds: number, machineCount: number, workerRobotSpeedLevel: number) =>
+  constructionDurationReductionPercentFor(singleMachineSeconds, machineCount, workerRobotSpeedLevel);
 function UpgradeMetaGrid({ prerequisite, prerequisiteMet, machine, machineIcon }: { prerequisite?: string; prerequisiteMet: boolean; machine: string; machineIcon: ReactNode }) {
   return <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
     <div className="data-row rounded-md p-2">

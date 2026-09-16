@@ -1,5 +1,6 @@
 import { recipeCatalog } from './recipeCatalog.js';
 import { chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, electricFurnaceCraftingSpeed, electricFurnacePowerKw, oilRefineryCraftingSpeed, oilRefineryPowerKw, oilRefineryRecipeNames } from './productionSystem.js';
+import { constructionDurationFor } from './constructionSystem.js';
 
 export type MachineGroup = 'assembly' | 'mining' | 'pumpjack' | 'chemical' | 'oilRefinery' | 'furnace';
 export const MINING_MODULES_UPGRADE_ID = 'mining-modules-1';
@@ -146,6 +147,7 @@ export type UpgradeStartState = {
   machineCounts: MachineCounts;
   labCount?: number;
   labSpeedLevel?: number;
+  workerRobotSpeedLevel?: number;
   queue: UpgradeQueueRecord[];
 };
 
@@ -767,7 +769,7 @@ export const beginUpgrade = (state: UpgradeStartState, upgradeId: UpgradeKey, jo
     if (source === 'raw') nextRaw[key] = (nextRaw[key] ?? 0) - amount;
     else nextProducts[key] = (nextProducts[key] ?? 0) - amount;
   });
-  const totalSeconds = upgrade.upgradeTimePerMachine * machineCount;
+  const totalSeconds = constructionDurationFor(upgrade.upgradeTimePerMachine, machineCount, state.workerRobotSpeedLevel ?? 0);
   const job: UpgradeQueueRecord = {
     id: jobId,
     action: 'upgrade',
