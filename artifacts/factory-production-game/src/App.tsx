@@ -2011,8 +2011,8 @@ function UpgradeCostChips({ costs }: { costs: BuildMaterialCost[] }) {
 function UpgradeRobotReductionBadge({ percent, testId = 'note-upgrade-robot-reduction' }: { percent: number; testId?: string }) {
   if (percent <= 0.05) return null;
   const label = Number(percent.toFixed(1));
-  return <span className="absolute right-2 top-2 inline-flex items-center gap-1 text-[9px] text-[hsl(var(--secondary))]" data-testid={testId} title={`Worker robot time reduction: -${label}%`} aria-label={`Worker robot time reduction: -${label}%`}>
-    <img src={`${import.meta.env.BASE_URL}item-icons/construction-robot.png`} width={15} height={15} alt="" aria-hidden="true" className="h-[15px] w-[15px] object-contain" />
+  return <span className="inline-flex items-center gap-1 text-[9px] text-[hsl(var(--secondary))]" data-testid={testId} title={`Worker robot time reduction: -${label}%`} aria-label={`Worker robot time reduction: -${label}%`}>
+    <img src={`${import.meta.env.BASE_URL}item-icons/construction-robot.png`} width={13} height={13} alt="" aria-hidden="true" className="h-[13px] w-[13px] object-contain" />
     <span className="mono numeric">-{label}%</span>
   </span>;
 }
@@ -2022,11 +2022,14 @@ function UpgradeTime({ seconds }: { seconds: number }) {
     <Clock3 size={11} aria-hidden="true" />{label}
   </span>;
 }
-function UpgradeTimeSummary({ originalSeconds, totalSeconds, reductionPercent }: { originalSeconds: number; totalSeconds: number; reductionPercent: number }) {
+function UpgradeTimeSummary({ originalSeconds, totalSeconds, reductionPercent, reductionTestId }: { originalSeconds: number; totalSeconds: number; reductionPercent: number; reductionTestId?: string }) {
   const hasReduction = reductionPercent > 0.05 && originalSeconds > totalSeconds;
-  return <span className="inline-flex min-w-0 shrink-0 items-center gap-1.5">
-    {hasReduction && <><span className="line-through opacity-55"><UpgradeTime seconds={originalSeconds} /></span><ArrowRight size={11} className="shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" /></>}
-    <UpgradeTime seconds={totalSeconds} />
+  return <span className="inline-flex min-w-0 shrink-0 flex-col items-end gap-0.5">
+    <span className="inline-flex items-center gap-1.5">
+      {hasReduction && <><span className="line-through opacity-55"><UpgradeTime seconds={originalSeconds} /></span><ArrowRight size={11} className="shrink-0 text-[hsl(var(--muted-foreground))]" aria-hidden="true" /></>}
+      <UpgradeTime seconds={totalSeconds} />
+    </span>
+    {hasReduction && <UpgradeRobotReductionBadge percent={reductionPercent} testId={reductionTestId} />}
   </span>;
 }
 const upgradeDurationFor = (singleMachineSeconds: number, machineCount: number, workerRobotSpeedLevel: number) =>
@@ -2135,7 +2138,7 @@ function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, cost
     {powerAdvisory}
      {showCosts !== false && <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
       <div className="data-row rounded-md p-2"><div className="eyebrow">Cost / machine</div><div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={costPerItem} /><UpgradeTime seconds={timePerMachine} /></div></div>
-       <div className="data-row relative rounded-md p-2"><div className="eyebrow pr-8">Total cost</div><div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={totalCost} /><UpgradeTimeSummary originalSeconds={originalTotalTime} totalSeconds={totalTime} reductionPercent={timeReductionPercent} /></div><UpgradeRobotReductionBadge percent={timeReductionPercent} testId={`${testId}-robot-reduction`} /></div>
+       <div className="data-row rounded-md p-2"><div className="eyebrow">Total cost</div><div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={totalCost} /><UpgradeTimeSummary originalSeconds={originalTotalTime} totalSeconds={totalTime} reductionPercent={timeReductionPercent} reductionTestId={`${testId}-robot-reduction`} /></div></div>
      </div>}
     {action}
   </section>;
@@ -2181,7 +2184,7 @@ function UpgradeDetailModal({ item, onClose }: { item: UpgradeInfo; onClose: () 
         <div className="eyebrow mb-3">Cost and time</div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="data-row rounded-lg p-3"><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Per machine</div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><UpgradeCostChips costs={item.costPerItem} /><UpgradeTime seconds={item.timePerMachine} /></div></div>
-          <div className="data-row relative rounded-lg p-3"><div className="pr-8 text-[10px] text-[hsl(var(--muted-foreground))]">Current total</div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><UpgradeCostChips costs={item.totalCost} /><UpgradeTimeSummary originalSeconds={item.originalTotalTime} totalSeconds={item.totalTime} reductionPercent={item.timeReductionPercent ?? 0} /></div><UpgradeRobotReductionBadge percent={item.timeReductionPercent ?? 0} testId={`dialog-upgrade-robot-reduction-${item.id}`} /></div>
+          <div className="data-row rounded-lg p-3"><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Current total</div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><UpgradeCostChips costs={item.totalCost} /><UpgradeTimeSummary originalSeconds={item.originalTotalTime} totalSeconds={item.totalTime} reductionPercent={item.timeReductionPercent ?? 0} reductionTestId={`dialog-upgrade-robot-reduction-${item.id}`} /></div></div>
         </div>
       </div>
       <div className="py-4">
