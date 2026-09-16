@@ -15,3 +15,4 @@
 - [Recipe productivity](recipe-productivity.md) — productivity is per-recipe output-only; actual input consumption per machine cycle remains unchanged.
 - [Recipe speed](recipe-speed.md) — speed is per-recipe, raises throughput by its additive bonus, and keeps machine power/furnace fuel usage unchanged.
 - [Mining module variant](mining-module-variant.md) — represent installed mining modules through the mining machine variant, while treating it as electric everywhere operationally.
+- [Chemical plant modules](chemical-plant-modules.md) — Chemical Plant module tiers use the oil-processing unlock and affect only the canonical chemical recipe set.

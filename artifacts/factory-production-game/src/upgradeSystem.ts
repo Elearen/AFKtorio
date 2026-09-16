@@ -1,7 +1,7 @@
 import { recipeCatalog } from './recipeCatalog.js';
-import { chemicalPlantRecipeNames } from './productionSystem.js';
+import { chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames } from './productionSystem.js';
 
-export type MachineGroup = 'assembly' | 'mining' | 'pumpjack';
+export type MachineGroup = 'assembly' | 'mining' | 'pumpjack' | 'chemical';
 export const MINING_MODULES_UPGRADE_ID = 'mining-modules-1';
 export const MINING_MODULES_2_UPGRADE_ID = 'mining-modules-2';
 export const MINING_MODULES_3_UPGRADE_ID = 'mining-modules-3';
@@ -11,6 +11,9 @@ export const PUMPJACK_MODULES_3_UPGRADE_ID = 'pumpjack-modules-3';
 export const ASSEMBLY_MODULES_UPGRADE_ID = 'assembly-modules-1';
 export const ASSEMBLY_MODULES_2_UPGRADE_ID = 'assembly-modules-2';
 export const ASSEMBLY_MODULES_3_UPGRADE_ID = 'assembly-modules-3';
+export const CHEMICAL_PLANT_MODULES_UPGRADE_ID = 'chemical-plant-modules-1';
+export const CHEMICAL_PLANT_MODULES_2_UPGRADE_ID = 'chemical-plant-modules-2';
+export const CHEMICAL_PLANT_MODULES_3_UPGRADE_ID = 'chemical-plant-modules-3';
 export type UpgradeKey =
   | 'assembly-machine-2'
   | 'assembly-machine-3'
@@ -24,6 +27,9 @@ export type UpgradeKey =
   | typeof ASSEMBLY_MODULES_UPGRADE_ID
   | typeof ASSEMBLY_MODULES_2_UPGRADE_ID
   | typeof ASSEMBLY_MODULES_3_UPGRADE_ID
+  | typeof CHEMICAL_PLANT_MODULES_UPGRADE_ID
+  | typeof CHEMICAL_PLANT_MODULES_2_UPGRADE_ID
+  | typeof CHEMICAL_PLANT_MODULES_3_UPGRADE_ID
   | 'research-speed-1'
   | 'research-speed-2'
   | 'research-speed-3'
@@ -55,11 +61,13 @@ export type MachineVariants = {
   assembly: string;
   mining: string;
   pumpjack?: string;
+  chemical?: string;
 };
 export type MachineCounts = {
   assembly: number;
   mining: number;
   pumpjack?: number;
+  chemical?: number;
 };
 const assemblyMachineExcludedRecipeNames = new Set([
   'basic-oil-processing',
@@ -94,6 +102,7 @@ export type UpgradeDefinition = {
   powerDrawIncrease?: number;
   powerDrawChange?: number;
   previousMachinePowerDraw?: number;
+  prerequisiteMachineVariant?: string;
   newMachineProductionSpeed: number;
   affectedRecipes?: string[];
   recipeProductivityBonus?: number;
@@ -411,6 +420,84 @@ export const upgradeData: UpgradeDefinition[] = [
     recipeProductivityBonus: 0.04,
     recipeSpeedBonus: 0.15,
   },
+  {
+    id: CHEMICAL_PLANT_MODULES_UPGRADE_ID,
+    name: 'Upgrade Chemical Plants to Modules 1',
+    copy: 'Install productivity, speed, and efficiency modules in every Chemical Plant.',
+    prerequisiteTechnology: 'oil-processing',
+    prerequisiteTechnologies: ['oil-processing', 'productivity-module', 'speed-module', 'efficiency-module'],
+    prerequisiteMachineVariant: 'chemical-plant',
+    relevantMachine: 'Chemical Plant',
+    machineGroup: 'chemical',
+    upgradeCostPerMachine: products([
+      ['productivity-module', 1],
+      ['speed-module', 1],
+      ['efficiency-module', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'chemical-plant-modules-1',
+    newMachineLabel: 'Chemical Plant + L1 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 300,
+    powerDrawIncrease: 90,
+    previousMachinePowerDraw: chemicalPlantPowerKw,
+    newMachineProductionSpeed: chemicalPlantCraftingSpeed,
+    affectedRecipes: [...chemicalPlantRecipeNames],
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
+  {
+    id: CHEMICAL_PLANT_MODULES_2_UPGRADE_ID,
+    name: 'Upgrade Chemical Plants to Modules 2',
+    copy: 'Install level 2 productivity, speed, and efficiency modules in every Chemical Plant.',
+    prerequisiteTechnology: 'productivity-module-2',
+    prerequisiteTechnologies: ['productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+    prerequisiteUpgrade: CHEMICAL_PLANT_MODULES_UPGRADE_ID,
+    relevantMachine: 'Chemical Plant + L1 Modules',
+    machineGroup: 'chemical',
+    upgradeCostPerMachine: products([
+      ['productivity-module-2', 1],
+      ['speed-module-2', 1],
+      ['efficiency-module-2', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'chemical-plant-modules-2',
+    newMachineLabel: 'Chemical Plant + L2 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 325,
+    powerDrawIncrease: 25,
+    previousMachinePowerDraw: 300,
+    newMachineProductionSpeed: chemicalPlantCraftingSpeed,
+    affectedRecipes: [...chemicalPlantRecipeNames],
+    recipeProductivityBonus: 0.02,
+    recipeSpeedBonus: 0.05,
+  },
+  {
+    id: CHEMICAL_PLANT_MODULES_3_UPGRADE_ID,
+    name: 'Upgrade Chemical Plants to Modules 3',
+    copy: 'Install level 3 productivity, speed, and efficiency modules in every Chemical Plant.',
+    prerequisiteTechnology: 'productivity-module-3',
+    prerequisiteTechnologies: ['productivity-module-3', 'speed-module-3', 'efficiency-module-3'],
+    prerequisiteUpgrade: CHEMICAL_PLANT_MODULES_2_UPGRADE_ID,
+    relevantMachine: 'Chemical Plant + L2 Modules',
+    machineGroup: 'chemical',
+    upgradeCostPerMachine: products([
+      ['productivity-module-3', 1],
+      ['speed-module-3', 1],
+      ['efficiency-module-3', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'chemical-plant-modules-3',
+    newMachineLabel: 'Chemical Plant + L3 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 318,
+    powerDrawChange: -7,
+    previousMachinePowerDraw: 325,
+    newMachineProductionSpeed: chemicalPlantCraftingSpeed,
+    affectedRecipes: [...chemicalPlantRecipeNames],
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
   ...([
     { level: 1, speed: 1.2, technology: 'research-speed-1', previous: undefined },
     { level: 2, speed: 1.5, technology: 'research-speed-2', previous: 'research-speed-1' },
@@ -485,6 +572,9 @@ export const beginUpgrade = (state: UpgradeStartState, upgradeId: UpgradeKey, jo
       return { ok: false, reason: 'prerequisite-upgrade', message: `${prerequisite.name} required` };
     }
   }
+  if (upgrade.prerequisiteMachineVariant && state.machineVariants[upgrade.machineGroup] !== upgrade.prerequisiteMachineVariant) {
+    return { ok: false, reason: 'prerequisite-upgrade', message: `${upgrade.relevantMachine} required` };
+  }
   const machineCount = machineCountForUpgrade(state.machineCounts, upgrade, state.labCount);
   if (!machineCount) {
     return { ok: false, reason: 'no-machines', message: `construct at least one ${upgrade.relevantMachine.toLowerCase()} first` };
@@ -554,6 +644,12 @@ const machineVariantRank: Record<MachineGroup, Record<string, number>> = {
     'pumpjack-modules-2': 3,
     'pumpjack-modules-3': 4,
   },
+  chemical: {
+    'chemical-plant': 1,
+    'chemical-plant-modules-1': 2,
+    'chemical-plant-modules-2': 3,
+    'chemical-plant-modules-3': 4,
+  },
 };
 
 export const upgradeInstalledFor = (machineVariants: MachineVariants, upgradeId: string) => {
@@ -601,6 +697,12 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
           ? 'electric-mining-drill-modules-1'
           : savedVariants.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
   };
+  const savedChemical = savedVariants.chemical;
+  if (savedChemical === 'chemical-plant' || savedChemical === 'chemical-plant-modules-1' || savedChemical === 'chemical-plant-modules-2' || savedChemical === 'chemical-plant-modules-3') {
+    machineVariants.chemical = savedChemical;
+  } else {
+    machineVariants.chemical = 'chemical-plant';
+  }
   const savedPumpjack = savedVariants.pumpjack;
   if (savedPumpjack === 'pumpjack' || savedPumpjack === 'pumpjack-modules-1' || savedPumpjack === 'pumpjack-modules-2' || savedPumpjack === 'pumpjack-modules-3') {
     machineVariants.pumpjack = savedPumpjack;
