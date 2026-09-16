@@ -171,6 +171,44 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   assert.equal(miningModules3.recipeProductivityBonus, 0.04);
   assert.equal(miningModules3.recipeSpeedBonus, 0.15);
   assert.deepEqual(miningModules3.affectedRecipes, ['stone', 'coal', 'copper', 'iron', 'uranium']);
+
+  const pumpjackModules = upgradeMap['pumpjack-modules-1'];
+  assert.equal(pumpjackModules.name, 'Upgrade Pumpjacks to Modules 1');
+  assert.equal(pumpjackModules.prerequisiteTechnology, 'oil-gathering');
+  assert.equal(pumpjackModules.prerequisiteUpgrade, undefined);
+  assert.deepEqual(pumpjackModules.prerequisiteTechnologies, ['oil-gathering', 'productivity-module', 'speed-module', 'efficiency-module']);
+  assert.deepEqual(pumpjackModules.upgradeCostPerMachine, [
+    { key: 'productivity-module', amount: 1, source: 'products' },
+    { key: 'speed-module', amount: 1, source: 'products' },
+    { key: 'efficiency-module', amount: 1, source: 'products' },
+  ]);
+  assert.equal(pumpjackModules.newMachine, 'pumpjack-modules-1');
+  assert.equal(pumpjackModules.newMachinePowerDraw, 128);
+  assert.equal(pumpjackModules.powerDrawIncrease, 38);
+  assert.equal(pumpjackModules.previousMachinePowerDraw, 90);
+  assert.equal(pumpjackModules.recipeProductivityBonus, 0.04);
+  assert.equal(pumpjackModules.recipeSpeedBonus, 0.15);
+  assert.deepEqual(pumpjackModules.affectedRecipes, ['crudeOil']);
+
+  const pumpjackModules2 = upgradeMap['pumpjack-modules-2'];
+  assert.equal(pumpjackModules2.prerequisiteTechnology, 'oil-gathering');
+  assert.equal(pumpjackModules2.prerequisiteUpgrade, 'pumpjack-modules-1');
+  assert.equal(pumpjackModules2.newMachinePowerDraw, 138);
+  assert.equal(pumpjackModules2.powerDrawIncrease, 10);
+  assert.equal(pumpjackModules2.previousMachinePowerDraw, 128);
+  assert.equal(pumpjackModules2.recipeProductivityBonus, 0.02);
+  assert.equal(pumpjackModules2.recipeSpeedBonus, 0.05);
+  assert.deepEqual(pumpjackModules2.affectedRecipes, ['crudeOil']);
+
+  const pumpjackModules3 = upgradeMap['pumpjack-modules-3'];
+  assert.equal(pumpjackModules3.prerequisiteTechnology, 'oil-gathering');
+  assert.equal(pumpjackModules3.prerequisiteUpgrade, 'pumpjack-modules-2');
+  assert.equal(pumpjackModules3.newMachinePowerDraw, 136);
+  assert.equal(pumpjackModules3.powerDrawChange, -2);
+  assert.equal(pumpjackModules3.previousMachinePowerDraw, 138);
+  assert.equal(pumpjackModules3.recipeProductivityBonus, 0.04);
+  assert.equal(pumpjackModules3.recipeSpeedBonus, 0.15);
+  assert.deepEqual(pumpjackModules3.affectedRecipes, ['crudeOil']);
 });
 
 test('Steel Furnaces require Advanced Material Processing research', () => {
@@ -354,6 +392,65 @@ test('mining modules 3 upgrade requires modules 2 and reserves level 3 modules',
     'speed-module-3': 2,
     'efficiency-module-3': 2,
   });
+});
+
+test('pumpjack module upgrades scale per pumpjack and require the ranked chain', () => {
+  const moduleProducts = {
+    'productivity-module': 2,
+    'speed-module': 2,
+    'efficiency-module': 2,
+    'productivity-module-2': 2,
+    'speed-module-2': 2,
+    'efficiency-module-2': 2,
+    'productivity-module-3': 2,
+    'speed-module-3': 2,
+    'efficiency-module-3': 2,
+  };
+  const initial = baseState({
+    research: ['oil-gathering', 'productivity-module', 'speed-module', 'efficiency-module'],
+    products: moduleProducts,
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill', pumpjack: 'pumpjack' },
+    machineCounts: { assembly: 0, mining: 0, pumpjack: 2 },
+  });
+  assert.equal(failureReason(beginUpgrade({
+    ...initial,
+    research: ['productivity-module', 'speed-module', 'efficiency-module'],
+  }, 'pumpjack-modules-1', 'pumpjack-without-oil')), 'prerequisite');
+  const first = beginUpgrade(initial, 'pumpjack-modules-1', 'pumpjack-1');
+  assert.equal(first.ok, true);
+  if (!first.ok) return;
+  assert.equal(first.job.machineCount, 2);
+  assert.deepEqual(first.totalCosts, [
+    { key: 'productivity-module', amount: 2, source: 'products' },
+    { key: 'speed-module', amount: 2, source: 'products' },
+    { key: 'efficiency-module', amount: 2, source: 'products' },
+  ]);
+
+  const modulesOne = applyUpgradeCompletion(initial.machineVariants, 'pumpjack-modules-1');
+  assert.equal(modulesOne.pumpjack, 'pumpjack-modules-1');
+  const second = beginUpgrade({
+    ...initial,
+    queue: [],
+    products: first.state.products,
+    machineVariants: modulesOne,
+    research: [...initial.research, 'productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+  }, 'pumpjack-modules-2', 'pumpjack-2');
+  assert.equal(second.ok, true);
+  if (!second.ok) return;
+
+  const modulesTwo = applyUpgradeCompletion(modulesOne, 'pumpjack-modules-2');
+  assert.equal(modulesTwo.pumpjack, 'pumpjack-modules-2');
+  const third = beginUpgrade({
+    ...initial,
+    queue: [],
+    products: second.state.products,
+    machineVariants: modulesTwo,
+    research: [...second.state.research, 'productivity-module-3', 'speed-module-3', 'efficiency-module-3'],
+  }, 'pumpjack-modules-3', 'pumpjack-3');
+  assert.equal(third.ok, true);
+  assert.equal(upgradeInstalledFor(applyUpgradeCompletion(modulesTwo, 'pumpjack-modules-3'), 'pumpjack-modules-1'), true);
+  assert.equal(upgradeInstalledFor(applyUpgradeCompletion(modulesTwo, 'pumpjack-modules-3'), 'pumpjack-modules-2'), true);
+  assert.equal(upgradeInstalledFor(applyUpgradeCompletion(modulesTwo, 'pumpjack-modules-3'), 'pumpjack-modules-3'), true);
 });
 
 test('upgrade start rejects missing prerequisites, machines, materials, and competing jobs', () => {

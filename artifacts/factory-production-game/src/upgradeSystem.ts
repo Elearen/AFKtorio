@@ -1,7 +1,10 @@
-export type MachineGroup = 'assembly' | 'mining';
+export type MachineGroup = 'assembly' | 'mining' | 'pumpjack';
 export const MINING_MODULES_UPGRADE_ID = 'mining-modules-1';
 export const MINING_MODULES_2_UPGRADE_ID = 'mining-modules-2';
 export const MINING_MODULES_3_UPGRADE_ID = 'mining-modules-3';
+export const PUMPJACK_MODULES_UPGRADE_ID = 'pumpjack-modules-1';
+export const PUMPJACK_MODULES_2_UPGRADE_ID = 'pumpjack-modules-2';
+export const PUMPJACK_MODULES_3_UPGRADE_ID = 'pumpjack-modules-3';
 export type UpgradeKey =
   | 'assembly-machine-2'
   | 'assembly-machine-3'
@@ -9,6 +12,9 @@ export type UpgradeKey =
   | typeof MINING_MODULES_UPGRADE_ID
   | typeof MINING_MODULES_2_UPGRADE_ID
   | typeof MINING_MODULES_3_UPGRADE_ID
+  | typeof PUMPJACK_MODULES_UPGRADE_ID
+  | typeof PUMPJACK_MODULES_2_UPGRADE_ID
+  | typeof PUMPJACK_MODULES_3_UPGRADE_ID
   | 'research-speed-1'
   | 'research-speed-2'
   | 'research-speed-3'
@@ -36,7 +42,16 @@ export const oilCrackingConditionMet = (recipeId: string, inventory: Record<stri
 export const kovarexConditionMet = (inventory: Record<string, number>) =>
   (inventory['uranium-238'] ?? 0) > (inventory['uranium-235'] ?? 0);
 export type BuildMaterialCost = { key: string; amount: number; source: 'raw' | 'products' };
-export type MachineVariants = Record<MachineGroup, string>;
+export type MachineVariants = {
+  assembly: string;
+  mining: string;
+  pumpjack?: string;
+};
+export type MachineCounts = {
+  assembly: number;
+  mining: number;
+  pumpjack?: number;
+};
 export type UpgradeDefinition = {
   id: UpgradeKey;
   name: string;
@@ -79,7 +94,7 @@ export type UpgradeStartState = {
   products: Record<string, number>;
   research: string[];
   machineVariants: MachineVariants;
-  machineCounts: Record<MachineGroup, number>;
+  machineCounts: MachineCounts;
   labCount?: number;
   labSpeedLevel?: number;
   queue: UpgradeQueueRecord[];
@@ -217,6 +232,83 @@ export const upgradeData: UpgradeDefinition[] = [
     recipeProductivityBonus: 0.04,
     recipeSpeedBonus: 0.15,
   },
+  {
+    id: PUMPJACK_MODULES_UPGRADE_ID,
+    name: 'Upgrade Pumpjacks to Modules 1',
+    copy: 'Install productivity, speed, and efficiency modules in every Pumpjack.',
+    prerequisiteTechnology: 'oil-gathering',
+    prerequisiteTechnologies: ['oil-gathering', 'productivity-module', 'speed-module', 'efficiency-module'],
+    relevantMachine: 'Pumpjack',
+    machineGroup: 'pumpjack',
+    upgradeCostPerMachine: products([
+      ['productivity-module', 1],
+      ['speed-module', 1],
+      ['efficiency-module', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'pumpjack-modules-1',
+    newMachineLabel: 'Pumpjack + L1 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 128,
+    powerDrawIncrease: 38,
+    previousMachinePowerDraw: 90,
+    newMachineProductionSpeed: 1,
+    affectedRecipes: ['crudeOil'],
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
+  {
+    id: PUMPJACK_MODULES_2_UPGRADE_ID,
+    name: 'Upgrade Pumpjacks to Modules 2',
+    copy: 'Install level 2 productivity, speed, and efficiency modules in every Pumpjack.',
+    prerequisiteTechnology: 'oil-gathering',
+    prerequisiteTechnologies: ['productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+    prerequisiteUpgrade: PUMPJACK_MODULES_UPGRADE_ID,
+    relevantMachine: 'Pumpjack + L1 Modules',
+    machineGroup: 'pumpjack',
+    upgradeCostPerMachine: products([
+      ['productivity-module-2', 1],
+      ['speed-module-2', 1],
+      ['efficiency-module-2', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'pumpjack-modules-2',
+    newMachineLabel: 'Pumpjack + L2 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 138,
+    powerDrawIncrease: 10,
+    previousMachinePowerDraw: 128,
+    newMachineProductionSpeed: 1,
+    affectedRecipes: ['crudeOil'],
+    recipeProductivityBonus: 0.02,
+    recipeSpeedBonus: 0.05,
+  },
+  {
+    id: PUMPJACK_MODULES_3_UPGRADE_ID,
+    name: 'Upgrade Pumpjacks to Modules 3',
+    copy: 'Install level 3 productivity, speed, and efficiency modules in every Pumpjack.',
+    prerequisiteTechnology: 'oil-gathering',
+    prerequisiteTechnologies: ['productivity-module-3', 'speed-module-3', 'efficiency-module-3'],
+    prerequisiteUpgrade: PUMPJACK_MODULES_2_UPGRADE_ID,
+    relevantMachine: 'Pumpjack + L2 Modules',
+    machineGroup: 'pumpjack',
+    upgradeCostPerMachine: products([
+      ['productivity-module-3', 1],
+      ['speed-module-3', 1],
+      ['efficiency-module-3', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'pumpjack-modules-3',
+    newMachineLabel: 'Pumpjack + L3 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 136,
+    powerDrawChange: -2,
+    previousMachinePowerDraw: 138,
+    newMachineProductionSpeed: 1,
+    affectedRecipes: ['crudeOil'],
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
   ...([
     { level: 1, speed: 1.2, technology: 'research-speed-1', previous: undefined },
     { level: 2, speed: 1.5, technology: 'research-speed-2', previous: 'research-speed-1' },
@@ -259,7 +351,7 @@ export const bufferedActualRateFor = (peakRate: number, stored: number, capacity
 };
 
 export const machineCountForUpgrade = (
-  machineCounts: Record<MachineGroup, number>,
+  machineCounts: MachineCounts,
   upgrade: UpgradeDefinition,
   labCount = 0,
 ) => upgrade.labSpeedLevel !== undefined ? labCount : machineCounts[upgrade.machineGroup] ?? 0;
@@ -351,12 +443,19 @@ const machineVariantRank: Record<MachineGroup, Record<string, number>> = {
     'electric-mining-drill-modules-2': 4,
     'electric-mining-drill-modules-3': 5,
   },
+  pumpjack: {
+    pumpjack: 1,
+    'pumpjack-modules-1': 2,
+    'pumpjack-modules-2': 3,
+    'pumpjack-modules-3': 4,
+  },
 };
 
 export const upgradeInstalledFor = (machineVariants: MachineVariants, upgradeId: string) => {
   const upgrade = upgradeMap[upgradeId as UpgradeKey];
   if (!upgrade || upgrade.labSpeedLevel !== undefined) return false;
-  const currentRank = machineVariantRank[upgrade.machineGroup][machineVariants[upgrade.machineGroup]] ?? 0;
+  const currentVariant = machineVariants[upgrade.machineGroup];
+  const currentRank = currentVariant ? machineVariantRank[upgrade.machineGroup][currentVariant] ?? 0 : 0;
   const targetRank = machineVariantRank[upgrade.machineGroup][upgrade.newMachine] ?? 0;
   return targetRank > 0 && currentRank >= targetRank;
 };
@@ -391,6 +490,10 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
           ? 'electric-mining-drill-modules-1'
           : savedVariants.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
   };
+  const savedPumpjack = savedVariants.pumpjack;
+  if (savedPumpjack === 'pumpjack' || savedPumpjack === 'pumpjack-modules-1' || savedPumpjack === 'pumpjack-modules-2' || savedPumpjack === 'pumpjack-modules-3') {
+    machineVariants.pumpjack = savedPumpjack;
+  }
   const savedLabSpeedLevel = typeof record.labSpeedLevel === 'number' && Number.isFinite(record.labSpeedLevel)
     ? record.labSpeedLevel
     : 0;
