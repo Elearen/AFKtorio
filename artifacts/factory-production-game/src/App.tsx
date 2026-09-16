@@ -3462,6 +3462,101 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
   const upgradeAvailabilityRank = (complete: boolean, prerequisiteMet: boolean) => complete ? 2 : prerequisiteMet ? 0 : 1;
   const upgradeStatus = (complete: boolean, queued: boolean, canStart: boolean, missing: string, prerequisiteMet: boolean, machineCount: number) =>
     complete ? 'Installed' : queued ? 'In progress' : canStart ? 'Ready to start' : missing ? `Waiting for ${missing}` : !prerequisiteMet ? 'Prerequisites incomplete' : !machineCount ? 'Build machines first' : 'Unavailable';
+  const oilProcessingDetail: UpgradeInfo = {
+    id: OIL_PROCESSING_UPGRADE_ID,
+    title: 'Upgrade Basic Oil Processing to Advanced Oil Processing',
+    copy: 'Replace every constructed Basic Oil Processing refinery with Advanced Oil Processing. The conversion is free and takes one second per refinery.',
+    from: 'Basic Oil Processing',
+    to: 'Advanced Oil Processing',
+    fromIcon: <UpgradeAssetIcon file="basic-oil-processing" size={30} />,
+    toIcon: <UpgradeAssetIcon file="advanced-oil-processing" size={30} />,
+    prerequisite: 'Advanced Oil Processing',
+    prerequisiteMet: oilProcessingPrerequisiteMet,
+    relevantMachine: 'Oil Refinery',
+    machineCount: basicOilMachineCount,
+    costPerItem: [],
+    totalCost: [],
+    timePerMachine: oilProcessingUpgradeTimeFor(1),
+    totalTime: oilProcessingUpgradeQueued && activeUpgrade ? activeUpgrade.total : oilProcessingUpgradeTotalSeconds,
+    status: upgradeStatus(oilProcessingUpgradeComplete, oilProcessingUpgradeQueued, oilProcessingPrerequisiteMet && basicOilMachineCount > 0 && !activeUpgrade, '', oilProcessingPrerequisiteMet, basicOilMachineCount),
+    effects: ['Converts Basic Oil Processing into Advanced Oil Processing.', 'The conversion is free.', 'Advanced processing unlocks the advanced oil recipe path for the converted refineries.'],
+  };
+  const steelFurnaceDetail: UpgradeInfo = {
+    id: 'steel-furnaces',
+    title: 'Upgrade all furnaces to Steel Furnaces',
+    copy: 'Convert every constructed stone furnace together. Steel Furnaces run at twice the speed and use half the coal per item.',
+    from: 'Stone Furnace',
+    to: 'Steel Furnace',
+    fromIcon: <ResourceIcon item="stone-furnace" size={30} />,
+    toIcon: <ResourceIcon item="steel-furnace" size={30} />,
+    prerequisite: STEEL_FURNACE_PREREQUISITE_TECHNOLOGY,
+    prerequisiteMet: furnaceUpgradePrerequisiteMet,
+    relevantMachine: 'Stone Furnace',
+    machineCount: furnaceCount,
+    costPerItem: furnaceUpgradeCostPerFurnace,
+    totalCost: furnaceUpgradeCosts,
+    timePerMachine: steelFurnaceRecipe.energyRequired,
+    totalTime: furnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : furnaceUpgradeTotalSeconds,
+    status: upgradeStatus(furnaceUpgradeComplete, furnaceUpgradeQueued, furnaceUpgradePrerequisiteMet && furnaceCount > 0 && !furnaceUpgradeMissing && !activeUpgrade, furnaceUpgradeMissing, furnaceUpgradePrerequisiteMet, furnaceCount),
+    effects: ['Converts every constructed Stone Furnace into a Steel Furnace.', 'Smelting speed becomes 2× the Stone Furnace rate.', 'Coal consumption per smelted item is reduced by half.'],
+  };
+  const electricFurnaceDetail: UpgradeInfo = {
+    id: ELECTRIC_FURNACE_UPGRADE_ID,
+    title: 'Upgrade all furnaces to Electric Furnaces',
+    copy: 'Convert every constructed Steel Furnace together. Electric Furnaces keep the same speed, remove coal consumption, and draw 180 kW each.',
+    from: 'Steel Furnace',
+    to: 'Electric Furnace',
+    fromIcon: <ResourceIcon item="steel-furnace" size={30} />,
+    toIcon: <ResourceIcon item="electric-furnace" size={30} />,
+    prerequisite: `${ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY} + Steel Furnaces`,
+    prerequisiteMet: electricFurnaceUpgradePrerequisiteMet,
+    relevantMachine: 'Steel Furnace',
+    machineCount: furnaceCount,
+    costPerItem: electricFurnaceUpgradeCostPerFurnace,
+    totalCost: electricFurnaceUpgradeCosts,
+    timePerMachine: electricFurnaceUpgradeTimePerFurnace,
+    totalTime: electricFurnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : electricFurnaceUpgradeTotalSeconds,
+    status: upgradeStatus(electricFurnaceUpgradeComplete, electricFurnaceUpgradeQueued, electricFurnaceUpgradePrerequisiteMet && furnaceCount > 0 && !electricFurnaceUpgradeMissing && !activeUpgrade, electricFurnaceUpgradeMissing, electricFurnaceUpgradePrerequisiteMet, furnaceCount),
+    effects: ['Converts every constructed Steel Furnace into an Electric Furnace.', 'Smelting speed remains unchanged.', 'Coal consumption is removed.', 'Each Electric Furnace draws 180 kW while operating.'],
+  };
+  const ironChestDetail: UpgradeInfo = {
+    id: 'iron-chests',
+    title: 'Upgrade storage to Iron Chests',
+    copy: 'Replace every constructed wooden chest with an Iron Chest. Fluid storage tanks are not affected.',
+    from: 'Wooden Chest',
+    to: 'Iron Chest',
+    fromIcon: <ResourceIcon item="wooden-chest" size={30} />,
+    toIcon: <ResourceIcon item="iron-chest" size={30} />,
+    prerequisite: 'None',
+    prerequisiteMet: true,
+    relevantMachine: 'Wooden Chest',
+    machineCount: storageBoxCount,
+    costPerItem: [{ key: 'ironPlate', amount: ironChestUpgradeCostFor(1), source: 'products' }],
+    totalCost: storageUpgradeCosts,
+    timePerMachine: ironChestUpgradeTimeFor(1),
+    totalTime: storageUpgradeQueued && activeUpgrade ? activeUpgrade.total : storageUpgradeTotalSeconds,
+    status: upgradeStatus(storageUpgradeComplete, storageUpgradeQueued, storageBoxCount > 0 && !storageUpgradeMissing && !activeUpgrade, storageUpgradeMissing, true, storageBoxCount),
+    effects: [`Converts every constructed Wooden Chest into an Iron Chest.`, `Item storage capacity increases from ${fmt(storageBoxCapacity)} to ${fmt(ironStorageBoxCapacity)} per chest.`, 'Fluid storage tanks remain unchanged.'],
+  };
+  const steelChestDetail: UpgradeInfo = {
+    id: 'steel-chests',
+    title: 'Upgrade all storage to Steel Chests',
+    copy: 'Replace every constructed Iron Chest with a Steel Chest. Fluid storage tanks are not affected.',
+    from: 'Iron Chest',
+    to: 'Steel Chest',
+    fromIcon: <ResourceIcon item="iron-chest" size={30} />,
+    toIcon: <ResourceIcon item="steel-chest" size={30} />,
+    prerequisite: 'Iron Chests upgrade',
+    prerequisiteMet: storageUpgradeComplete,
+    relevantMachine: 'Iron Chest',
+    machineCount: storageBoxCount,
+    costPerItem: [{ key: 'steel', amount: STORAGE_STEEL_BOX_COST, source: 'products' }],
+    totalCost: steelStorageUpgradeCosts,
+    timePerMachine: STORAGE_STEEL_BOX_UPGRADE_TIME,
+    totalTime: steelStorageUpgradeQueued && activeUpgrade ? activeUpgrade.total : steelStorageUpgradeTotalSeconds,
+    status: upgradeStatus(steelStorageUpgradeComplete, steelStorageUpgradeQueued, storageUpgradeComplete && storageBoxCount > 0 && !steelStorageUpgradeMissing && !activeUpgrade, steelStorageUpgradeMissing, storageUpgradeComplete, storageBoxCount),
+    effects: ['Converts every constructed Iron Chest into a Steel Chest.', `Item storage capacity increases from ${fmt(ironStorageBoxCapacity)} to ${fmt(steelStorageBoxCapacity)} per chest.`, 'Fluid storage tanks remain unchanged.'],
+  };
   const sortedUpgradeCards = [
     ...upgradeData.map((item) => {
       const machineCount = machineCountForUpgrade(state, item);
@@ -3584,6 +3679,8 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
         timePerMachine={oilProcessingUpgradeTimeFor(1)}
         totalTime={oilProcessingUpgradeQueued && activeUpgrade ? activeUpgrade.total : oilProcessingUpgradeTotalSeconds}
         showCosts={!oilProcessingUpgradeComplete}
+        onInfo={() => setDetailsUpgrade(oilProcessingDetail)}
+        infoId={OIL_PROCESSING_UPGRADE_ID}
         action={<div className="mt-3"><button onClick={startOilProcessingUpgrade} disabled={oilProcessingUpgradeComplete || !!activeUpgrade || !oilProcessingPrerequisiteMet || !basicOilMachineCount} className={`button-base w-full !py-2 ${oilProcessingUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-advanced-oil-processing">{oilProcessingUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !oilProcessingPrerequisiteMet ? 'locked' : !basicOilMachineCount ? 'build refineries first' : 'start upgrade'}</>}</button></div>}
       />,
     },
@@ -3604,7 +3701,9 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
         totalCost={furnaceUpgradeCosts}
         timePerMachine={steelFurnaceRecipe.energyRequired}
         totalTime={furnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : furnaceUpgradeTotalSeconds}
-        showCosts={!furnaceUpgradeComplete}
+         showCosts={!furnaceUpgradeComplete}
+         onInfo={() => setDetailsUpgrade(steelFurnaceDetail)}
+         infoId="steel-furnaces"
         action={<div className="mt-3"><button onClick={startFurnaceUpgrade} disabled={furnaceUpgradeComplete || !!activeUpgrade || !furnaceUpgradePrerequisiteMet || !furnaceCount || !!furnaceUpgradeMissing} className={`button-base w-full !py-2 ${furnaceUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-steel-furnaces">{furnaceUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !furnaceUpgradePrerequisiteMet ? 'locked' : furnaceUpgradeMissing ? `need ${furnaceUpgradeMissing}` : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</>}</button></div>}
       />,
     },
@@ -3626,7 +3725,9 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
          totalCost={electricFurnaceUpgradeCosts}
          timePerMachine={electricFurnaceUpgradeTimePerFurnace}
          totalTime={electricFurnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : electricFurnaceUpgradeTotalSeconds}
-         showCosts={!electricFurnaceUpgradeComplete}
+          showCosts={!electricFurnaceUpgradeComplete}
+          onInfo={() => setDetailsUpgrade(electricFurnaceDetail)}
+          infoId={ELECTRIC_FURNACE_UPGRADE_ID}
          action={<div className="mt-3"><button onClick={startElectricFurnaceUpgrade} disabled={electricFurnaceUpgradeComplete || !!activeUpgrade || !electricFurnaceUpgradePrerequisiteMet || !furnaceCount || !!electricFurnaceUpgradeMissing} className={`button-base w-full !py-2 ${electricFurnaceUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-electric-furnaces">{electricFurnaceUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : electricFurnaceUpgradeMissing ? `need ${electricFurnaceUpgradeMissing}` : !electricFurnaceUpgradePrerequisiteMet ? 'locked' : !furnaceCount ? 'build furnaces first' : 'start upgrade'}</>}</button></div>}
        />,
      },
@@ -3647,7 +3748,9 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
         totalCost={storageUpgradeCosts}
         timePerMachine={ironChestUpgradeTimeFor(1)}
         totalTime={storageUpgradeQueued && activeUpgrade ? activeUpgrade.total : storageUpgradeTotalSeconds}
-        showCosts={!storageUpgradeComplete}
+         showCosts={!storageUpgradeComplete}
+         onInfo={() => setDetailsUpgrade(ironChestDetail)}
+         infoId="iron-chests"
         action={<div className="mt-3"><button onClick={startStorageUpgrade} disabled={storageUpgradeComplete || !!activeUpgrade || !storageBoxCount || !!storageUpgradeMissing} className={`button-base w-full !py-2 ${storageUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-iron-chests">{storageUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : storageUpgradeMissing ? `need ${storageUpgradeMissing}` : !storageBoxCount ? 'build chests first' : 'start upgrade'}</>}</button></div>}
       />,
     },
@@ -3668,7 +3771,9 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
          totalCost={steelStorageUpgradeCosts}
          timePerMachine={STORAGE_STEEL_BOX_UPGRADE_TIME}
          totalTime={steelStorageUpgradeQueued && activeUpgrade ? activeUpgrade.total : steelStorageUpgradeTotalSeconds}
-         showCosts={!steelStorageUpgradeComplete}
+          showCosts={!steelStorageUpgradeComplete}
+          onInfo={() => setDetailsUpgrade(steelChestDetail)}
+          infoId="steel-chests"
          action={<div className="mt-3"><button onClick={startSteelStorageUpgrade} disabled={steelStorageUpgradeComplete || !!activeUpgrade || !storageUpgradeComplete || !storageBoxCount || !!steelStorageUpgradeMissing} className={`button-base w-full !py-2 ${steelStorageUpgradeComplete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid="button-start-upgrade-steel-chests">{steelStorageUpgradeComplete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : !storageUpgradeComplete ? 'locked' : steelStorageUpgradeMissing ? `need ${steelStorageUpgradeMissing}` : !storageBoxCount ? 'build chests first' : 'start upgrade'}</>}</button></div>}
        />,
      },
@@ -3702,6 +3807,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
      <div className="grid gap-3 md:grid-cols-2">
          {visibleUpgradeCards.map(({ card }) => card)}
      </div>
+      {detailsUpgrade && <UpgradeDetailModal item={detailsUpgrade} onClose={() => setDetailsUpgrade(null)} />}
   </PageFrame>;
 }
 
