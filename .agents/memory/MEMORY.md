@@ -16,3 +16,4 @@
 - [Recipe speed](recipe-speed.md) — speed is per-recipe, raises throughput by its additive bonus, and keeps machine power/furnace fuel usage unchanged.
 - [Mining module variant](mining-module-variant.md) — represent installed mining modules through the mining machine variant, while treating it as electric everywhere operationally.
 - [Chemical plant modules](chemical-plant-modules.md) — Chemical Plant module tiers use the oil-processing unlock and affect only the canonical chemical recipe set.
+- [Oil refinery modules](oil-refinery-modules.md) — Oil Refinery module tiers use the oil-processing unlock and affect only basic and advanced oil processing.

@@ -736,6 +736,12 @@ const machineVariantRank: Record<MachineGroup, Record<string, number>> = {
     'chemical-plant-modules-2': 3,
     'chemical-plant-modules-3': 4,
   },
+  oilRefinery: {
+    'oil-refinery': 1,
+    'oil-refinery-modules-1': 2,
+    'oil-refinery-modules-2': 3,
+    'oil-refinery-modules-3': 4,
+  },
 };
 
 export const upgradeInstalledFor = (machineVariants: MachineVariants, upgradeId: string) => {
@@ -788,6 +794,12 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
     machineVariants.chemical = savedChemical;
   } else {
     machineVariants.chemical = 'chemical-plant';
+  }
+  const savedOilRefinery = savedVariants.oilRefinery;
+  if (savedOilRefinery === 'oil-refinery' || savedOilRefinery === 'oil-refinery-modules-1' || savedOilRefinery === 'oil-refinery-modules-2' || savedOilRefinery === 'oil-refinery-modules-3') {
+    machineVariants.oilRefinery = savedOilRefinery;
+  } else {
+    machineVariants.oilRefinery = 'oil-refinery';
   }
   const savedPumpjack = savedVariants.pumpjack;
   if (savedPumpjack === 'pumpjack' || savedPumpjack === 'pumpjack-modules-1' || savedPumpjack === 'pumpjack-modules-2' || savedPumpjack === 'pumpjack-modules-3') {
