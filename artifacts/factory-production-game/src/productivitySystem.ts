@@ -1,4 +1,5 @@
 export type RecipeProductivity = Record<string, number>;
+export type RecipeSpeed = Record<string, number>;
 const miningProductivityResearchPattern = /^mining-productivity-\d+$/;
 
 const finiteNonNegativeNumber = (value: unknown) =>
@@ -24,6 +25,34 @@ export const normalizeRecipeProductivity = (
   saved: unknown,
   recipeNames: ReadonlySet<string>,
 ): RecipeProductivity => {
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
+  return Object.fromEntries(
+    Object.entries(saved)
+      .filter(([recipeName, value]) => recipeNames.has(recipeName) && finiteNonNegativeNumber(value) === value)
+      .map(([recipeName, value]) => [recipeName, finiteNonNegativeNumber(value)]),
+  );
+};
+
+export const recipeSpeedBonusFor = (
+  speed: RecipeSpeed | undefined,
+  recipeName: string,
+) => finiteNonNegativeNumber(speed?.[recipeName]);
+
+export const recipeSpeedMultiplierFor = (
+  speed: RecipeSpeed | undefined,
+  recipeName: string,
+) => 1 + recipeSpeedBonusFor(speed, recipeName);
+
+export const effectiveRecipeSecondsFor = (
+  seconds: number,
+  speed: RecipeSpeed | undefined,
+  recipeName: string,
+) => seconds / recipeSpeedMultiplierFor(speed, recipeName);
+
+export const normalizeRecipeSpeed = (
+  saved: unknown,
+  recipeNames: ReadonlySet<string>,
+): RecipeSpeed => {
   if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
   return Object.fromEntries(
     Object.entries(saved)

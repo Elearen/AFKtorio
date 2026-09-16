@@ -33,7 +33,7 @@ import { primaryOutputFor } from './productionOutput';
 import { prioritizeDisplayOrder } from './displayOrder';
 import { sessionIdForStartTimestamp } from './sessionId';
 import { updateHistoryChangedSince, updateHistoryContent, updateHistoryVersion } from './updateHistory';
-import { miningProductivityMultiplierFor, normalizeRecipeProductivity, productiveOutputAmountFor, type RecipeProductivity } from './productivitySystem';
+import { effectiveRecipeSecondsFor, miningProductivityMultiplierFor, normalizeRecipeProductivity, normalizeRecipeSpeed, productiveOutputAmountFor, recipeSpeedMultiplierFor, type RecipeProductivity, type RecipeSpeed } from './productivitySystem';
 import { saveFileTextFor, stateFromSaveFileText } from './saveFile';
 import {
   Activity, ArrowRight, ArrowUp, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
@@ -175,6 +175,7 @@ type GameState = {
   launchRankingEligible: boolean;
   updateHistoryVersion: string;
   recipeProductivity: RecipeProductivity;
+  recipeSpeed: RecipeSpeed;
 };
 
 const SAVE_KEY = 'factory-production-game-save-v2';
@@ -395,7 +396,9 @@ const furnaceCraftingSpeedFor = (state: GameState) => state.furnaceVariant === '
 const furnaceFuelMultiplierFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? 0 : state.furnaceVariant === 'steel-furnace' ? 0.5 : 1;
 const automatedRecipeInputsFor = (state: GameState, recipe: Recipe) => {
   const inputs = automatedRecipeInputs(recipe);
-  if (isSmeltingRecipe(recipe) && inputs.coal) inputs.coal *= furnaceFuelMultiplierFor(state);
+  if (isSmeltingRecipe(recipe) && inputs.coal) {
+    inputs.coal *= furnaceFuelMultiplierFor(state) / recipeSpeedMultiplierFor(state.recipeSpeed, recipe.name);
+  }
   return inputs;
 };
 const furnaceLabelFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? 'Electric Furnace' : state.furnaceVariant === 'steel-furnace' ? 'Steel Furnace' : 'Stone Furnace';
@@ -425,6 +428,7 @@ const constructionBuildingKeyFor = (state: GameState, action: QueueItem['action'
   return undefined;
 };
 const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
+const recipeCraftSecondsFor = (state: GameState, recipe: Recipe) => effectiveRecipeSecondsFor(recipe.energyRequired, state.recipeSpeed, recipe.name);
 const productiveRecipeOutputsFor = (state: GameState, recipe: Recipe) =>
   recipeOutputs(recipe).map((output) => ({
     ...output,
@@ -586,7 +590,7 @@ const initialState: GameState = {
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, nuclearReactors: 0, heatExchangers: 0, steamTurbines: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], autoResearchEnabled: true, researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
-  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, launchRankingStats: null, tutorialVisible: true, welcomeSeen: false, unedited: true, launchRankingEligible: true, updateHistoryVersion, recipeProductivity: {},
+  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, launchRankingStats: null, tutorialVisible: true, welcomeSeen: false, unedited: true, launchRankingEligible: true, updateHistoryVersion, recipeProductivity: {}, recipeSpeed: {},
 };
 
 const nav = [
@@ -948,7 +952,7 @@ const applyResearchTriggers = (state: GameState) => {
 const recipeCycleRateFor = (state: GameState, recipe: Recipe) => cyclesPerMinuteFor(
   state.assemblers[recipe.name] ?? 0,
   state.simulationSpeed,
-  recipe.energyRequired,
+  recipeCraftSecondsFor(state, recipe),
   craftingSpeedFor(isSmeltingRecipe(recipe), assemblyMachineProductionSpeedFor(state, recipe), furnaceCraftingSpeedFor(state)),
 ) * (recipePausedFor(state, recipe.name) || !recipeAutoStartStopConditionFor(state, recipe).met ? 0 : 1);
 const miningOutputRateFor = (state: GameState, key: RawKey) => {
@@ -1011,7 +1015,7 @@ const handcraftPeakProductionRateFor = (state: GameState, key: TrackedKey) => {
   if (!state.handcraft) return 0;
   const recipe = recipeMap[state.handcraft.recipeKey];
   const output = recipe ? recipeOutputs(recipe).find((entry) => entry.key === key) : undefined;
-  return output ? output.amount * 60 * state.simulationSpeed / recipe.energyRequired : 0;
+  return output ? output.amount * 60 * state.simulationSpeed / recipeCraftSecondsFor(state, recipe) : 0;
 };
 const storageConstrainedFor = (state: GameState, key: TrackedKey) => {
   const capacity = capFor(state, key);
@@ -1121,7 +1125,11 @@ const recipeAutoStartStopConditionFor = (state: GameState, recipe: Recipe) => {
 };
 const furnaceCoalPerItemFor = (state: GameState, recipe: Recipe) => {
   const output = productiveRecipeOutputsFor(state, recipe)[0];
-  return recipe.fuel && output ? materialAmount(recipe.fuel) * furnaceFuelMultiplierFor(state) / Math.max(0.01, output.amount) : 0;
+  return recipe.fuel && output
+    ? materialAmount(recipe.fuel) * furnaceFuelMultiplierFor(state)
+      / recipeSpeedMultiplierFor(state.recipeSpeed, recipe.name)
+      / Math.max(0.01, output.amount)
+    : 0;
 };
 const furnaceCoalUsageFor = (state: GameState, recipe: Recipe, peak = false) => {
   const output = productiveRecipeOutputsFor(state, recipe)[0];
@@ -1486,6 +1494,7 @@ function loadState() {
     }, 0);
     const normalizedResearch = Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key)))));
     const normalizedRecipeProductivity = normalizeRecipeProductivity(parsed.recipeProductivity, recipeKeySet);
+    const normalizedRecipeSpeed = normalizeRecipeSpeed(parsed.recipeSpeed, recipeKeySet);
     const normalizedAutoResearch = Array.from(new Set(
       (Array.isArray(parsed.autoResearch) ? parsed.autoResearch : [])
         .map((key) => normalizeResearchKey(String(key)))
@@ -1609,6 +1618,7 @@ function loadState() {
       launchRankingEligible: parsed.launchRankingEligible !== false,
        updateHistoryVersion,
        recipeProductivity: normalizedRecipeProductivity,
+       recipeSpeed: normalizedRecipeSpeed,
     } as GameState;
     if (state.rocketLaunched && state.finishTimestamp === null && state.winMetrics) {
       state.finishTimestamp = state.winMetrics.timestamp;
@@ -2584,15 +2594,16 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
     if (state.handcraft) return notice(state.handcraft.recipeKey === key ? `already handcrafting ${prettyLabel(key)}` : `finish handcrafting ${prettyLabel(state.handcraft.recipeKey)} first`);
     const missing = missingBuildMaterials(state, recipeBuildCosts(recipe));
     if (missing) return notice(`need ${missing}`);
-    const outputs = recipeOutputs(recipe);
+     const outputs = recipeOutputs(recipe);
+     const craftSeconds = recipeCraftSecondsFor(state, recipe);
     setState((s) => {
       const next = { ...s, raw: { ...s.raw }, products: { ...s.products } };
       spendInputs(next, recipeInputs(recipe));
       next.handcraft = {
         recipeKey: key,
-        seconds: recipe.energyRequired,
-        total: recipe.energyRequired,
-        ...constructionVisualTiming(recipe.energyRequired / Math.max(0.0001, s.simulationSpeed)),
+         seconds: craftSeconds,
+         total: craftSeconds,
+         ...constructionVisualTiming(craftSeconds / Math.max(0.0001, s.simulationSpeed)),
       };
       return next;
     });
@@ -2736,7 +2747,8 @@ function NuclearRecipeCard({ state, setState, enqueue, notice, cancelConstructio
     setState((s) => {
       const next = { ...s, raw: { ...s.raw }, products: { ...s.products } };
       spendInputs(next, recipeInputs(recipe));
-      next.handcraft = { recipeKey: key, seconds: recipe.energyRequired, total: recipe.energyRequired, ...constructionVisualTiming(recipe.energyRequired / Math.max(0.0001, s.simulationSpeed)) };
+     const craftSeconds = recipeCraftSecondsFor(s, recipe);
+     next.handcraft = { recipeKey: key, seconds: craftSeconds, total: craftSeconds, ...constructionVisualTiming(craftSeconds / Math.max(0.0001, s.simulationSpeed)) };
       return next;
     });
     notice(`handcrafting ${prettyLabel(outputsForRecipe[0]?.key ?? recipe.name)}`);

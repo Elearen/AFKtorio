@@ -1,12 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  effectiveRecipeSecondsFor,
   miningProductivityBonusFor,
   miningProductivityMultiplierFor,
   normalizeRecipeProductivity,
+  normalizeRecipeSpeed,
   productiveOutputAmountFor,
   recipeProductivityBonusFor,
   recipeProductivityMultiplierFor,
+  recipeSpeedBonusFor,
+  recipeSpeedMultiplierFor,
 } from '../src/productivitySystem.js';
 
 test('recipe productivity applies a separate bonus multiplier to outputs', () => {
@@ -37,4 +41,18 @@ test('mining productivity research adds 10% per level except for water', () => {
   assert.equal(miningProductivityBonusFor(research), 0.2);
   assert.equal(miningProductivityMultiplierFor('copper', research), 1.2);
   assert.equal(miningProductivityMultiplierFor('water', research), 1);
+});
+
+test('recipe speed shortens cycle time and defaults invalid saved values to zero', () => {
+  const speed = normalizeRecipeSpeed({
+    'copper-plate': 0.05,
+    'iron-plate': -0.1,
+    invalid: '5%',
+  }, new Set(['copper-plate', 'iron-plate']));
+
+  assert.deepEqual(speed, { 'copper-plate': 0.05 });
+  assert.equal(recipeSpeedBonusFor(speed, 'copper-plate'), 0.05);
+  assert.equal(recipeSpeedMultiplierFor(speed, 'copper-plate'), 1.05);
+  assert.equal(effectiveRecipeSecondsFor(20, speed, 'copper-plate'), 20 / 1.05);
+  assert.equal(effectiveRecipeSecondsFor(20, speed, 'iron-plate'), 20);
 });
