@@ -289,7 +289,7 @@ const electricMiningDrillRecipe = recipeMap['electric-mining-drill'];
 const electricMiningDrillBuildCost = upgradeMap['electric-mining-drill'].newMachineMaterialCost;
 const electricMiningDrillPowerKw = upgradeMap['electric-mining-drill'].newMachinePowerDraw;
 const electricMiningDrillProductionSpeed = upgradeMap['electric-mining-drill'].newMachineProductionSpeed;
-const miningModulesPowerSurchargeKw = upgradeMap[MINING_MODULES_UPGRADE_ID].newMachinePowerDraw;
+const miningModulesPowerSurchargeKw = upgradeMap[MINING_MODULES_UPGRADE_ID].powerDrawIncrease ?? upgradeMap[MINING_MODULES_UPGRADE_ID].newMachinePowerDraw;
 const waterPumpPerSecond = 1200;
 const waterPumpBuildSeconds = 3;
 const waterPumpBuildCost: BuildMaterialCost[] = [
@@ -708,9 +708,9 @@ const electricMiningVariantFor = (state: GameState) => state.machineVariants.min
   || state.machineVariants.mining === 'electric-mining-drill-modules-1';
 const miningMachineProductionSpeedFor = (state: GameState, key?: RawKey) =>
   key === 'uranium' || electricMiningVariantFor(state) ? electricMiningDrillProductionSpeed : burnerMiningDrillProductionSpeed;
-const miningMachinePowerFor = (state: GameState) => electricMiningVariantFor(state)
-  ? electricMiningDrillPowerKw
-  : 0;
+const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1'
+  ? upgradeMap[MINING_MODULES_UPGRADE_ID].newMachinePowerDraw
+  : electricMiningVariantFor(state) ? electricMiningDrillPowerKw : 0;
 const miningModulesInstalledFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1';
 const activeElectricMinerCountFor = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + (miningPausedFor(state, key) ? 0 : state.miners[key]), 0);
 const activeUraniumMinerCountFor = (state: GameState) => miningPausedFor(state, 'uranium') ? 0 : state.uraniumMiners;
@@ -777,13 +777,11 @@ const electricPowerDraw = (state: GameState) => {
   const furnacePower = state.furnaceVariant === 'electric-furnace' ? activeSmeltingFurnaceCount * electricFurnacePowerKw : 0;
   const activeElectricMinerCount = activeElectricMinerCountFor(state);
   const activeUraniumMinerCount = activeUraniumMinerCountFor(state);
-  const miningModuleMachineCount = activeElectricMinerCount + activeUraniumMinerCount;
   const electricMiningPower = electricMiningVariantFor(state)
     ? activeElectricMinerCount * miningMachinePowerFor(state)
     : 0;
-  const uraniumMiningPower = activeUraniumMinerCount * electricMiningDrillPowerKw;
-  const miningModulePower = miningModulesInstalledFor(state) ? miningModuleMachineCount * miningModulesPowerSurchargeKw : 0;
-  return (state.labs * labPowerKw + assemblerPower + furnacePower + electricMiningPower + uraniumMiningPower + miningModulePower) / 1000;
+  const uraniumMiningPower = activeUraniumMinerCount * miningMachinePowerFor(state);
+  return (state.labs * labPowerKw + assemblerPower + furnacePower + electricMiningPower + uraniumMiningPower) / 1000;
 };
 const electricPowerRatioFor = (state: GameState, seconds = 1) => {
   const required = electricPowerDraw(state);
