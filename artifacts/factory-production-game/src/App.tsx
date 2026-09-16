@@ -2181,7 +2181,7 @@ function UpgradeDetailModal({ item, onClose }: { item: UpgradeInfo; onClose: () 
         <div className="eyebrow mb-3">Cost and time</div>
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="data-row rounded-lg p-3"><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Per machine</div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><UpgradeCostChips costs={item.costPerItem} /><UpgradeTime seconds={item.timePerMachine} /></div></div>
-          <div className="data-row relative rounded-lg p-3"><div className="pr-8 text-[10px] text-[hsl(var(--muted-foreground))]">Current total</div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><UpgradeCostChips costs={item.totalCost} /><UpgradeTimeSummary originalSeconds={item.timePerMachine * item.machineCount} totalSeconds={item.totalTime} reductionPercent={item.timeReductionPercent ?? 0} /></div><UpgradeRobotReductionBadge percent={item.timeReductionPercent ?? 0} testId={`dialog-upgrade-robot-reduction-${item.id}`} /></div>
+          <div className="data-row relative rounded-lg p-3"><div className="pr-8 text-[10px] text-[hsl(var(--muted-foreground))]">Current total</div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><UpgradeCostChips costs={item.totalCost} /><UpgradeTimeSummary originalSeconds={item.originalTotalTime} totalSeconds={item.totalTime} reductionPercent={item.timeReductionPercent ?? 0} /></div><UpgradeRobotReductionBadge percent={item.timeReductionPercent ?? 0} testId={`dialog-upgrade-robot-reduction-${item.id}`} /></div>
         </div>
       </div>
       <div className="py-4">
@@ -3642,6 +3642,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     costPerItem: [],
     totalCost: [],
     timePerMachine: oilProcessingUpgradeTimeFor(1),
+     originalTotalTime: oilProcessingUpgradeTimeFor(1) * oilProcessingConversionCount,
     totalTime: oilProcessingUpgradeQueued && activeUpgrade ? activeUpgrade.total : oilProcessingUpgradeTotalSeconds,
      timeReductionPercent: oilProcessingUpgradeTimeReductionPercent,
     status: upgradeStatus(oilProcessingUpgradeComplete, oilProcessingUpgradeQueued, oilProcessingPrerequisiteMet && basicOilMachineCount > 0 && !activeUpgrade, '', oilProcessingPrerequisiteMet, basicOilMachineCount),
@@ -3662,6 +3663,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     costPerItem: furnaceUpgradeCostPerFurnace,
     totalCost: furnaceUpgradeCosts,
     timePerMachine: steelFurnaceRecipe.energyRequired,
+     originalTotalTime: steelFurnaceRecipe.energyRequired * (furnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount),
     totalTime: furnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : furnaceUpgradeTotalSeconds,
      timeReductionPercent: furnaceUpgradeTimeReductionPercent,
     status: upgradeStatus(furnaceUpgradeComplete, furnaceUpgradeQueued, furnaceUpgradePrerequisiteMet && furnaceCount > 0 && !furnaceUpgradeMissing && !activeUpgrade, furnaceUpgradeMissing, furnaceUpgradePrerequisiteMet, furnaceCount),
@@ -3682,6 +3684,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     costPerItem: electricFurnaceUpgradeCostPerFurnace,
     totalCost: electricFurnaceUpgradeCosts,
     timePerMachine: electricFurnaceUpgradeTimePerFurnace,
+     originalTotalTime: electricFurnaceUpgradeTimePerFurnace * (electricFurnaceUpgradeQueued ? activeUpgrade?.machineCount ?? furnaceCount : furnaceCount),
     totalTime: electricFurnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : electricFurnaceUpgradeTotalSeconds,
      timeReductionPercent: electricFurnaceUpgradeTimeReductionPercent,
     status: upgradeStatus(electricFurnaceUpgradeComplete, electricFurnaceUpgradeQueued, electricFurnaceUpgradePrerequisiteMet && furnaceCount > 0 && !electricFurnaceUpgradeMissing && !activeUpgrade, electricFurnaceUpgradeMissing, electricFurnaceUpgradePrerequisiteMet, furnaceCount),
@@ -3702,6 +3705,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     costPerItem: [{ key: 'ironPlate', amount: ironChestUpgradeCostFor(1), source: 'products' }],
     totalCost: storageUpgradeCosts,
     timePerMachine: ironChestUpgradeTimeFor(1),
+     originalTotalTime: ironChestUpgradeTimeFor(1) * (storageUpgradeQueued ? activeUpgrade?.machineCount ?? storageBoxCount : storageBoxCount),
     totalTime: storageUpgradeQueued && activeUpgrade ? activeUpgrade.total : storageUpgradeTotalSeconds,
      timeReductionPercent: storageUpgradeTimeReductionPercent,
     status: upgradeStatus(storageUpgradeComplete, storageUpgradeQueued, storageBoxCount > 0 && !storageUpgradeMissing && !activeUpgrade, storageUpgradeMissing, true, storageBoxCount),
@@ -3722,6 +3726,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     costPerItem: [{ key: 'steel', amount: STORAGE_STEEL_BOX_COST, source: 'products' }],
     totalCost: steelStorageUpgradeCosts,
     timePerMachine: STORAGE_STEEL_BOX_UPGRADE_TIME,
+     originalTotalTime: STORAGE_STEEL_BOX_UPGRADE_TIME * (steelStorageUpgradeQueued ? activeUpgrade?.machineCount ?? storageBoxCount : storageBoxCount),
     totalTime: steelStorageUpgradeQueued && activeUpgrade ? activeUpgrade.total : steelStorageUpgradeTotalSeconds,
      timeReductionPercent: steelStorageUpgradeTimeReductionPercent,
     status: upgradeStatus(steelStorageUpgradeComplete, steelStorageUpgradeQueued, storageUpgradeComplete && storageBoxCount > 0 && !steelStorageUpgradeMissing && !activeUpgrade, steelStorageUpgradeMissing, storageUpgradeComplete, storageBoxCount),
@@ -3853,6 +3858,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
         costPerItem: item.upgradeCostPerMachine,
         totalCost: totalCosts,
         timePerMachine: item.upgradeTimePerMachine,
+         originalTotalTime: item.upgradeTimePerMachine * conversionCount,
          totalTime: upgradeTotalTime,
          timeReductionPercent: upgradeTimeReductionPercent,
         status: upgradeStatus(complete, queued, canStart, missing, prerequisiteMet, machineCount),
