@@ -49,6 +49,7 @@ export type UpgradeDefinition = {
   newMachineLabel: string;
   newMachineMaterialCost: BuildMaterialCost[];
   newMachinePowerDraw: number;
+  powerDrawIncrease?: number;
   newMachineProductionSpeed: number;
   affectedRecipes?: string[];
   recipeProductivityBonus?: number;
@@ -149,9 +150,10 @@ export const upgradeData: UpgradeDefinition[] = [
     ]),
     upgradeTimePerMachine: 1,
     newMachine: 'electric-mining-drill-modules-1',
-    newMachineLabel: 'Electric Miner + Level 1 Modules',
+    newMachineLabel: 'Electric Miner + L1 Modules',
     newMachineMaterialCost: [],
-    newMachinePowerDraw: 159,
+    newMachinePowerDraw: 534,
+    powerDrawIncrease: 159,
     newMachineProductionSpeed: 0.7,
     affectedRecipes: ['stone', 'coal', 'copper', 'iron', 'uranium'],
     recipeProductivityBonus: 0.04,

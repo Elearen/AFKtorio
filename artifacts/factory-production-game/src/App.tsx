@@ -711,7 +711,6 @@ const miningMachineProductionSpeedFor = (state: GameState, key?: RawKey) =>
 const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1'
   ? upgradeMap[MINING_MODULES_UPGRADE_ID].newMachinePowerDraw
   : electricMiningVariantFor(state) ? electricMiningDrillPowerKw : 0;
-const miningModulesInstalledFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1';
 const activeElectricMinerCountFor = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + (miningPausedFor(state, key) ? 0 : state.miners[key]), 0);
 const activeUraniumMinerCountFor = (state: GameState) => miningPausedFor(state, 'uranium') ? 0 : state.uraniumMiners;
 const electricMinerCountFor = (state: GameState) => burnerMinerCount(state) + state.uraniumMiners;
@@ -792,7 +791,7 @@ const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps +
 const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgrade.id === MINING_MODULES_UPGRADE_ID
   ? electricMiningVariantFor(state) ? electricMinerCountFor(state) : 0
   : upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade, state.labs);
-const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1' ? 'Electric Miner + Level 1 Modules' : electricMiningVariantFor(state) ? 'Electric Miner' : 'Burner Mining Drill';
+const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1' ? 'Electric Miner + L1 Modules' : electricMiningVariantFor(state) ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => electricMiningVariantFor(state) ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
 const miningMachineCountFor = (state: GameState, key: RawKey) => key === 'wood' ? 0 : key === 'water' ? state.pumps : key === 'crudeOil' ? state.pumpjacks : key === 'uranium' ? state.uraniumMiners : state.miners[key];
 const miningOutputPerSecondFor = (key: RawKey) => key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'crudeOil' ? 50 : burnerMinerKeys.includes(key) ? 0.25 : 1;
@@ -3617,8 +3616,10 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
           item.labSpeedLevel !== undefined
             ? `Research speed becomes ${item.newMachineProductionSpeed}× at this level.`
             : `Machine production speed: ${item.newMachineProductionSpeed}.`,
-          item.newMachinePowerDraw > 0
-            ? `Machine power draw: ${fmt(item.newMachinePowerDraw)} kW each.`
+          item.id === MINING_MODULES_UPGRADE_ID
+            ? `Power draw increases from ${fmt(item.newMachinePowerDraw - miningModulesPowerSurchargeKw)} kW to ${fmt(item.newMachinePowerDraw)} kW per miner (+${fmt(miningModulesPowerSurchargeKw)} kW).`
+            : item.newMachinePowerDraw > 0
+              ? `Machine power draw: ${fmt(item.newMachinePowerDraw)} kW each.`
             : 'This upgrade adds no machine power draw.',
           ...(item.affectedRecipes?.length ? [
             `Affected mining lines: ${item.affectedRecipes.map((recipe) => prettyLabel(recipe)).join(', ')}.`,
@@ -3644,7 +3645,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
             ? <UpgradePowerAdvisory
               testId={`panel-upgrade-power-${item.id}`}
               machineCount={machineCount}
-              powerDrawKw={item.newMachinePowerDraw}
+              powerDrawKw={item.powerDrawIncrease ?? item.newMachinePowerDraw}
               state={state}
             />
             : undefined}
