@@ -12,7 +12,7 @@ import { calculatePowerFlow } from './powerSystem';
 import { calculateNuclearPowerFlow, type NuclearPowerFlow } from './nuclearPowerSystem';
 import { burnerMinerFuelRatioFor, burnerMinerNeedsFuel, miningPowerRatioFor } from './miningSystem';
 import {
-  OIL_PROCESSING_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
+  MINING_MODULES_UPGRADE_ID, OIL_PROCESSING_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
   kovarexConditionMet, migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeInstalledFor, upgradeMap,
   ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY, ELECTRIC_FURNACE_UPGRADE_ID, electricFurnacePrerequisiteMet, electricFurnaceUpgradeCostPerFurnace, electricFurnaceUpgradeTimePerFurnace, steelFurnacePrerequisiteMet, type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
@@ -176,6 +176,7 @@ type GameState = {
   updateHistoryVersion: string;
   recipeProductivity: RecipeProductivity;
   recipeSpeed: RecipeSpeed;
+  completedUpgrades: string[];
 };
 
 const SAVE_KEY = 'factory-production-game-save-v2';
@@ -195,7 +196,7 @@ const sourceKeyAliases: Record<string, TrackedKey> = {
 const keyForSource = (name: string) => sourceKeyAliases[name] ?? name;
 const recipeMap: Record<string, Recipe> = Object.fromEntries(recipeCatalog.map((recipe) => [recipe.name, recipe]));
 const componentKeys: ComponentKey[] = recipeCatalog.map((recipe) => recipe.name);
-const recipeKeySet = new Set<string>(componentKeys);
+const recipeEffectKeySet = new Set<string>([...componentKeys, ...rawKeys]);
 const scienceRecipeKeys: Record<ScienceKey, string> = {
   automationPack: 'automation-science-pack', logisticsPack: 'logistic-science-pack',
   chemicalPack: 'chemical-science-pack', militaryPack: 'military-science-pack',
@@ -289,6 +290,7 @@ const electricMiningDrillRecipe = recipeMap['electric-mining-drill'];
 const electricMiningDrillBuildCost = upgradeMap['electric-mining-drill'].newMachineMaterialCost;
 const electricMiningDrillPowerKw = upgradeMap['electric-mining-drill'].newMachinePowerDraw;
 const electricMiningDrillProductionSpeed = upgradeMap['electric-mining-drill'].newMachineProductionSpeed;
+const miningModulesPowerSurchargeKw = upgradeMap[MINING_MODULES_UPGRADE_ID].newMachinePowerDraw;
 const waterPumpPerSecond = 1200;
 const waterPumpBuildSeconds = 3;
 const waterPumpBuildCost: BuildMaterialCost[] = [
@@ -704,7 +706,12 @@ const assemblyMachinePowerFor = (state: GameState, recipe?: Recipe) => isCentrif
         ? assemblyMachineTwoPowerKw
         : assemblyMachineOnePowerKw;
 const miningMachineProductionSpeedFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillProductionSpeed : burnerMiningDrillProductionSpeed;
-const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillPowerKw : 0;
+const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill'
+  ? electricMiningDrillPowerKw
+  : 0;
+const miningModulesInstalledFor = (state: GameState) => state.completedUpgrades.includes(MINING_MODULES_UPGRADE_ID);
+const activeElectricMinerCountFor = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + (miningPausedFor(state, key) ? 0 : state.miners[key]), 0);
+const activeUraniumMinerCountFor = (state: GameState) => miningPausedFor(state, 'uranium') ? 0 : state.uraniumMiners;
 const miningUsesStoredCoal = (state: GameState) => state.machineVariants.mining !== 'electric-mining-drill';
 const fueledBurnerMinerCount = (state: GameState) => miningUsesStoredCoal(state)
   ? fueledBurnerMinerKeys.reduce((total, key) => total + (miningPausedFor(state, key) || !burnerMinerNeedsFuel(state.raw[key], capFor(state, key), demandRateFor(state, key)) ? 0 : state.miners[key]), 0)
@@ -765,9 +772,15 @@ const electricPowerDraw = (state: GameState) => {
   }, 0);
   const activeSmeltingFurnaceCount = Array.from(smeltingRecipeKeys).reduce((total, recipeKey) => total + (recipePausedFor(state, recipeKey) ? 0 : state.assemblers[recipeKey] ?? 0), 0);
   const furnacePower = state.furnaceVariant === 'electric-furnace' ? activeSmeltingFurnaceCount * electricFurnacePowerKw : 0;
-  const activeElectricMinerCount = burnerMinerKeys.reduce((total, key) => total + (miningPausedFor(state, key) ? 0 : state.miners[key]), 0);
-  const miningPower = state.machineVariants.mining === 'electric-mining-drill' ? activeElectricMinerCount * miningMachinePowerFor(state) : 0;
-  return (state.labs * labPowerKw + assemblerPower + furnacePower + miningPower) / 1000;
+  const activeElectricMinerCount = activeElectricMinerCountFor(state);
+  const activeUraniumMinerCount = activeUraniumMinerCountFor(state);
+  const miningModuleMachineCount = activeElectricMinerCount + activeUraniumMinerCount;
+  const miningPower = state.machineVariants.mining === 'electric-mining-drill'
+    ? activeElectricMinerCount * miningMachinePowerFor(state)
+      + (miningModulesInstalledFor(state) ? miningModuleMachineCount * miningModulesPowerSurchargeKw : 0)
+    : 0;
+  const uraniumMiningModulePower = miningModulesInstalledFor(state) ? activeUraniumMinerCount * miningModulesPowerSurchargeKw : 0;
+  return (state.labs * labPowerKw + assemblerPower + furnacePower + miningPower + uraniumMiningModulePower) / 1000;
 };
 const electricPowerRatioFor = (state: GameState, seconds = 1) => {
   const required = electricPowerDraw(state);
@@ -775,7 +788,9 @@ const electricPowerRatioFor = (state: GameState, seconds = 1) => {
 };
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
 const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.pumpjacks + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels + state.accumulators;
-const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade, state.labs);
+const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgrade.id === MINING_MODULES_UPGRADE_ID
+  ? state.machineVariants.mining === 'electric-mining-drill' ? burnerMinerCount(state) + state.uraniumMiners : 0
+  : upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade, state.labs);
 const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill' ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
 const miningMachineCountFor = (state: GameState, key: RawKey) => key === 'wood' ? 0 : key === 'water' ? state.pumps : key === 'crudeOil' ? state.pumpjacks : key === 'uranium' ? state.uraniumMiners : state.miners[key];
