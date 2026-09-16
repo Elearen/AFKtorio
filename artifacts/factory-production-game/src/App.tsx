@@ -4877,24 +4877,21 @@ function Game() {
     URL.revokeObjectURL(url);
     notice('save file exported');
   };
-  const importSave = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const importedState = stateFromSaveFileText(String(reader.result));
-        localStorage.setItem(SAVE_KEY, JSON.stringify({
-          ...importedState,
-          unedited: true,
-          launchRankingEligible: false,
-        }));
-        notice('save imported; reloading');
-        window.setTimeout(() => window.location.reload(), 250);
-      } catch {
-        notice('could not import save file');
-      }
-    };
-    reader.onerror = () => notice('could not read save file');
-    reader.readAsText(file);
+  const importSave = async (file: File) => {
+    try {
+      const importedState = stateFromSaveFileText(await file.text());
+      const persistedState = {
+        ...importedState,
+        unedited: true,
+        launchRankingEligible: false,
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(persistedState));
+      if (localStorage.getItem(SAVE_KEY) === null) throw new Error('The browser did not save the imported file.');
+      notice('save imported; reloading');
+      window.location.reload();
+    } catch (error) {
+      notice(error instanceof Error ? error.message : 'could not import save file');
+    }
   };
   const reset = () => {
     const timestamp = Math.max(Date.now(), state.gameStartTimestamp + 1);
