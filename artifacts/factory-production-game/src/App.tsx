@@ -409,7 +409,7 @@ const constructionBuildingKeyFor = (state: GameState, action: QueueItem['action'
   if (action === 'miner') return state.machineVariants.mining === 'electric-mining-drill-modules-1' ? 'electric-mining-drill' : state.machineVariants.mining;
   if (action === 'pump') return 'offshore-pump';
   if (action === 'pumpjack') return 'pumpjack';
-  if (action === 'uraniumMiner') return 'uranium-miner';
+  if (action === 'uraniumMiner') return 'electric-mining-drill';
   if (action === 'assembler' || action === 'furnace') {
     const recipe = targetId ? recipeMap[targetId] : undefined;
     return recipe ? productionBuildingFor(state, recipe) : state.machineVariants.assembly;
@@ -706,13 +706,15 @@ const assemblyMachinePowerFor = (state: GameState, recipe?: Recipe) => isCentrif
         : assemblyMachineOnePowerKw;
 const electricMiningVariantFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill'
   || state.machineVariants.mining === 'electric-mining-drill-modules-1';
-const miningMachineProductionSpeedFor = (state: GameState) => electricMiningVariantFor(state) ? electricMiningDrillProductionSpeed : burnerMiningDrillProductionSpeed;
+const miningMachineProductionSpeedFor = (state: GameState, key?: RawKey) =>
+  key === 'uranium' || electricMiningVariantFor(state) ? electricMiningDrillProductionSpeed : burnerMiningDrillProductionSpeed;
 const miningMachinePowerFor = (state: GameState) => electricMiningVariantFor(state)
   ? electricMiningDrillPowerKw
   : 0;
 const miningModulesInstalledFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1';
 const activeElectricMinerCountFor = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + (miningPausedFor(state, key) ? 0 : state.miners[key]), 0);
 const activeUraniumMinerCountFor = (state: GameState) => miningPausedFor(state, 'uranium') ? 0 : state.uraniumMiners;
+const electricMinerCountFor = (state: GameState) => burnerMinerCount(state) + state.uraniumMiners;
 const miningUsesStoredCoal = (state: GameState) => !electricMiningVariantFor(state);
 const fueledBurnerMinerCount = (state: GameState) => miningUsesStoredCoal(state)
   ? fueledBurnerMinerKeys.reduce((total, key) => total + (miningPausedFor(state, key) || !burnerMinerNeedsFuel(state.raw[key], capFor(state, key), demandRateFor(state, key)) ? 0 : state.miners[key]), 0)
@@ -776,12 +778,12 @@ const electricPowerDraw = (state: GameState) => {
   const activeElectricMinerCount = activeElectricMinerCountFor(state);
   const activeUraniumMinerCount = activeUraniumMinerCountFor(state);
   const miningModuleMachineCount = activeElectricMinerCount + activeUraniumMinerCount;
-  const miningPower = electricMiningVariantFor(state)
+  const electricMiningPower = electricMiningVariantFor(state)
     ? activeElectricMinerCount * miningMachinePowerFor(state)
-      + (miningModulesInstalledFor(state) ? miningModuleMachineCount * miningModulesPowerSurchargeKw : 0)
     : 0;
-  const uraniumMiningModulePower = miningModulesInstalledFor(state) ? activeUraniumMinerCount * miningModulesPowerSurchargeKw : 0;
-  return (state.labs * labPowerKw + assemblerPower + furnacePower + miningPower + uraniumMiningModulePower) / 1000;
+  const uraniumMiningPower = activeUraniumMinerCount * electricMiningDrillPowerKw;
+  const miningModulePower = miningModulesInstalledFor(state) ? miningModuleMachineCount * miningModulesPowerSurchargeKw : 0;
+  return (state.labs * labPowerKw + assemblerPower + furnacePower + electricMiningPower + uraniumMiningPower + miningModulePower) / 1000;
 };
 const electricPowerRatioFor = (state: GameState, seconds = 1) => {
   const required = electricPowerDraw(state);
@@ -790,7 +792,7 @@ const electricPowerRatioFor = (state: GameState, seconds = 1) => {
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
 const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.pumpjacks + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels + state.accumulators;
 const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgrade.id === MINING_MODULES_UPGRADE_ID
-  ? electricMiningVariantFor(state) ? burnerMinerCount(state) + state.uraniumMiners : 0
+  ? electricMiningVariantFor(state) ? electricMinerCountFor(state) : 0
   : upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade, state.labs);
 const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1' ? 'Assembly machine 3 + level 1 modules' : electricMiningVariantFor(state) ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => electricMiningVariantFor(state) ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
@@ -973,7 +975,9 @@ const recipeCycleRateFor = (state: GameState, recipe: Recipe) => cyclesPerMinute
 ) * (recipePausedFor(state, recipe.name) || !recipeAutoStartStopConditionFor(state, recipe).met ? 0 : 1);
 const miningOutputRateFor = (state: GameState, key: RawKey) => {
   const base = miningOutputPerSecondFor(key);
-  const machineSpeedRatio = burnerMinerKeys.includes(key) ? miningMachineProductionSpeedFor(state) / burnerMiningDrillProductionSpeed : 1;
+  const machineSpeedRatio = burnerMinerKeys.includes(key) || key === 'uranium'
+    ? miningMachineProductionSpeedFor(state, key) / burnerMiningDrillProductionSpeed
+    : 1;
   return base
     * machineSpeedRatio
     * miningProductivityMultiplierFor(key, state.research)
@@ -1276,7 +1280,8 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     if (!count || miningPausedFor(state, key)) return;
     const minerSeconds = fueledBurnerMinerKeys.includes(key) ? operatingSeconds : seconds;
       const outputRate = key === 'coal' && miningUsesStoredCoal(state) ? miningOutputRateFor(state, key) - burnerMiningDrillCoalPerSecond : miningOutputRateFor(state, key);
-    state.miningProgress[key] += count * outputRate * minerSeconds * speed * (offline ? 1 : miningStorageThrottleFor(state, key, burnerCoalAtTickStart)) * miningPowerRatio;
+    const miningPowerRatioForKey = key === 'uranium' ? powerRatio : miningPowerRatio;
+    state.miningProgress[key] += count * outputRate * minerSeconds * speed * (offline ? 1 : miningStorageThrottleFor(state, key, burnerCoalAtTickStart)) * miningPowerRatioForKey;
     while (state.miningProgress[key] >= 1) {
       const accepted = addTracked(state, key, 1);
       if (accepted < 1 - 0.000001) { state.miningProgress[key] = 0; break; }
@@ -1805,13 +1810,7 @@ function NavigationIcon({ pageKey, state, compact = false }: { pageKey: string; 
 }
 function MiningBuildingIcon({ resource, machineVariant, size = 17 }: { resource: RawKey; machineVariant: string; size?: number }) {
   if (resource === 'water') return <ResourceIcon item="offshore-pump" size={size} />;
-  if (resource === 'uranium') {
-    const pipeSize = Math.max(8, Math.round(size * 0.58));
-    return <span className="relative inline-block shrink-0" style={{ width: size, height: size }} aria-hidden="true">
-      <ResourceIcon item="electric-mining-drill" size={size} />
-      <span className="absolute -bottom-1 -right-1 rounded-sm bg-[hsl(216_24%_10%)]"><ResourceIcon item="pipe" size={pipeSize} /></span>
-    </span>;
-  }
+  if (resource === 'uranium') return <ResourceIcon item="electric-mining-drill" size={size} />;
   if (resource === 'crudeOil') return <ResourceIcon item="pumpjack" size={size} />;
   if (burnerMinerKeys.includes(resource)) return <ResourceIcon item={machineVariant === 'electric-mining-drill-modules-1' ? 'electric-mining-drill' : machineVariant} size={size} />;
   return <Pickaxe size={size} />;
@@ -2514,7 +2513,11 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
       enqueue('pumpjack', 'Crude oil pumpjack', pumpjackRecipe.energyRequired, undefined, pumpjackBuildCost, constructionBatchSize);
       return;
     }
-    if (key === 'uranium') { if (!state.research.includes('uranium-mining')) return notice('Uranium Mining required'); enqueue('uraniumMiner', 'Acid-powered uranium miner', 90, undefined, [{ key: 'steel', amount: 20, source: 'products' }, { key: 'circuit', amount: 8, source: 'products' }], constructionBatchSize); return; }
+    if (key === 'uranium') {
+      if (!state.research.includes('uranium-mining')) return notice('Uranium Mining required');
+      enqueue('uraniumMiner', 'Electric Miner', electricMiningDrillRecipe.energyRequired, undefined, electricMiningDrillBuildCost, constructionBatchSize);
+      return;
+    }
     const machineCosts = miningMachineBuildCostFor(state);
     const machine = miningMachineRecipeFor(state);
     enqueue('miner', `${rawInfo[key].label} ${miningMachineLabelFor(state).toLowerCase()}`, machine.energyRequired, key, machineCosts, constructionBatchSize);
@@ -2544,8 +2547,8 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
         const constructionAction = key === 'water' ? 'pump' : key === 'crudeOil' ? 'pumpjack' : key === 'uranium' ? 'uraniumMiner' : 'miner';
         const constructionItems = manualOnly ? [] : state.queue.filter((item) => item.action === constructionAction && (constructionAction !== 'miner' || item.targetId === key));
         const isBuilding = constructionItems.length > 0;
-        const machineLabel = manualOnly ? 'Manual collection only' : key === 'water' ? 'Water Pump' : key === 'crudeOil' ? 'Pumpjack' : key === 'uranium' ? 'Acid-powered Uranium Miner' : miningMachineLabelFor(state);
-        const constructionLabel = key === 'water' ? 'Water pump' : key === 'crudeOil' ? 'Crude oil pumpjack' : key === 'uranium' ? 'Acid-powered uranium miner' : `${info.label} ${miningMachineLabelFor(state).toLowerCase()}`;
+         const machineLabel = manualOnly ? 'Manual collection only' : key === 'water' ? 'Water Pump' : key === 'crudeOil' ? 'Pumpjack' : miningMachineLabelFor(state);
+         const constructionLabel = key === 'water' ? 'Water pump' : key === 'crudeOil' ? 'Crude oil pumpjack' : `${info.label} ${miningMachineLabelFor(state).toLowerCase()}`;
         const collectionLabel = manualCollectionAvailable ? 'manual collection' : 'machine extraction';
         const manualCollectionControl = <button onClick={() => tap(key)} disabled={!manualCollectionAvailable} className={`button-base flex-1 !py-2 ${manualCollectionAvailable ? count ? 'button-ghost' : 'button-primary' : 'button-ghost opacity-60'}`} aria-label={manualCollectionAvailable ? `Collect ${info.label} manually` : `${info.label} requires a machine`} title={manualCollectionAvailable ? 'Collect manually' : 'This material requires a machine'} data-testid={`button-tap-${key}`}>
           {!manualCollectionAvailable ? <><LockKeyhole size={13} /> machine only</> : manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} /> collect manually</>}
@@ -3417,7 +3420,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
         : item.id === 'assembly-machine-3'
           ? 'Assembly Machine 2'
           : item.id === MINING_MODULES_UPGRADE_ID
-            ? 'Electric Miner + Acid-powered Uranium Miner'
+            ? 'Electric Miner'
             : 'Burner Mining Drill';
       const toMachine = isLabSpeedUpgrade
         ? 'lab'

@@ -136,11 +136,11 @@ export const upgradeData: UpgradeDefinition[] = [
   {
     id: MINING_MODULES_UPGRADE_ID,
     name: 'Upgrade Mining to Modules 1',
-    copy: 'Install productivity, speed, and efficiency modules in every Electric Miner and acid-powered uranium miner.',
+    copy: 'Install productivity, speed, and efficiency modules in every Electric Miner.',
     prerequisiteTechnology: 'productivity-module',
     prerequisiteTechnologies: ['productivity-module', 'speed-module', 'efficiency-module'],
     prerequisiteUpgrade: 'electric-mining-drill',
-    relevantMachine: 'Electric Miner and Acid-powered Uranium Miner',
+    relevantMachine: 'Electric Miner',
     machineGroup: 'mining',
     upgradeCostPerMachine: products([
       ['productivity-module', 1],
