@@ -133,6 +133,25 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   assert.equal(miningModules.recipeProductivityBonus, 0.04);
   assert.equal(miningModules.recipeSpeedBonus, 0.15);
   assert.deepEqual(miningModules.affectedRecipes, ['stone', 'coal', 'copper', 'iron', 'uranium']);
+
+  const miningModules2 = upgradeMap['mining-modules-2'];
+  assert.equal(miningModules2.name, 'Upgrade Mining to Modules 2');
+  assert.equal(miningModules2.prerequisiteUpgrade, 'mining-modules-1');
+  assert.deepEqual(miningModules2.prerequisiteTechnologies, ['productivity-module-2', 'speed-module-2', 'efficiency-module-2']);
+  assert.deepEqual(miningModules2.upgradeCostPerMachine, [
+    { key: 'productivity-module-2', amount: 1, source: 'products' },
+    { key: 'speed-module-2', amount: 1, source: 'products' },
+    { key: 'efficiency-module-2', amount: 1, source: 'products' },
+  ]);
+  assert.equal(miningModules2.upgradeTimePerMachine, 1);
+  assert.equal(miningModules2.newMachine, 'electric-mining-drill-modules-2');
+  assert.equal(miningModules2.newMachineLabel, 'Electric Miner + L2 Modules');
+  assert.equal(miningModules2.newMachinePowerDraw, 575);
+  assert.equal(miningModules2.powerDrawIncrease, 42);
+  assert.equal(miningModules2.previousMachinePowerDraw, 534);
+  assert.equal(miningModules2.recipeProductivityBonus, 0.02);
+  assert.equal(miningModules2.recipeSpeedBonus, 0.05);
+  assert.deepEqual(miningModules2.affectedRecipes, ['stone', 'coal', 'copper', 'iron', 'uranium']);
 });
 
 test('Steel Furnaces require Advanced Material Processing research', () => {

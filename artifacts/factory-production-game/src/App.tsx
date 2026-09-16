@@ -12,7 +12,7 @@ import { calculatePowerFlow } from './powerSystem';
 import { calculateNuclearPowerFlow, type NuclearPowerFlow } from './nuclearPowerSystem';
 import { burnerMinerFuelRatioFor, burnerMinerNeedsFuel, miningPowerRatioFor } from './miningSystem';
 import {
-  MINING_MODULES_UPGRADE_ID, OIL_PROCESSING_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
+  MINING_MODULES_2_UPGRADE_ID, MINING_MODULES_UPGRADE_ID, OIL_PROCESSING_UPGRADE_ID, STEEL_FURNACE_PREREQUISITE_TECHNOLOGY, applyLabSpeedUpgradeCompletion, applyOilProcessingUpgradeCompletion, applyUpgradeCompletion, beginUpgrade, bufferedActualRateFor, labSpeedForLevel, machineCountForUpgrade as upgradeMachineCountFor,
   kovarexConditionMet, migrateMachineUpgradeState, oilCrackingConditionMet, oilProcessingUpgradeTimeFor, scaledBuildCosts, upgradeData, upgradeInstalledFor, upgradeMap,
   ELECTRIC_FURNACE_PREREQUISITE_TECHNOLOGY, ELECTRIC_FURNACE_UPGRADE_ID, electricFurnacePrerequisiteMet, electricFurnaceUpgradeCostPerFurnace, electricFurnaceUpgradeTimePerFurnace, steelFurnacePrerequisiteMet, type BuildMaterialCost, type MachineVariants, type UpgradeDefinition,
 } from './upgradeSystem';
@@ -705,11 +705,14 @@ const assemblyMachinePowerFor = (state: GameState, recipe?: Recipe) => isCentrif
         ? assemblyMachineTwoPowerKw
         : assemblyMachineOnePowerKw;
 const electricMiningVariantFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill'
-  || state.machineVariants.mining === 'electric-mining-drill-modules-1';
+  || state.machineVariants.mining === 'electric-mining-drill-modules-1'
+  || state.machineVariants.mining === 'electric-mining-drill-modules-2';
 const miningMachineProductionSpeedFor = (state: GameState, key?: RawKey) =>
   key === 'uranium' || electricMiningVariantFor(state) ? electricMiningDrillProductionSpeed : burnerMiningDrillProductionSpeed;
-const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1'
-  ? upgradeMap[MINING_MODULES_UPGRADE_ID].newMachinePowerDraw
+const miningMachinePowerFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-2'
+  ? upgradeMap[MINING_MODULES_2_UPGRADE_ID].newMachinePowerDraw
+  : state.machineVariants.mining === 'electric-mining-drill-modules-1'
+    ? upgradeMap[MINING_MODULES_UPGRADE_ID].newMachinePowerDraw
   : electricMiningVariantFor(state) ? electricMiningDrillPowerKw : 0;
 const activeElectricMinerCountFor = (state: GameState) => burnerMinerKeys.reduce((total, key) => total + (miningPausedFor(state, key) ? 0 : state.miners[key]), 0);
 const activeUraniumMinerCountFor = (state: GameState) => miningPausedFor(state, 'uranium') ? 0 : state.uraniumMiners;
@@ -788,10 +791,14 @@ const electricPowerRatioFor = (state: GameState, seconds = 1) => {
 };
 const powerLabel = (value: number) => Number.isInteger(value) ? value.toFixed(0) : value.toFixed(2);
 const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps + state.pumpjacks + state.uraniumMiners + productionUnitCount(state) + state.labs + state.boilers + state.steamEngines + state.solarPanels + state.accumulators;
-const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgrade.id === MINING_MODULES_UPGRADE_ID
+const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => (upgrade.id === MINING_MODULES_UPGRADE_ID || upgrade.id === MINING_MODULES_2_UPGRADE_ID)
   ? electricMiningVariantFor(state) ? electricMinerCountFor(state) : 0
   : upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade, state.labs);
-const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1' ? 'Electric Miner + L1 Modules' : electricMiningVariantFor(state) ? 'Electric Miner' : 'Burner Mining Drill';
+const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-2'
+  ? 'Electric Miner + L2 Modules'
+  : state.machineVariants.mining === 'electric-mining-drill-modules-1'
+    ? 'Electric Miner + L1 Modules'
+    : electricMiningVariantFor(state) ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => electricMiningVariantFor(state) ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
 const miningMachineCountFor = (state: GameState, key: RawKey) => key === 'wood' ? 0 : key === 'water' ? state.pumps : key === 'crudeOil' ? state.pumpjacks : key === 'uranium' ? state.uraniumMiners : state.miners[key];
 const miningOutputPerSecondFor = (key: RawKey) => key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'crudeOil' ? 50 : burnerMinerKeys.includes(key) ? 0.25 : 1;
@@ -3444,6 +3451,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     'steel-chests': 1,
     'electric-mining-drill': 2,
     [MINING_MODULES_UPGRADE_ID]: 3,
+    [MINING_MODULES_2_UPGRADE_ID]: 4,
     'steel-furnaces': 4,
     [ELECTRIC_FURNACE_UPGRADE_ID]: 5,
     'assembly-machine-2': 6,
@@ -3578,7 +3586,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
         ? 'assembling-machine-1'
         : item.id === 'assembly-machine-3'
           ? 'assembling-machine-2'
-          : item.id === MINING_MODULES_UPGRADE_ID
+          : item.id === MINING_MODULES_UPGRADE_ID || item.id === MINING_MODULES_2_UPGRADE_ID
             ? 'electric-mining-drill'
             : 'burner-mining-drill';
       const fromLabel = isLabSpeedUpgrade
@@ -3589,10 +3597,12 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
           ? 'Assembly Machine 2'
           : item.id === MINING_MODULES_UPGRADE_ID
             ? 'Electric Miner'
+            : item.id === MINING_MODULES_2_UPGRADE_ID
+              ? 'Electric Miner + L1 Modules'
             : 'Burner Mining Drill';
       const toMachine = isLabSpeedUpgrade
         ? 'lab'
-        : item.id === MINING_MODULES_UPGRADE_ID ? 'electric-mining-drill' : item.newMachine;
+        : item.id === MINING_MODULES_UPGRADE_ID || item.id === MINING_MODULES_2_UPGRADE_ID ? 'electric-mining-drill' : item.newMachine;
       const prerequisiteLabel = [...prerequisiteTechnologies, ...(item.prerequisiteUpgrade ? [upgradeMap[item.prerequisiteUpgrade].name] : [])].join(' + ') || undefined;
       const detail: UpgradeInfo = {
         id: item.id,
@@ -3616,8 +3626,8 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
           item.labSpeedLevel !== undefined
             ? `Research speed becomes ${item.newMachineProductionSpeed}× at this level.`
             : `Machine production speed: ${item.newMachineProductionSpeed}.`,
-          item.id === MINING_MODULES_UPGRADE_ID
-            ? `Power draw increases from ${fmt(item.newMachinePowerDraw - miningModulesPowerSurchargeKw)} kW to ${fmt(item.newMachinePowerDraw)} kW per miner (+${fmt(miningModulesPowerSurchargeKw)} kW).`
+          item.powerDrawIncrease !== undefined
+            ? `Power draw increases from ${fmt(item.previousMachinePowerDraw ?? (item.newMachinePowerDraw - item.powerDrawIncrease))} kW to ${fmt(item.newMachinePowerDraw)} kW per miner (+${fmt(item.powerDrawIncrease)} kW).`
             : item.newMachinePowerDraw > 0
               ? `Machine power draw: ${fmt(item.newMachinePowerDraw)} kW each.`
             : 'This upgrade adds no machine power draw.',
@@ -3641,7 +3651,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
           flow={!complete ? <UpgradeFlow count={conversionCount} from={fromLabel} to={item.newMachineLabel} /> : undefined}
           progress={queued && activeUpgrade ? <UpgradeProgress count={conversionCount} label={`${item.relevantMachine.toLowerCase()}${conversionCount === 1 ? '' : 's'}`} seconds={activeUpgrade.seconds} total={activeUpgrade.total} progressStartedAt={activeUpgrade.progressStartedAt} progressDurationMs={activeUpgrade.progressDurationMs} testId={`panel-upgrade-progress-${item.id}`} cancelUpgrade={cancelActiveUpgrade} /> : undefined}
             meta={<UpgradeMetaGrid prerequisite={[...prerequisiteTechnologies, ...(item.prerequisiteUpgrade ? [upgradeMap[item.prerequisiteUpgrade].name] : [])].join(' + ')} prerequisiteMet={prerequisiteMet} machine={complete ? item.newMachineLabel : item.relevantMachine} machineIcon={<ResourceIcon item={complete ? toMachine : fromMachine} size={17} />} />}
-          powerAdvisory={!complete && machineCount > 0 && (item.id === MINING_MODULES_UPGRADE_ID || item.id === 'electric-mining-drill' || item.id === 'assembly-machine-2' || item.id === 'assembly-machine-3')
+          powerAdvisory={!complete && machineCount > 0 && (item.id === MINING_MODULES_UPGRADE_ID || item.id === MINING_MODULES_2_UPGRADE_ID || item.id === 'electric-mining-drill' || item.id === 'assembly-machine-2' || item.id === 'assembly-machine-3')
             ? <UpgradePowerAdvisory
               testId={`panel-upgrade-power-${item.id}`}
               machineCount={machineCount}

@@ -1,10 +1,12 @@
 export type MachineGroup = 'assembly' | 'mining';
 export const MINING_MODULES_UPGRADE_ID = 'mining-modules-1';
+export const MINING_MODULES_2_UPGRADE_ID = 'mining-modules-2';
 export type UpgradeKey =
   | 'assembly-machine-2'
   | 'assembly-machine-3'
   | 'electric-mining-drill'
   | typeof MINING_MODULES_UPGRADE_ID
+  | typeof MINING_MODULES_2_UPGRADE_ID
   | 'research-speed-1'
   | 'research-speed-2'
   | 'research-speed-3'
@@ -50,6 +52,7 @@ export type UpgradeDefinition = {
   newMachineMaterialCost: BuildMaterialCost[];
   newMachinePowerDraw: number;
   powerDrawIncrease?: number;
+  previousMachinePowerDraw?: number;
   newMachineProductionSpeed: number;
   affectedRecipes?: string[];
   recipeProductivityBonus?: number;
@@ -158,6 +161,32 @@ export const upgradeData: UpgradeDefinition[] = [
     affectedRecipes: ['stone', 'coal', 'copper', 'iron', 'uranium'],
     recipeProductivityBonus: 0.04,
     recipeSpeedBonus: 0.15,
+  },
+  {
+    id: MINING_MODULES_2_UPGRADE_ID,
+    name: 'Upgrade Mining to Modules 2',
+    copy: 'Install level 2 productivity, speed, and efficiency modules in every Electric Miner.',
+    prerequisiteTechnology: 'productivity-module-2',
+    prerequisiteTechnologies: ['productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+    prerequisiteUpgrade: MINING_MODULES_UPGRADE_ID,
+    relevantMachine: 'Electric Miner + L1 Modules',
+    machineGroup: 'mining',
+    upgradeCostPerMachine: products([
+      ['productivity-module-2', 1],
+      ['speed-module-2', 1],
+      ['efficiency-module-2', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'electric-mining-drill-modules-2',
+    newMachineLabel: 'Electric Miner + L2 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 575,
+    powerDrawIncrease: 42,
+    previousMachinePowerDraw: 534,
+    newMachineProductionSpeed: 0.7,
+    affectedRecipes: ['stone', 'coal', 'copper', 'iron', 'uranium'],
+    recipeProductivityBonus: 0.02,
+    recipeSpeedBonus: 0.05,
   },
   ...([
     { level: 1, speed: 1.2, technology: 'research-speed-1', previous: undefined },
@@ -290,6 +319,7 @@ const machineVariantRank: Record<MachineGroup, Record<string, number>> = {
     'burner-mining-drill': 1,
     'electric-mining-drill': 2,
     'electric-mining-drill-modules-1': 3,
+    'electric-mining-drill-modules-2': 4,
   },
 };
 
@@ -323,9 +353,11 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
       : savedVariants.assembly === 'assembling-machine-2'
         ? 'assembling-machine-2'
         : 'assembling-machine-1',
-    mining: savedVariants.mining === 'electric-mining-drill-modules-1'
-      ? 'electric-mining-drill-modules-1'
-      : savedVariants.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
+    mining: savedVariants.mining === 'electric-mining-drill-modules-2'
+      ? 'electric-mining-drill-modules-2'
+      : savedVariants.mining === 'electric-mining-drill-modules-1'
+        ? 'electric-mining-drill-modules-1'
+        : savedVariants.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
   };
   const savedLabSpeedLevel = typeof record.labSpeedLevel === 'number' && Number.isFinite(record.labSpeedLevel)
     ? record.labSpeedLevel
