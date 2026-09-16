@@ -2051,7 +2051,7 @@ function UpgradeFlow({ count, from, to }: { count: number; from: string; to: str
 }
 function UpgradeCostChips({ costs }: { costs: BuildMaterialCost[] }) {
   if (!costs.length) return <span className="mono numeric text-[12px] text-[hsl(var(--secondary))]">0</span>;
-  return <div className="flex flex-wrap items-center gap-2">{costs.map((cost) => {
+  return <div className="flex min-w-0 flex-wrap items-center gap-2">{costs.map((cost) => {
     const label = meta[cost.key]?.label ?? prettyLabel(cost.key);
     return <span className="inline-flex items-center gap-1.5" key={`${cost.source}-${cost.key}`} title={`${fmt(cost.amount)} ${label}`} aria-label={`${fmt(cost.amount)} ${label}`}>
       <ResourceIcon item={cost.key} size={18} />
@@ -2088,15 +2088,15 @@ const upgradeDurationFor = (singleMachineSeconds: number, machineCount: number, 
 const upgradeDurationReductionPercentFor = (singleMachineSeconds: number, machineCount: number, workerRobotSpeedLevel: number) =>
   constructionDurationReductionPercentFor(singleMachineSeconds, machineCount, workerRobotSpeedLevel);
 function UpgradeMetaGrid({ prerequisite, prerequisiteMet, machine, machineIcon }: { prerequisite?: string; prerequisiteMet: boolean; machine: string; machineIcon: ReactNode }) {
-  return <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
-    <div className="data-row rounded-md p-2">
+  return <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 text-[10px] sm:grid-cols-2">
+    <div className="data-row min-w-0 rounded-md p-2">
       <div className="eyebrow">Prerequisite</div>
       {prerequisite ? <div className={`mt-1 flex min-w-0 items-center gap-1.5 font-semibold ${prerequisiteMet ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
         {prerequisiteMet ? <Check size={11} /> : <LockKeyhole size={11} />}
         <span className="truncate">{prettyLabel(prerequisite)}</span>
       </div> : <div className="mt-1 flex items-center gap-1.5 font-semibold text-[hsl(var(--secondary))]"><Check size={11} />none</div>}
     </div>
-    <div className="data-row rounded-md p-2">
+    <div className="data-row min-w-0 rounded-md p-2">
       <div className="eyebrow">Relevant machine</div>
       <div className="mt-1 flex min-w-0 items-center justify-between gap-1.5 font-semibold">
         <span className="truncate">{machine}</span>
@@ -2128,9 +2128,9 @@ function UpgradePowerAdvisory({ testId, machineCount, powerDrawKw, state }: { te
   const toneClass = enoughSparePower
     ? 'border-[hsl(var(--secondary)/.3)] bg-[hsl(var(--secondary)/.06)] text-[hsl(var(--secondary))]'
     : 'border-[hsl(var(--destructive)/.35)] bg-[hsl(var(--destructive)/.08)] text-[hsl(var(--destructive))]';
-  return <div className={`mt-3 flex items-center gap-1.5 rounded-md border px-2.5 py-2 text-[10px] font-semibold ${toneClass}`} data-testid={testId}>
+  return <div className={`mt-3 flex min-w-0 items-start gap-1.5 rounded-md border px-2.5 py-2 text-[10px] font-semibold ${toneClass}`} data-testid={testId}>
     {enoughSparePower ? <Check size={12} aria-hidden="true" /> : <X size={12} aria-hidden="true" />}
-    <span>Additional {powerLabel(additionalPowerKw / 1000)} MW of power {enoughSparePower ? 'available' : 'not available'}</span>
+    <span className="min-w-0 break-words">Additional {powerLabel(additionalPowerKw / 1000)} MW of power {enoughSparePower ? 'available' : 'not available'}</span>
   </div>;
 }
 type UpgradeInfo = {
@@ -2174,7 +2174,7 @@ function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, cost
   onInfo?: () => void;
   infoId?: string;
 }) {
-  return <section className="surface rounded-xl p-3 sm:p-4" data-testid={testId}>
+  return <section className="surface min-w-0 rounded-xl p-3 sm:p-4" data-testid={testId}>
     <div className="flex items-start gap-3">
       {iconPair}
       <div className="min-w-0 flex-1">
@@ -2187,9 +2187,9 @@ function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, cost
     {progress}
     {meta}
     {powerAdvisory}
-     {showCosts !== false && <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
-      <div className="data-row rounded-md p-2"><div className="eyebrow">Cost / machine</div><div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={costPerItem} /><UpgradeTime seconds={timePerMachine} /></div></div>
-       <div className="data-row rounded-md p-2"><div className="eyebrow">Total cost</div><div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={totalCost} /><UpgradeTimeSummary originalSeconds={originalTotalTime} totalSeconds={totalTime} reductionPercent={timeReductionPercent} reductionTestId={`${testId}-robot-reduction`} /></div></div>
+      {showCosts !== false && <div className="mt-2 grid min-w-0 grid-cols-1 gap-2 text-[10px] sm:grid-cols-2">
+       <div className="data-row min-w-0 rounded-md p-2"><div className="eyebrow">Cost / machine</div><div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={costPerItem} /><UpgradeTime seconds={timePerMachine} /></div></div>
+        <div className="data-row min-w-0 rounded-md p-2"><div className="eyebrow">Total cost</div><div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={totalCost} /><UpgradeTimeSummary originalSeconds={originalTotalTime} totalSeconds={totalTime} reductionPercent={timeReductionPercent} reductionTestId={`${testId}-robot-reduction`} /></div></div>
      </div>}
     {action}
   </section>;
@@ -4156,7 +4156,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
           ))}
         </div>
       </div>
-     <div className="grid gap-3 md:grid-cols-2">
+     <div className="grid min-w-0 gap-3 md:grid-cols-2">
          {visibleUpgradeCards.map(({ card }) => card)}
      </div>
       {detailsUpgrade && <UpgradeDetailModal item={detailsUpgrade} onClose={() => setDetailsUpgrade(null)} />}
