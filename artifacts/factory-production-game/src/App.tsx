@@ -794,7 +794,7 @@ const totalUnits = (state: GameState) => burnerMinerCount(state) + state.pumps +
 const machineCountForUpgrade = (state: GameState, upgrade: UpgradeDefinition) => upgrade.id === MINING_MODULES_UPGRADE_ID
   ? electricMiningVariantFor(state) ? electricMinerCountFor(state) : 0
   : upgradeMachineCountFor({ assembly: electricAssemblerCount(state), mining: burnerMinerCount(state) }, upgrade, state.labs);
-const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1' ? 'Assembly machine 3 + level 1 modules' : electricMiningVariantFor(state) ? 'Electric Miner' : 'Burner Mining Drill';
+const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining === 'electric-mining-drill-modules-1' ? 'Electric Miner + Level 1 Modules' : electricMiningVariantFor(state) ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => electricMiningVariantFor(state) ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
 const miningMachineCountFor = (state: GameState, key: RawKey) => key === 'wood' ? 0 : key === 'water' ? state.pumps : key === 'crudeOil' ? state.pumpjacks : key === 'uranium' ? state.uraniumMiners : state.miners[key];
 const miningOutputPerSecondFor = (key: RawKey) => key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'crudeOil' ? 50 : burnerMinerKeys.includes(key) ? 0.25 : 1;

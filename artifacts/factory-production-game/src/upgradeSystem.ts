@@ -149,7 +149,7 @@ export const upgradeData: UpgradeDefinition[] = [
     ]),
     upgradeTimePerMachine: 1,
     newMachine: 'electric-mining-drill-modules-1',
-    newMachineLabel: 'Assembly machine 3 + level 1 modules',
+    newMachineLabel: 'Electric Miner + Level 1 Modules',
     newMachineMaterialCost: [],
     newMachinePowerDraw: 159,
     newMachineProductionSpeed: 0.7,

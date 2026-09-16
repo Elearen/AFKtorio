@@ -127,7 +127,7 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   ]);
   assert.equal(miningModules.upgradeTimePerMachine, 1);
   assert.equal(miningModules.newMachine, 'electric-mining-drill-modules-1');
-  assert.equal(miningModules.newMachineLabel, 'Assembly machine 3 + level 1 modules');
+  assert.equal(miningModules.newMachineLabel, 'Electric Miner + Level 1 Modules');
   assert.equal(miningModules.newMachinePowerDraw, 159);
   assert.equal(miningModules.recipeProductivityBonus, 0.04);
   assert.equal(miningModules.recipeSpeedBonus, 0.15);
