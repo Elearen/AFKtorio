@@ -1950,7 +1950,26 @@ function UpgradePowerAdvisory({ testId, machineCount, powerDrawKw, state }: { te
     <span>Additional {powerLabel(additionalPowerKw / 1000)} MW of power {enoughSparePower ? 'available' : 'not available'}</span>
   </div>;
 }
-function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, costPerItem, totalCost, timePerMachine, totalTime, showCosts, powerAdvisory, action }: {
+type UpgradeInfo = {
+  id: string;
+  title: string;
+  copy: string;
+  from: string;
+  to: string;
+  fromIcon: ReactNode;
+  toIcon: ReactNode;
+  prerequisite?: string;
+  prerequisiteMet: boolean;
+  relevantMachine: string;
+  machineCount: number;
+  costPerItem: BuildMaterialCost[];
+  totalCost: BuildMaterialCost[];
+  timePerMachine: number;
+  totalTime: number;
+  status: string;
+  effects: string[];
+};
+function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, costPerItem, totalCost, timePerMachine, totalTime, showCosts, powerAdvisory, action, onInfo, infoId }: {
   testId: string;
   title: string;
   copy: string;
@@ -1965,6 +1984,8 @@ function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, cost
   showCosts?: boolean;
   powerAdvisory?: ReactNode;
   action?: ReactNode;
+  onInfo?: () => void;
+  infoId?: string;
 }) {
   return <section className="surface rounded-xl p-3 sm:p-4" data-testid={testId}>
     <div className="flex items-start gap-3">
@@ -1973,6 +1994,7 @@ function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, cost
         <h2 className="text-[13px] font-extrabold leading-5">{title}</h2>
         <p className="mt-1 text-[10px] leading-4 text-[hsl(var(--muted-foreground))]">{copy}</p>
       </div>
+      {onInfo && <button type="button" onClick={onInfo} className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] text-[hsl(var(--muted-foreground))] transition-colors hover:border-[hsl(var(--primary)/.55)] hover:text-[hsl(var(--primary))]" title={`More info about ${title}`} aria-label={`More info about ${title}`} data-testid={`button-more-info-${infoId ?? testId}`}><Info size={14} /></button>}
     </div>
     {flow && <div className="mt-3">{flow}</div>}
     {progress}
@@ -1984,6 +2006,57 @@ function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, cost
     </div>}
     {action}
   </section>;
+}
+function UpgradeDetailModal({ item, onClose }: { item: UpgradeInfo; onClose: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+  return <div className="fixed inset-0 z-[60] overflow-y-auto bg-[hsl(0_0%_0%/.78)] p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section className="surface mx-auto my-2 max-h-[calc(100dvh-1rem)] w-full max-w-[560px] overflow-y-auto rounded-2xl p-5 shadow-2xl sm:my-6 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="upgrade-detail-title" data-testid={`dialog-upgrade-detail-${item.id}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="eyebrow">Upgrade detail</div>
+          <h2 id="upgrade-detail-title" className="mt-2 text-xl font-extrabold">{item.title}</h2>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Tag tone="amber">upgrade</Tag>
+          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-md border border-[hsl(var(--border))] bg-[hsl(216_24%_10%/.72)] text-[hsl(var(--muted-foreground))] transition-colors hover:border-[hsl(var(--primary)/.55)] hover:text-[hsl(var(--primary))]" aria-label="Close upgrade details" data-testid="button-close-upgrade-detail"><X size={15} /></button>
+        </div>
+      </div>
+      <p className="mt-3 text-[11px] leading-5 text-[hsl(var(--muted-foreground))]">{item.copy}</p>
+      <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(216_24%_9%/.72)] p-3">
+        <div className="min-w-0 text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-lg border border-[hsl(var(--border))] bg-[hsl(216_25%_10%)]">{item.fromIcon}</div><div className="mt-2 truncate text-[10px] font-semibold">{item.from}</div></div>
+        <ArrowRight size={18} className="text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+        <div className="min-w-0 text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-lg border border-[hsl(var(--secondary)/.35)] bg-[hsl(var(--secondary)/.08)]">{item.toIcon}</div><div className="mt-2 truncate text-[10px] font-semibold text-[hsl(var(--secondary))]">{item.to}</div></div>
+      </div>
+      <div className="mt-5 grid gap-2 sm:grid-cols-2">
+        <div className="data-row rounded-lg p-3"><div className="eyebrow">Current status</div><div className="mt-1 text-[11px] font-semibold">{item.status}</div></div>
+        <div className="data-row rounded-lg p-3"><div className="eyebrow">Upgrade scope</div><div className="mt-1 text-[11px] font-semibold">{item.machineCount ? `${fmt(item.machineCount)} ${item.relevantMachine}${item.machineCount === 1 ? '' : 's'}` : `No ${item.relevantMachine.toLowerCase()}s constructed`}</div></div>
+      </div>
+      <div className="mt-5 border-y border-[hsl(var(--border))] py-4">
+        <div className="eyebrow mb-3">Requirements</div>
+        <div className="space-y-2 text-[11px]">
+          <div className="flex items-start justify-between gap-3"><span className="text-[hsl(var(--muted-foreground))]">Prerequisite</span><span className={`text-right font-semibold ${item.prerequisiteMet ? 'text-[hsl(var(--secondary))]' : 'text-[hsl(var(--destructive))]'}`}>{item.prerequisite ?? 'None'}</span></div>
+          <div className="flex items-start justify-between gap-3"><span className="text-[hsl(var(--muted-foreground))]">Relevant machine</span><span className="text-right font-semibold">{item.relevantMachine}</span></div>
+        </div>
+      </div>
+      <div className="border-b border-[hsl(var(--border))] py-4">
+        <div className="eyebrow mb-3">Cost and time</div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="data-row rounded-lg p-3"><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Per machine</div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><UpgradeCostChips costs={item.costPerItem} /><UpgradeTime seconds={item.timePerMachine} /></div></div>
+          <div className="data-row rounded-lg p-3"><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Current total</div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><UpgradeCostChips costs={item.totalCost} /><UpgradeTime seconds={item.totalTime} /></div></div>
+        </div>
+      </div>
+      <div className="py-4">
+        <div className="eyebrow mb-3">Effects</div>
+        <div className="space-y-2">{item.effects.length ? item.effects.map((effect, index) => <div className="data-row rounded-lg px-3 py-2 text-[10px] leading-4" key={`${item.id}-effect-${index}`}>{effect}</div>) : <div className="text-[11px] text-[hsl(var(--muted-foreground))]">No additional effects listed.</div>}</div>
+      </div>
+    </section>
+  </div>;
 }
 function SupplyStatus({ label, status, testId }: { label: string; status: SupplyStatus; testId: string }) {
   return <div className="data-row rounded-lg p-2.5" data-testid={testId}>
@@ -3190,6 +3263,7 @@ function LogisticsPage({ notice }: PageProps) {
 
 function UpgradesPage({ state, setState, notice, cancelConstruction, constructionVisualTiming }: PageProps) {
   const [upgradeFilter, setUpgradeFilter] = useState<UpgradeFilter>('available');
+  const [detailsUpgrade, setDetailsUpgrade] = useState<UpgradeInfo | null>(null);
   const activeUpgrade = state.queue.find((item) => item.action === 'upgrade');
   const storageBoxCount = storageBoxCountFor(state);
   const storageUpgradeComplete = state.storageBoxType !== 'wooden';
@@ -3386,6 +3460,8 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     [OIL_PROCESSING_UPGRADE_ID]: 14,
   };
   const upgradeAvailabilityRank = (complete: boolean, prerequisiteMet: boolean) => complete ? 2 : prerequisiteMet ? 0 : 1;
+  const upgradeStatus = (complete: boolean, queued: boolean, canStart: boolean, missing: string, prerequisiteMet: boolean, machineCount: number) =>
+    complete ? 'Installed' : queued ? 'In progress' : canStart ? 'Ready to start' : missing ? `Waiting for ${missing}` : !prerequisiteMet ? 'Prerequisites incomplete' : !machineCount ? 'Build machines first' : 'Unavailable';
   const sortedUpgradeCards = [
     ...upgradeData.map((item) => {
       const machineCount = machineCountForUpgrade(state, item);
@@ -3425,6 +3501,39 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
       const toMachine = isLabSpeedUpgrade
         ? 'lab'
         : item.id === MINING_MODULES_UPGRADE_ID ? 'electric-mining-drill' : item.newMachine;
+      const prerequisiteLabel = [...prerequisiteTechnologies, ...(item.prerequisiteUpgrade ? [upgradeMap[item.prerequisiteUpgrade].name] : [])].join(' + ') || undefined;
+      const detail: UpgradeInfo = {
+        id: item.id,
+        title: item.name,
+        copy: item.copy,
+        from: fromLabel,
+        to: item.newMachineLabel,
+        fromIcon: <ResourceIcon item={fromMachine} size={30} />,
+        toIcon: <ResourceIcon item={toMachine} size={30} />,
+        prerequisite: prerequisiteLabel,
+        prerequisiteMet,
+        relevantMachine: item.relevantMachine,
+        machineCount,
+        costPerItem: item.upgradeCostPerMachine,
+        totalCost: totalCosts,
+        timePerMachine: item.upgradeTimePerMachine,
+        totalTime: queued && activeUpgrade ? activeUpgrade.total : item.upgradeTimePerMachine * machineCount,
+        status: upgradeStatus(complete, queued, canStart, missing, prerequisiteMet, machineCount),
+        effects: [
+          `Converts each ${item.relevantMachine} into ${item.newMachineLabel}.`,
+          item.labSpeedLevel !== undefined
+            ? `Research speed becomes ${item.newMachineProductionSpeed}× at this level.`
+            : `Machine production speed: ${item.newMachineProductionSpeed}.`,
+          item.newMachinePowerDraw > 0
+            ? `Machine power draw: ${fmt(item.newMachinePowerDraw)} kW each.`
+            : 'This upgrade adds no machine power draw.',
+          ...(item.affectedRecipes?.length ? [
+            `Affected mining lines: ${item.affectedRecipes.map((recipe) => prettyLabel(recipe)).join(', ')}.`,
+            item.recipeProductivityBonus !== undefined ? `Productivity bonus: +${item.recipeProductivityBonus * 100}%.` : '',
+            item.recipeSpeedBonus !== undefined ? `Speed bonus: +${item.recipeSpeedBonus * 100}%.` : '',
+          ].filter(Boolean) : []),
+        ],
+      };
       return {
         id: item.id,
         availability: upgradeAvailabilityRank(complete, prerequisiteMet),
@@ -3451,6 +3560,8 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
           timePerMachine={item.upgradeTimePerMachine}
           totalTime={queued && activeUpgrade ? activeUpgrade.total : item.upgradeTimePerMachine * machineCount}
           showCosts={!complete}
+           onInfo={() => setDetailsUpgrade(detail)}
+           infoId={item.id}
           action={<div className="mt-3"><button onClick={() => startUpgrade(item)} disabled={complete || !canStart} className={`button-base w-full !py-2 ${complete ? 'button-build-active cursor-default' : 'button-primary disabled:cursor-not-allowed disabled:opacity-45'}`} data-testid={`button-start-upgrade-${item.id}`}>{complete ? <><Check size={13} aria-hidden="true" />installed</> : <><TrendingUp size={13} /> {activeUpgrade ? 'upgrade busy' : missing ? `need ${missing}` : !prerequisiteMet ? 'locked' : !machineCount ? 'build machines first' : 'start upgrade'}</>}</button></div>}
         />,
       };
