@@ -1,6 +1,14 @@
 export const updateHistorySourceUrl = 'https://1drv.ms/t/c/41f8ca83fd4ca79d/IQASjG_buEfiSpV2qKvtef3mAcAfAjdACGMBPaXcXRq3zeQ';
 
-export const updateHistoryContent = `15/09/26
+export const updateHistoryContent = `16/09/26
+
+Modules update!
+
+Added a slew of upgrades to put modules into your buildings. Just one of each module, it got too complicated. It's still worth doing, if it interests you.
+
+Added a new modules filter on the production tab so making modules is a lot easier. Worker robot speed also now significantly reduces upgrade times.
+
+15/09/26
 
 Mall update!
 
