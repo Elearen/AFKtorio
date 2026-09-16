@@ -33,7 +33,7 @@ import { primaryOutputFor } from './productionOutput';
 import { prioritizeDisplayOrder } from './displayOrder';
 import { sessionIdForStartTimestamp } from './sessionId';
 import { updateHistoryChangedSince, updateHistoryContent, updateHistoryVersion } from './updateHistory';
-import { normalizeRecipeProductivity, productiveOutputAmountFor, type RecipeProductivity } from './productivitySystem';
+import { miningProductivityMultiplierFor, normalizeRecipeProductivity, productiveOutputAmountFor, type RecipeProductivity } from './productivitySystem';
 import { saveFileTextFor, stateFromSaveFileText } from './saveFile';
 import {
   Activity, ArrowRight, ArrowUp, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
@@ -954,7 +954,7 @@ const recipeCycleRateFor = (state: GameState, recipe: Recipe) => cyclesPerMinute
 const miningOutputRateFor = (state: GameState, key: RawKey) => {
   const base = miningOutputPerSecondFor(key);
   const machineSpeedRatio = burnerMinerKeys.includes(key) ? miningMachineProductionSpeedFor(state) / burnerMiningDrillProductionSpeed : 1;
-  return base * machineSpeedRatio;
+  return base * machineSpeedRatio * miningProductivityMultiplierFor(key, state.research);
 };
 const miningBaseProductionRateFor = (state: GameState, key: RawKey) =>
   miningMachineCountFor(state, key) * miningOutputRateFor(state, key) * 60 * state.simulationSpeed;

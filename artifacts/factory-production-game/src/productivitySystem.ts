@@ -1,4 +1,5 @@
 export type RecipeProductivity = Record<string, number>;
+const miningProductivityResearchPattern = /^mining-productivity-\d+$/;
 
 const finiteNonNegativeNumber = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -30,3 +31,11 @@ export const normalizeRecipeProductivity = (
       .map(([recipeName, value]) => [recipeName, finiteNonNegativeNumber(value)]),
   );
 };
+
+export const miningProductivityBonusFor = (research: readonly string[]) =>
+  new Set(research.filter((technology) => miningProductivityResearchPattern.test(technology))).size * 0.1;
+
+export const miningProductivityMultiplierFor = (
+  resourceKey: string,
+  research: readonly string[],
+) => resourceKey === 'water' ? 1 : 1 + miningProductivityBonusFor(research);

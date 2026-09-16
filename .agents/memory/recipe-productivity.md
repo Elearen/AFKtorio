@@ -8,3 +8,9 @@ Productivity is stored per recipe as a decimal bonus and multiplies every automa
 **Why:** The chosen model represents actual machine behavior: a productive machine still consumes its configured inputs once per cycle, while producing bonus output; handcrafting always follows the base recipe. Peak supply must therefore increase with automated productivity, but peak demand must remain actual per-cycle input consumption.
 
 **How to apply:** Keep recipe display/catalog amounts unchanged until the UI is intentionally updated. Route automated output calculations, peak production, and output-based throttles through productivity-adjusted outputs. Keep handcraft output and handcraft peak output on base recipe amounts; leave recipe input consumption and peak demand on the base input amounts.
+
+Mining productivity research is a separate additive 10% per completed level for automated mining outputs, excluding water pumping. Manual collection remains base-rate.
+
+**Why:** The mining tab represents extraction lines separately from catalog recipes, and water is an unlimited fluid source rather than an ore/productivity target.
+
+**How to apply:** Count completed `mining-productivity-*` research levels when calculating automated mining output and peak supply; do not apply the multiplier to water or manual collection.

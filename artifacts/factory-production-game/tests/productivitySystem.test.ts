@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  miningProductivityBonusFor,
+  miningProductivityMultiplierFor,
   normalizeRecipeProductivity,
   productiveOutputAmountFor,
   recipeProductivityBonusFor,
@@ -27,4 +29,12 @@ test('recipe productivity defaults to zero and ignores invalid saved values', ()
   assert.deepEqual(productivity, { 'copper-plate': 0.05 });
   assert.equal(recipeProductivityBonusFor(undefined, 'copper-plate'), 0);
   assert.equal(productiveOutputAmountFor(1, productivity, 'iron-plate'), 1);
+});
+
+test('mining productivity research adds 10% per level except for water', () => {
+  const research = ['mining-productivity-1', 'mining-productivity-2', 'unrelated-technology'];
+
+  assert.equal(miningProductivityBonusFor(research), 0.2);
+  assert.equal(miningProductivityMultiplierFor('copper', research), 1.2);
+  assert.equal(miningProductivityMultiplierFor('water', research), 1);
 });
