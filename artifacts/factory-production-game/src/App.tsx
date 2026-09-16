@@ -390,6 +390,11 @@ const isOilRefineryRecipe = (recipe?: Recipe) => Boolean(recipe && (recipe.name 
 const chemicalPlantRecipeKeys = new Set<string>(chemicalPlantRecipeNames);
 const isChemicalPlantRecipe = (recipe?: Recipe) => Boolean(recipe && chemicalPlantRecipeKeys.has(recipe.name));
 const isCentrifugeRecipe = (recipe?: Recipe) => recipe?.category === 'centrifuging';
+type ModuleTier = 1 | 2 | 3;
+const moduleTierForVariant = (variant?: string): ModuleTier | null => {
+  const match = variant?.match(/-modules-(1|2|3)$/);
+  return match ? Number(match[1]) as ModuleTier : null;
+};
 const assemblyMachineUsesThreeVariant = (variant: string) =>
   variant === 'assembling-machine-3'
   || variant === 'assembling-machine-3-modules-1'
@@ -878,6 +883,11 @@ const miningMachineLabelFor = (state: GameState) => state.machineVariants.mining
     ? 'Electric Miner + L1 Modules'
     : electricMiningVariantFor(state) ? 'Electric Miner' : 'Burner Mining Drill';
 const miningMachineRecipeFor = (state: GameState) => electricMiningVariantFor(state) ? electricMiningDrillRecipe : burnerMiningDrillRecipe;
+const miningModuleTierFor = (state: GameState, key: RawKey) => key === 'crudeOil'
+  ? moduleTierForVariant(state.machineVariants.pumpjack)
+  : key === 'uranium' || burnerMinerKeys.includes(key)
+    ? moduleTierForVariant(state.machineVariants.mining)
+    : null;
 const miningMachineCountFor = (state: GameState, key: RawKey) => key === 'wood' ? 0 : key === 'water' ? state.pumps : key === 'crudeOil' ? state.pumpjacks : key === 'uranium' ? state.uraniumMiners : state.miners[key];
 const miningOutputPerSecondFor = (key: RawKey) => key === 'uranium' ? 0.32 : key === 'water' ? waterPumpPerSecond : key === 'crudeOil' ? 50 : burnerMinerKeys.includes(key) ? 0.25 : 1;
 const miningMachineBuildCostFor = (state: GameState): BuildMaterialCost[] => electricMiningVariantFor(state)
@@ -909,6 +919,17 @@ const productionMachineLabelFor = (state: GameState, recipe?: Recipe) => recipe?
         : state.machineVariants.assembly === 'assembling-machine-2'
           ? 'Assembly Machine 2'
           : 'Assembly Machine 1';
+const productionModuleTierFor = (state: GameState, recipe: Recipe) => recipe.name === 'space-science-pack'
+  ? moduleTierForVariant(state.machineVariants.rocketSilo)
+  : isSmeltingRecipe(recipe)
+    ? moduleTierForVariant(state.furnaceVariant)
+    : isOilRefineryRecipe(recipe)
+      ? moduleTierForVariant(state.machineVariants.oilRefinery)
+      : isChemicalPlantRecipe(recipe)
+        ? moduleTierForVariant(state.machineVariants.chemical)
+        : isCentrifugeRecipe(recipe)
+          ? null
+          : moduleTierForVariant(state.machineVariants.assembly);
 const productionMachineRecipeFor = (state: GameState, recipe?: Recipe) => recipe?.name === 'space-science-pack'
   ? rocketSiloRecipe
   : isOilRefineryRecipe(recipe)
@@ -1806,6 +1827,14 @@ const iconFileFor: Record<string, string> = {
 function ResourceIcon({ item, size = 28 }: { item: TrackedKey; size?: number }) {
   return <img src={`${import.meta.env.BASE_URL}item-icons/${iconFileFor[item] ?? item}.png`} width={size} height={size} alt="" aria-hidden="true" className="object-contain" />;
 }
+function BuildingIconWithModuleOverlay({ item, size = 17, moduleTier, label }: { item: TrackedKey; size?: number; moduleTier: ModuleTier | null; label: string }) {
+  const overlaySize = Math.max(8, Math.round(size * 0.62));
+  const moduleFile = moduleTier === 1 ? 'quality-module' : `quality-module-${moduleTier}`;
+  return <span className="relative inline-grid shrink-0 place-items-center" style={{ width: size, height: size }} role="img" aria-label={moduleTier ? `${label}, module upgrade tier ${moduleTier} completed` : label}>
+    <ResourceIcon item={item} size={size} />
+    {moduleTier && <img src={`${import.meta.env.BASE_URL}item-icons/${moduleFile}.png`} width={overlaySize} height={overlaySize} alt="" aria-hidden="true" className="pointer-events-none absolute -bottom-1 -right-1 z-10 object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,.9)]" data-testid={`icon-module-overlay-${moduleTier}`} />}
+  </span>;
+}
 function RecipeFlow({ recipe, state, openIngredient, testIdPrefix = 'ingredient' }: { recipe: Recipe; state?: GameState; openIngredient?: (key: TrackedKey) => void; testIdPrefix?: string }) {
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   const ingredients = recipe.ingredients.map((ingredient) => `${amountLabel(materialAmount(ingredient))} ${prettyLabel(keyForSource(ingredient.name))}`).join(' + ');
@@ -1937,11 +1966,14 @@ function NavigationIcon({ pageKey, state, compact = false }: { pageKey: string; 
     {images.map((image, index) => <img key={`${image.source}-${image.file}`} src={`${import.meta.env.BASE_URL}${image.source === 'research' ? 'research-icons' : 'item-icons'}/${image.file}.png`} width={imageSize} height={imageSize} alt="" aria-hidden="true" className="shrink-0 object-contain" style={{ marginLeft: index === 0 ? 0 : -overlap, zIndex: index + 1 }} />)}
   </span>;
 }
-function MiningBuildingIcon({ resource, machineVariant, size = 17 }: { resource: RawKey; machineVariant: string; size?: number }) {
-  if (resource === 'water') return <ResourceIcon item="offshore-pump" size={size} />;
-  if (resource === 'uranium') return <ResourceIcon item="electric-mining-drill" size={size} />;
-  if (resource === 'crudeOil') return <ResourceIcon item="pumpjack" size={size} />;
-  if (burnerMinerKeys.includes(resource)) return <ResourceIcon item={machineVariant === 'electric-mining-drill-modules-1' || machineVariant === 'electric-mining-drill-modules-2' || machineVariant === 'electric-mining-drill-modules-3' ? 'electric-mining-drill' : machineVariant} size={size} />;
+function MiningBuildingIcon({ resource, machineVariant, size = 17, moduleTier = null }: { resource: RawKey; machineVariant: string; size?: number; moduleTier?: ModuleTier | null }) {
+  if (resource === 'water') return <BuildingIconWithModuleOverlay item="offshore-pump" size={size} moduleTier={null} label="Offshore pump" />;
+  if (resource === 'uranium') return <BuildingIconWithModuleOverlay item="electric-mining-drill" size={size} moduleTier={moduleTier} label="Electric mining drill" />;
+  if (resource === 'crudeOil') return <BuildingIconWithModuleOverlay item="pumpjack" size={size} moduleTier={moduleTier} label="Pumpjack" />;
+  if (burnerMinerKeys.includes(resource)) {
+    const item = machineVariant === 'electric-mining-drill-modules-1' || machineVariant === 'electric-mining-drill-modules-2' || machineVariant === 'electric-mining-drill-modules-3' ? 'electric-mining-drill' : machineVariant;
+    return <BuildingIconWithModuleOverlay item={item} size={size} moduleTier={moduleTier} label={prettyLabel(item)} />;
+  }
   return <Pickaxe size={size} />;
 }
 const miningFlowNumber = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
@@ -2779,10 +2811,10 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
          const constructionLabel = key === 'water' ? 'Water pump' : key === 'crudeOil' ? 'Crude oil pumpjack' : `${info.label} ${miningMachineLabelFor(state).toLowerCase()}`;
         const collectionLabel = manualCollectionAvailable ? 'manual collection' : 'machine extraction';
         const manualCollectionControl = <button onClick={() => tap(key)} disabled={!manualCollectionAvailable} className={`button-base flex-1 !py-2 ${manualCollectionAvailable ? count ? 'button-ghost' : 'button-primary' : 'button-ghost opacity-60'}`} aria-label={manualCollectionAvailable ? `Collect ${info.label} manually` : `${info.label} requires a machine`} title={manualCollectionAvailable ? 'Collect manually' : 'This material requires a machine'} data-testid={`button-tap-${key}`}>
-          {!manualCollectionAvailable ? <><LockKeyhole size={13} /> machine only</> : manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} /> collect manually</>}
+           {!manualCollectionAvailable ? <><LockKeyhole size={13} /> machine only</> : manualMiningJob ? <><Clock3 size={13} /> {manualMiningJob.seconds.toFixed(2)}s</> : manualMiningBusy ? <><Clock3 size={13} /> busy</> : <><Pickaxe size={13} /> collect manually</>}
         </button>;
         const buildControl = manualOnly ? null : <button onClick={() => build(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${constructionBatchSize} ${machineLabel} for ${info.label}`} data-testid={count ? `button-build-more-${key}` : `button-build-miner-${key}`}>
-           {isBuilding ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct' : `construct ${constructionBatchSize}`} <MiningBuildingIcon resource={key} machineVariant={state.machineVariants.mining} size={13} /></>}
+            {isBuilding ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct' : `construct ${constructionBatchSize}`} <MiningBuildingIcon resource={key} machineVariant={state.machineVariants.mining} moduleTier={miningModuleTierFor(state, key)} size={13} /></>}
         </button>;
         return <section id={`mining-${key}`} className={`surface scroll-mt-24 rounded-xl p-4 ${locked ? 'locked-wash opacity-75' : ''}`} key={key} data-testid={`section-mining-${key}`}>
           <div className="flex items-start gap-3">
@@ -2793,7 +2825,7 @@ function MiningPage({ state, setState, enqueue, notice, cancelConstruction, cons
                   <div className="flex shrink-0 items-center gap-2">
                   {locked ? <Tag tone="muted"><LockKeyhole size={10} /> locked</Tag> : autonomous ? <button type="button" onClick={() => { toggleMiningPause(key); notice(paused ? `${info.label} mining resumed` : `${info.label} mining paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : 'tag-running'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${info.label} mining`} title={paused ? 'Resume automatic mining' : 'Pause automatic mining'} data-testid={`button-toggle-pause-mining-${key}`}>{paused ? 'PAUSED' : <><span className="status-dot status-running" /> auto</>}</button> : <Tag tone="amber">manual</Tag>}
                   {!manualOnly && <div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${machineLabel} count`}>
-                    <MiningBuildingIcon resource={key} machineVariant={state.machineVariants.mining} />
+                    <MiningBuildingIcon resource={key} machineVariant={state.machineVariants.mining} moduleTier={miningModuleTierFor(state, key)} />
                     <span className="mono numeric numeric-right text-[13px]">{count}</span>
                   </div>}
                 </div>
@@ -2947,7 +2979,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
         <div className="flex items-start gap-3">
           <div className="resource-orb">{primaryOutput && <ResourceIcon item={primaryOutput.key} size={29} />}</div>
           <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <button type="button" onClick={() => { toggleRecipePause(key); notice(paused ? `${prettyLabel(key)} resumed` : `${prettyLabel(key)} paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : autoCondition.met ? 'tag-running' : 'tag-starved'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${prettyLabel(key)}`} title={paused ? 'Resume automatic production' : 'Pause automatic production'} data-testid={`button-toggle-pause-production-${key}`}>{paused ? 'PAUSED' : <>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</>}</button> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><ResourceIcon item={building} size={17} /><span className="mono numeric numeric-right text-[13px]">{count}</span></div></div></div>
+               <div className="flex items-start justify-between gap-2"><h2 className="truncate text-[13px] font-extrabold">{prettyLabel(key)}</h2><div className="flex items-center gap-2">{count ? <button type="button" onClick={() => { toggleRecipePause(key); notice(paused ? `${prettyLabel(key)} resumed` : `${prettyLabel(key)} paused`); }} className={`status-tag status-tag-button ${paused ? 'tag-paused' : autoCondition.met ? 'tag-running' : 'tag-starved'}`} aria-pressed={paused} aria-label={`${paused ? 'Resume' : 'Pause'} automatic ${prettyLabel(key)}`} title={paused ? 'Resume automatic production' : 'Pause automatic production'} data-testid={`button-toggle-pause-production-${key}`}>{paused ? 'PAUSED' : <>{autoCondition.met && <span className="status-dot status-running" />}{autoCondition.met ? 'auto' : 'auto stopped'}</>}</button> : automatedOnly ? <Tag tone="muted">automated only</Tag> : <Tag tone="amber">manual</Tag>}<div className="flex items-center gap-1 text-[hsl(var(--secondary))]" title={`${buildingLabel} count`}><BuildingIconWithModuleOverlay item={building} size={17} moduleTier={productionModuleTierFor(state, recipe)} label={buildingLabel} /><span className="mono numeric numeric-right text-[13px]">{count}</span></div></div></div>
              <div className="mt-1 flex flex-wrap gap-1">{recipe.hidden && <Tag tone="muted">hidden</Tag>}{recipe.results.length > 1 && <Tag tone="amber">multi-output</Tag>}</div>
             <RecipeFlow recipe={recipe} state={state} openIngredient={openIngredient} />
           </div>
@@ -2955,7 +2987,7 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
          {autoCondition.label && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-auto-condition-${key}`}><div className="flex items-center justify-between gap-2 text-[10px]"><span className="eyebrow text-[hsl(var(--primary))]">Auto start / stop</span><Tag tone={paused ? 'amber' : autoCondition.met ? 'teal' : 'amber'}>{paused ? 'paused' : autoCondition.met ? 'running' : 'stopped'}</Tag></div><div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">{paused ? 'Paused manually. Click PAUSED above to resume.' : <>Runs when <span className="font-semibold text-[hsl(var(--foreground))]">{autoCondition.label}</span>.</>}</div></div>}
          {smelting && recipe.fuel && !isElectricFurnaceVariant(state.furnaceVariant) && <div className="mt-2 rounded-lg border border-[hsl(var(--primary)/.25)] bg-[hsl(var(--primary)/.06)] p-3" data-testid={`panel-furnace-fuel-${key}`}><div className="flex items-center gap-2 text-[10px]"><ResourceIcon item={keyForSource(recipe.fuel.name)} size={17} /><span className="font-semibold">Furnace fuel</span><span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">{currentFurnaceLabel}</span></div><div className="mt-3 grid grid-cols-3 gap-2"><div><div className="eyebrow">Cost / item</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{amountLabel(furnaceCoalPerItemFor(state, recipe))}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal</div></div><div><div className="eyebrow">Current total</div><div className="mono mt-1 text-[11px] text-[hsl(var(--primary))]">{furnaceCoalUsageFor(state, recipe).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div><div><div className="eyebrow">Peak potential</div><div className="mono mt-1 text-[11px] text-[hsl(var(--secondary))]">{furnaceCoalUsageFor(state, recipe, true).toFixed(2)}</div><div className="mt-0.5 text-[8px] text-[hsl(var(--muted-foreground))]">coal / min</div></div></div></div>}
           <CompactMetricsRow production={productionRate} peakProduction={peakProductionRate} demand={demandRate} peakConsumption={peakDemandRate} net={netRate} storage={primaryOutput ? quantityFor(state, primaryOutput.key) : 0} capacity={primaryOutput ? capFor(state, primaryOutput.key) : 0} manualOutputEvent={primaryOutput ? state.manualOutputEvents[primaryOutput.key] ?? 0 : 0} storageWarning={Boolean(primaryOutput && peakDemandRate / 60 > capFor(state, primaryOutput.key))} />
-            <div className="mt-4 flex gap-2">{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${constructionBatchSize} ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-${count ? 'build-more' : 'build'}-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct' : `construct ${constructionBatchSize}`} <ResourceIcon item={building} size={13} /></>}</button></div>
+             <div className="mt-4 flex gap-2">{handcraftControl}<button onClick={() => buildProductionUnit(key)} className={`button-base flex-1 !py-2 ${isBuilding ? 'button-build-active' : 'button-ghost'}`} aria-label={`${count ? 'Construct another' : 'Construct'} ${constructionBatchSize} ${buildingLabel} for ${prettyLabel(key)}`} data-testid={`button-${count ? 'build-more' : 'build'}-${buildingAction}-${key}`}>{isBuilding ? <><Check size={13} /> queued · build {constructionBatchSize}</> : <><Hammer size={13} /> {constructionBatchSize === 1 ? 'construct' : `construct ${constructionBatchSize}`} <BuildingIconWithModuleOverlay item={building} size={13} moduleTier={productionModuleTierFor(state, recipe)} label={buildingLabel} /></>}</button></div>
            {isBuilding && <BuildProgress items={constructionItems} label={buildingLabel} cancelConstruction={cancelConstruction} notice={notice} />}
           {handcraftJob && <HandcraftProgress job={handcraftJob} recipe={recipe} simulationSpeed={state.simulationSpeed} />}
       </section>;
