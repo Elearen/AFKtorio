@@ -1,8 +1,8 @@
 import { recipeCatalog } from './recipeCatalog.js';
-import { chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, electricFurnaceCraftingSpeed, electricFurnacePowerKw, oilRefineryCraftingSpeed, oilRefineryPowerKw, oilRefineryRecipeNames } from './productionSystem.js';
+import { chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, electricFurnaceCraftingSpeed, electricFurnacePowerKw, oilRefineryCraftingSpeed, oilRefineryPowerKw, oilRefineryRecipeNames, rocketSiloCraftingSpeed, rocketSiloPowerKw } from './productionSystem.js';
 import { constructionDurationFor } from './constructionSystem.js';
 
-export type MachineGroup = 'assembly' | 'mining' | 'pumpjack' | 'chemical' | 'oilRefinery' | 'furnace';
+export type MachineGroup = 'assembly' | 'mining' | 'pumpjack' | 'chemical' | 'oilRefinery' | 'furnace' | 'rocketSilo';
 export const MINING_MODULES_UPGRADE_ID = 'mining-modules-1';
 export const MINING_MODULES_2_UPGRADE_ID = 'mining-modules-2';
 export const MINING_MODULES_3_UPGRADE_ID = 'mining-modules-3';
@@ -21,6 +21,9 @@ export const OIL_REFINERY_MODULES_3_UPGRADE_ID = 'oil-refinery-modules-3';
 export const ELECTRIC_FURNACE_MODULES_UPGRADE_ID = 'electric-furnace-modules-1';
 export const ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID = 'electric-furnace-modules-2';
 export const ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID = 'electric-furnace-modules-3';
+export const ROCKET_SILO_MODULES_UPGRADE_ID = 'rocket-silo-modules-1';
+export const ROCKET_SILO_MODULES_2_UPGRADE_ID = 'rocket-silo-modules-2';
+export const ROCKET_SILO_MODULES_3_UPGRADE_ID = 'rocket-silo-modules-3';
 export type UpgradeKey =
   | 'assembly-machine-2'
   | 'assembly-machine-3'
@@ -43,6 +46,9 @@ export type UpgradeKey =
   | typeof ELECTRIC_FURNACE_MODULES_UPGRADE_ID
   | typeof ELECTRIC_FURNACE_MODULES_2_UPGRADE_ID
   | typeof ELECTRIC_FURNACE_MODULES_3_UPGRADE_ID
+  | typeof ROCKET_SILO_MODULES_UPGRADE_ID
+  | typeof ROCKET_SILO_MODULES_2_UPGRADE_ID
+  | typeof ROCKET_SILO_MODULES_3_UPGRADE_ID
   | 'research-speed-1'
   | 'research-speed-2'
   | 'research-speed-3'
@@ -77,6 +83,7 @@ export type MachineVariants = {
   chemical?: string;
   oilRefinery?: string;
   furnace?: string;
+  rocketSilo?: string;
 };
 export type MachineCounts = {
   assembly: number;
@@ -85,6 +92,7 @@ export type MachineCounts = {
   chemical?: number;
   oilRefinery?: number;
   furnace?: number;
+  rocketSilo?: number;
 };
 const assemblyMachineExcludedRecipeNames = new Set([
   'basic-oil-processing',
@@ -673,6 +681,84 @@ export const upgradeData: UpgradeDefinition[] = [
     recipeProductivityBonus: 0.04,
     recipeSpeedBonus: 0.15,
   },
+  {
+    id: ROCKET_SILO_MODULES_UPGRADE_ID,
+    name: 'Upgrade Rocket Silo to Modules 1',
+    copy: 'Install productivity, speed, and efficiency modules in the Rocket Silo. Only Space Science Pack production is affected.',
+    prerequisiteTechnology: 'rocket-silo',
+    prerequisiteTechnologies: ['rocket-silo', 'productivity-module', 'speed-module', 'efficiency-module'],
+    prerequisiteMachineVariant: 'rocket-silo',
+    relevantMachine: 'Rocket Silo',
+    machineGroup: 'rocketSilo',
+    upgradeCostPerMachine: products([
+      ['productivity-module', 1],
+      ['speed-module', 1],
+      ['efficiency-module', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'rocket-silo-modules-1',
+    newMachineLabel: 'Rocket Silo + L1 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 367,
+    powerDrawIncrease: 109,
+    previousMachinePowerDraw: rocketSiloPowerKw,
+    newMachineProductionSpeed: rocketSiloCraftingSpeed,
+    affectedRecipes: ['space-science-pack'],
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
+  {
+    id: ROCKET_SILO_MODULES_2_UPGRADE_ID,
+    name: 'Upgrade Rocket Silo to Modules 2',
+    copy: 'Install level 2 productivity, speed, and efficiency modules in the Rocket Silo. Only Space Science Pack production is affected.',
+    prerequisiteTechnology: 'productivity-module-2',
+    prerequisiteTechnologies: ['productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+    prerequisiteUpgrade: ROCKET_SILO_MODULES_UPGRADE_ID,
+    relevantMachine: 'Rocket Silo + L1 Modules',
+    machineGroup: 'rocketSilo',
+    upgradeCostPerMachine: products([
+      ['productivity-module-2', 1],
+      ['speed-module-2', 1],
+      ['efficiency-module-2', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'rocket-silo-modules-2',
+    newMachineLabel: 'Rocket Silo + L2 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 395,
+    powerDrawIncrease: 28,
+    previousMachinePowerDraw: 367,
+    newMachineProductionSpeed: rocketSiloCraftingSpeed,
+    affectedRecipes: ['space-science-pack'],
+    recipeProductivityBonus: 0.02,
+    recipeSpeedBonus: 0.05,
+  },
+  {
+    id: ROCKET_SILO_MODULES_3_UPGRADE_ID,
+    name: 'Upgrade Rocket Silo to Modules 3',
+    copy: 'Install level 3 productivity, speed, and efficiency modules in the Rocket Silo. Only Space Science Pack production is affected.',
+    prerequisiteTechnology: 'productivity-module-3',
+    prerequisiteTechnologies: ['productivity-module-3', 'speed-module-3', 'efficiency-module-3'],
+    prerequisiteUpgrade: ROCKET_SILO_MODULES_2_UPGRADE_ID,
+    relevantMachine: 'Rocket Silo + L2 Modules',
+    machineGroup: 'rocketSilo',
+    upgradeCostPerMachine: products([
+      ['productivity-module-3', 1],
+      ['speed-module-3', 1],
+      ['efficiency-module-3', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'rocket-silo-modules-3',
+    newMachineLabel: 'Rocket Silo + L3 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 390,
+    powerDrawChange: -5,
+    previousMachinePowerDraw: 395,
+    newMachineProductionSpeed: rocketSiloCraftingSpeed,
+    affectedRecipes: ['space-science-pack'],
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
   ...([
     { level: 1, speed: 1.2, technology: 'research-speed-1', previous: undefined },
     { level: 2, speed: 1.5, technology: 'research-speed-2', previous: 'research-speed-1' },
@@ -839,6 +925,12 @@ const machineVariantRank: Record<MachineGroup, Record<string, number>> = {
     'electric-furnace-modules-2': 5,
     'electric-furnace-modules-3': 6,
   },
+  rocketSilo: {
+    'rocket-silo': 1,
+    'rocket-silo-modules-1': 2,
+    'rocket-silo-modules-2': 3,
+    'rocket-silo-modules-3': 4,
+  },
 };
 
 export const upgradeInstalledFor = (machineVariants: MachineVariants, upgradeId: string) => {
@@ -907,6 +999,10 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
   const savedPumpjack = savedVariants.pumpjack;
   if (savedPumpjack === 'pumpjack' || savedPumpjack === 'pumpjack-modules-1' || savedPumpjack === 'pumpjack-modules-2' || savedPumpjack === 'pumpjack-modules-3') {
     machineVariants.pumpjack = savedPumpjack;
+  }
+  const savedRocketSilo = savedVariants.rocketSilo;
+  if (savedRocketSilo === 'rocket-silo' || savedRocketSilo === 'rocket-silo-modules-1' || savedRocketSilo === 'rocket-silo-modules-2' || savedRocketSilo === 'rocket-silo-modules-3') {
+    machineVariants.rocketSilo = savedRocketSilo;
   }
   const savedLabSpeedLevel = typeof record.labSpeedLevel === 'number' && Number.isFinite(record.labSpeedLevel)
     ? record.labSpeedLevel

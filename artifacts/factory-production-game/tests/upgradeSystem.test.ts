@@ -18,6 +18,9 @@ import {
   electricFurnaceUpgradeCostPerFurnace,
   electricFurnaceUpgradeTimePerFurnace,
   electricFurnaceRecipeNames,
+  ROCKET_SILO_MODULES_2_UPGRADE_ID,
+  ROCKET_SILO_MODULES_3_UPGRADE_ID,
+  ROCKET_SILO_MODULES_UPGRADE_ID,
   steelFurnacePrerequisiteMet,
   assemblyMachineRecipeKeys,
   upgradeMap,
@@ -465,6 +468,111 @@ test('electric furnace module upgrades scale per furnace and preserve the ranked
   assert.equal(upgradeInstalledFor(modulesThree, 'electric-furnace-modules-1'), true);
   assert.equal(upgradeInstalledFor(modulesThree, 'electric-furnace-modules-2'), true);
   assert.equal(upgradeInstalledFor(modulesThree, 'electric-furnace-modules-3'), true);
+});
+
+test('rocket silo module upgrades use one-silo module costs and only affect Space Science', () => {
+  const rocketModules = upgradeMap[ROCKET_SILO_MODULES_UPGRADE_ID];
+  assert.equal(rocketModules.machineGroup, 'rocketSilo');
+  assert.equal(rocketModules.prerequisiteTechnology, 'rocket-silo');
+  assert.deepEqual(rocketModules.prerequisiteTechnologies, ['rocket-silo', 'productivity-module', 'speed-module', 'efficiency-module']);
+  assert.equal(rocketModules.prerequisiteMachineVariant, 'rocket-silo');
+  assert.deepEqual(rocketModules.upgradeCostPerMachine, [
+    { key: 'productivity-module', amount: 1, source: 'products' },
+    { key: 'speed-module', amount: 1, source: 'products' },
+    { key: 'efficiency-module', amount: 1, source: 'products' },
+  ]);
+  assert.equal(rocketModules.newMachine, 'rocket-silo-modules-1');
+  assert.equal(rocketModules.newMachinePowerDraw, 367);
+  assert.equal(rocketModules.powerDrawIncrease, 109);
+  assert.equal(rocketModules.previousMachinePowerDraw, 258);
+  assert.equal(rocketModules.recipeProductivityBonus, 0.04);
+  assert.equal(rocketModules.recipeSpeedBonus, 0.15);
+  assert.deepEqual(rocketModules.affectedRecipes, ['space-science-pack']);
+
+  const rocketModules2 = upgradeMap[ROCKET_SILO_MODULES_2_UPGRADE_ID];
+  assert.equal(rocketModules2.prerequisiteUpgrade, ROCKET_SILO_MODULES_UPGRADE_ID);
+  assert.equal(rocketModules2.newMachinePowerDraw, 395);
+  assert.equal(rocketModules2.powerDrawIncrease, 28);
+  assert.equal(rocketModules2.previousMachinePowerDraw, 367);
+  assert.equal(rocketModules2.recipeProductivityBonus, 0.02);
+  assert.equal(rocketModules2.recipeSpeedBonus, 0.05);
+
+  const rocketModules3 = upgradeMap[ROCKET_SILO_MODULES_3_UPGRADE_ID];
+  assert.equal(rocketModules3.prerequisiteUpgrade, ROCKET_SILO_MODULES_2_UPGRADE_ID);
+  assert.equal(rocketModules3.newMachinePowerDraw, 390);
+  assert.equal(rocketModules3.powerDrawChange, -5);
+  assert.equal(rocketModules3.previousMachinePowerDraw, 395);
+  assert.equal(rocketModules3.recipeProductivityBonus, 0.04);
+  assert.equal(rocketModules3.recipeSpeedBonus, 0.15);
+  assert.deepEqual(rocketModules3.affectedRecipes, ['space-science-pack']);
+});
+
+test('rocket silo module upgrades require the silo and previous tier, then reserve one silo worth of modules', () => {
+  const research = ['rocket-silo', 'productivity-module', 'speed-module', 'efficiency-module'];
+  const result = beginUpgrade(baseState({
+    research,
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill', rocketSilo: 'rocket-silo' },
+    machineCounts: { assembly: 0, mining: 0, rocketSilo: 1 },
+    products: {
+      'productivity-module': 1,
+      'speed-module': 1,
+      'efficiency-module': 1,
+    },
+  }), ROCKET_SILO_MODULES_UPGRADE_ID, 'rocket-modules-1');
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.job.machineCount, 1);
+  assert.equal(result.job.total, 1);
+  assert.deepEqual(result.totalCosts, [
+    { key: 'productivity-module', amount: 1, source: 'products' },
+    { key: 'speed-module', amount: 1, source: 'products' },
+    { key: 'efficiency-module', amount: 1, source: 'products' },
+  ]);
+  assert.equal(result.state.products['productivity-module'], 0);
+  assert.equal(result.state.products['speed-module'], 0);
+  assert.equal(result.state.products['efficiency-module'], 0);
+
+  assert.equal(failureReason(beginUpgrade(baseState({
+    research,
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
+    machineCounts: { assembly: 0, mining: 0, rocketSilo: 1 },
+    products: { 'productivity-module': 1, 'speed-module': 1, 'efficiency-module': 1 },
+  }), ROCKET_SILO_MODULES_UPGRADE_ID, 'rocket-modules-no-silo')), 'prerequisite-upgrade');
+
+  const secondTier = beginUpgrade(baseState({
+    research: ['productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill', rocketSilo: 'rocket-silo-modules-1' },
+    machineCounts: { assembly: 0, mining: 0, rocketSilo: 1 },
+    products: { 'productivity-module-2': 1, 'speed-module-2': 1, 'efficiency-module-2': 1 },
+  }), ROCKET_SILO_MODULES_2_UPGRADE_ID, 'rocket-modules-2');
+  assert.equal(secondTier.ok, true);
+  if (secondTier.ok) assert.deepEqual(secondTier.totalCosts.map(({ key, amount }) => [key, amount]), [
+    ['productivity-module-2', 1],
+    ['speed-module-2', 1],
+    ['efficiency-module-2', 1],
+  ]);
+});
+
+test('rocket silo module variants rank through completion and survive save migration', () => {
+  const completed = applyUpgradeCompletion({
+    assembly: 'assembling-machine-1',
+    mining: 'burner-mining-drill',
+    rocketSilo: 'rocket-silo-modules-2',
+  }, ROCKET_SILO_MODULES_3_UPGRADE_ID);
+  assert.equal(completed.rocketSilo, 'rocket-silo-modules-3');
+  assert.equal(upgradeInstalledFor(completed, ROCKET_SILO_MODULES_UPGRADE_ID), true);
+  assert.equal(upgradeInstalledFor(completed, ROCKET_SILO_MODULES_2_UPGRADE_ID), true);
+  assert.equal(upgradeInstalledFor(completed, ROCKET_SILO_MODULES_3_UPGRADE_ID), true);
+
+  const migrated = migrateMachineUpgradeState({
+    machineVariants: {
+      assembly: 'assembling-machine-1',
+      mining: 'burner-mining-drill',
+      rocketSilo: 'rocket-silo-modules-3',
+    },
+    queue: [],
+  });
+  assert.equal(migrated.machineVariants.rocketSilo, 'rocket-silo-modules-3');
 });
 
 test('worker robot speed reduces upgrade duration with the construction batch formula', () => {
