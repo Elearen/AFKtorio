@@ -473,8 +473,8 @@ test('electric furnace module upgrades scale per furnace and preserve the ranked
 test('rocket silo module upgrades use one-silo module costs and only affect Space Science', () => {
   const rocketModules = upgradeMap[ROCKET_SILO_MODULES_UPGRADE_ID];
   assert.equal(rocketModules.machineGroup, 'rocketSilo');
-  assert.equal(rocketModules.prerequisiteTechnology, 'rocket-silo');
-  assert.deepEqual(rocketModules.prerequisiteTechnologies, ['rocket-silo', 'productivity-module', 'speed-module', 'efficiency-module']);
+  assert.equal(rocketModules.prerequisiteTechnology, 'space-science-pack');
+  assert.deepEqual(rocketModules.prerequisiteTechnologies, ['space-science-pack', 'productivity-module', 'speed-module', 'efficiency-module']);
   assert.equal(rocketModules.prerequisiteMachineVariant, 'rocket-silo');
   assert.deepEqual(rocketModules.upgradeCostPerMachine, [
     { key: 'productivity-module', amount: 1, source: 'products' },
@@ -508,7 +508,7 @@ test('rocket silo module upgrades use one-silo module costs and only affect Spac
 });
 
 test('rocket silo module upgrades require the silo and previous tier, then reserve one silo worth of modules', () => {
-  const research = ['rocket-silo', 'productivity-module', 'speed-module', 'efficiency-module'];
+  const research = ['space-science-pack', 'productivity-module', 'speed-module', 'efficiency-module'];
   const result = beginUpgrade(baseState({
     research,
     machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill', rocketSilo: 'rocket-silo' },
