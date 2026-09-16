@@ -14,3 +14,4 @@
 - [Milestone migration](milestone-migration.md) — missing milestone metadata means no notification was explicitly viewed; preserve progress and surface earned thresholds once.
 - [Recipe productivity](recipe-productivity.md) — productivity is per-recipe output-only; actual input consumption per machine cycle remains unchanged.
 - [Recipe speed](recipe-speed.md) — speed is per-recipe, raises throughput by its additive bonus, and keeps machine power/furnace fuel usage unchanged.
+- [Mining module variant](mining-module-variant.md) — represent installed mining modules through the mining machine variant, while treating it as electric everywhere operationally.
