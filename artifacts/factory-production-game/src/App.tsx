@@ -3293,9 +3293,13 @@ function StoragePage({ state, enqueue, notice, cancelConstruction, constructionB
   const [scienceFilter, setScienceFilter] = useState<RecipeScienceFilter>('Core');
   const visibleKeys = unlockedKeys.filter((key) => {
     const normalizedQuery = query.trim().toLowerCase();
-    const matchesQuery = !normalizedQuery
-      || `${meta[key].label} ${meta[key].category} ${key}`.toLowerCase().includes(normalizedQuery);
-    return matchesQuery && (scienceFilter === 'all' || trackedScienceChainFor(key, state) === scienceFilter);
+    const searchableText = `${meta[key].label} ${meta[key].category} ${key}`.toLowerCase();
+    const matchesQuery = scienceFilter === 'Module'
+      ? ['module', normalizedQuery].filter(Boolean).every((term) => searchableText.includes(term))
+      : !normalizedQuery || searchableText.includes(normalizedQuery);
+    const matchesScienceFilter = scienceFilter === 'all' || scienceFilter === 'Module'
+      || trackedScienceChainFor(key, state) === scienceFilter;
+    return matchesQuery && matchesScienceFilter;
   });
   const visibleMaterialKeys = visibleKeys.filter((key) => !isFluidKey(key));
   const visibleFluidKeys = visibleKeys.filter((key) => isFluidKey(key));
@@ -3373,6 +3377,7 @@ function StoragePage({ state, enqueue, notice, cancelConstruction, constructionB
           <option value="all">All items</option>
           <option value="Core">Core items</option>
           <option value="Non-Core">Non-Core items</option>
+          <option value="Module">Module items</option>
         </select>
       </div>
     </section>
