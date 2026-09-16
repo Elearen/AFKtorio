@@ -467,6 +467,22 @@ test('electric furnace module upgrades scale per furnace and preserve the ranked
   assert.equal(upgradeInstalledFor(modulesThree, 'electric-furnace-modules-3'), true);
 });
 
+test('worker robot speed reduces upgrade duration with the construction batch formula', () => {
+  const result = beginUpgrade({
+    ...baseState({
+      research: ['automation-2'],
+      products: { circuit: 60, gear: 50, steel: 20, ironPlate: 30 },
+      machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' },
+      machineCounts: { assembly: 10, mining: 0 },
+      workerRobotSpeedLevel: 1,
+    }),
+  }, 'assembly-machine-2', 'assembly-robot-speed');
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.job.machineCount, 10);
+  assert.equal(result.job.total, 2.5);
+});
+
 test('oil refinery module upgrades scale per refinery and preserve the ranked chain', () => {
   const moduleProducts = {
     'productivity-module': 3,

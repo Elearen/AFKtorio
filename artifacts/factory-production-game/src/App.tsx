@@ -2008,10 +2008,10 @@ function UpgradeCostChips({ costs }: { costs: BuildMaterialCost[] }) {
     </span>;
   })}</div>;
 }
-function UpgradeRobotReductionNote({ percent }: { percent: number }) {
+function UpgradeRobotReductionNote({ percent, testId = 'note-upgrade-robot-reduction' }: { percent: number; testId?: string }) {
   if (percent <= 0.05) return null;
   const label = Number(percent.toFixed(1));
-  return <div className="mt-2 flex items-center gap-1.5 text-[9px] text-[hsl(var(--secondary))]" data-testid="note-upgrade-robot-reduction">
+  return <div className="mt-2 flex items-center gap-1.5 text-[9px] text-[hsl(var(--secondary))]" data-testid={testId}>
     <img src={`${import.meta.env.BASE_URL}item-icons/construction-robot.png`} width={15} height={15} alt="" aria-hidden="true" className="h-[15px] w-[15px] object-contain" />
     <span>-{label}% upgrade time from worker robots</span>
   </div>;
@@ -2088,10 +2088,11 @@ type UpgradeInfo = {
   totalCost: BuildMaterialCost[];
   timePerMachine: number;
   totalTime: number;
+  timeReductionPercent?: number;
   status: string;
   effects: string[];
 };
-function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, costPerItem, totalCost, timePerMachine, totalTime, showCosts, powerAdvisory, action, onInfo, infoId }: {
+function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, costPerItem, totalCost, timePerMachine, totalTime, timeReductionPercent = 0, showCosts, powerAdvisory, action, onInfo, infoId }: {
   testId: string;
   title: string;
   copy: string;
@@ -2103,6 +2104,7 @@ function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, cost
   totalCost: BuildMaterialCost[];
   timePerMachine: number;
   totalTime: number;
+  timeReductionPercent?: number;
   showCosts?: boolean;
   powerAdvisory?: ReactNode;
   action?: ReactNode;
@@ -2122,10 +2124,11 @@ function UpgradeCard({ testId, title, copy, iconPair, flow, progress, meta, cost
     {progress}
     {meta}
     {powerAdvisory}
-    {showCosts !== false && <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+     {showCosts !== false && <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
       <div className="data-row rounded-md p-2"><div className="eyebrow">Cost / machine</div><div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={costPerItem} /><UpgradeTime seconds={timePerMachine} /></div></div>
       <div className="data-row rounded-md p-2"><div className="eyebrow">Total cost</div><div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-1"><UpgradeCostChips costs={totalCost} /><UpgradeTime seconds={totalTime} /></div></div>
-    </div>}
+       <UpgradeRobotReductionNote percent={timeReductionPercent} testId={`${testId}-robot-reduction`} />
+     </div>}
     {action}
   </section>;
 }
@@ -2172,6 +2175,7 @@ function UpgradeDetailModal({ item, onClose }: { item: UpgradeInfo; onClose: () 
           <div className="data-row rounded-lg p-3"><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Per machine</div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><UpgradeCostChips costs={item.costPerItem} /><UpgradeTime seconds={item.timePerMachine} /></div></div>
           <div className="data-row rounded-lg p-3"><div className="text-[10px] text-[hsl(var(--muted-foreground))]">Current total</div><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><UpgradeCostChips costs={item.totalCost} /><UpgradeTime seconds={item.totalTime} /></div></div>
         </div>
+         <UpgradeRobotReductionNote percent={item.timeReductionPercent ?? 0} testId={`dialog-upgrade-robot-reduction-${item.id}`} />
       </div>
       <div className="py-4">
         <div className="eyebrow mb-3">Effects</div>
@@ -3397,25 +3401,31 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
   const storageUpgradeComplete = state.storageBoxType !== 'wooden';
   const storageUpgradeQueued = activeUpgrade?.targetId === 'iron-chests';
   const storageUpgradeCosts = [{ key: 'ironPlate', amount: ironChestUpgradeCostFor(storageBoxCount), source: 'products' as const }];
-  const storageUpgradeTotalSeconds = ironChestUpgradeTimeFor(storageBoxCount);
+  const storageUpgradeBaseSeconds = ironChestUpgradeTimeFor(1);
+  const storageUpgradeTotalSeconds = upgradeDurationFor(storageUpgradeBaseSeconds, storageBoxCount, state.workerRobotSpeedLevel);
+  const storageUpgradeTimeReductionPercent = upgradeDurationReductionPercentFor(storageUpgradeBaseSeconds, storageBoxCount, state.workerRobotSpeedLevel);
   const storageUpgradeMissing = storageUpgradeComplete || !storageBoxCount ? '' : missingBuildMaterials(state, storageUpgradeCosts);
   const steelStorageUpgradeComplete = state.storageBoxType === 'steel';
   const steelStorageUpgradeQueued = activeUpgrade?.targetId === 'steel-chests';
   const steelStorageUpgradeCosts = [{ key: 'steel', amount: steelChestUpgradeCostFor(storageBoxCount), source: 'products' as const }];
-  const steelStorageUpgradeTotalSeconds = steelChestUpgradeTimeFor(storageBoxCount);
+  const steelStorageUpgradeBaseSeconds = steelChestUpgradeTimeFor(1);
+  const steelStorageUpgradeTotalSeconds = upgradeDurationFor(steelStorageUpgradeBaseSeconds, storageBoxCount, state.workerRobotSpeedLevel);
+  const steelStorageUpgradeTimeReductionPercent = upgradeDurationReductionPercentFor(steelStorageUpgradeBaseSeconds, storageBoxCount, state.workerRobotSpeedLevel);
   const steelStorageUpgradeMissing = !storageUpgradeComplete || steelStorageUpgradeComplete || !storageBoxCount ? '' : missingBuildMaterials(state, steelStorageUpgradeCosts);
   const furnaceCount = smeltingFurnaceCountFor(state);
   const furnaceUpgradeComplete = state.furnaceVariant !== 'stone-furnace';
   const furnaceUpgradeQueued = activeUpgrade?.targetId === 'steel-furnaces';
   const furnaceUpgradeCostPerFurnace = recipeBuildCosts(steelFurnaceRecipe);
   const furnaceUpgradeCosts = scaledBuildCosts(furnaceUpgradeCostPerFurnace, furnaceCount);
-  const furnaceUpgradeTotalSeconds = steelFurnaceRecipe.energyRequired * furnaceCount;
+  const furnaceUpgradeTotalSeconds = upgradeDurationFor(steelFurnaceRecipe.energyRequired, furnaceCount, state.workerRobotSpeedLevel);
+  const furnaceUpgradeTimeReductionPercent = upgradeDurationReductionPercentFor(steelFurnaceRecipe.energyRequired, furnaceCount, state.workerRobotSpeedLevel);
   const furnaceUpgradeMissing = furnaceUpgradeComplete || !furnaceCount ? '' : missingBuildMaterials(state, furnaceUpgradeCosts);
   const furnaceUpgradePrerequisiteMet = steelFurnacePrerequisiteMet(state.research);
   const electricFurnaceUpgradeComplete = isElectricFurnaceVariant(state.furnaceVariant);
   const electricFurnaceUpgradeQueued = activeUpgrade?.targetId === ELECTRIC_FURNACE_UPGRADE_ID;
   const electricFurnaceUpgradeCosts = scaledBuildCosts(electricFurnaceUpgradeCostPerFurnace, furnaceCount);
-  const electricFurnaceUpgradeTotalSeconds = electricFurnaceUpgradeTimePerFurnace * furnaceCount;
+  const electricFurnaceUpgradeTotalSeconds = upgradeDurationFor(electricFurnaceUpgradeTimePerFurnace, furnaceCount, state.workerRobotSpeedLevel);
+  const electricFurnaceUpgradeTimeReductionPercent = upgradeDurationReductionPercentFor(electricFurnaceUpgradeTimePerFurnace, furnaceCount, state.workerRobotSpeedLevel);
   const electricFurnaceUpgradeMissing = electricFurnaceUpgradeComplete || !furnaceCount ? '' : missingBuildMaterials(state, electricFurnaceUpgradeCosts);
   const electricFurnaceUpgradePrerequisiteMet = electricFurnacePrerequisiteMet(state.research, state.furnaceVariant);
   const oilProcessingUpgradeComplete = state.oilProcessingAdvanced;
@@ -3423,7 +3433,9 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
   const basicOilMachineCount = state.assemblers['basic-oil-processing'] ?? 0;
   const oilProcessingMachineCount = oilRefineryCountFor(state);
   const oilProcessingConversionCount = activeUpgrade?.machineCount ?? oilProcessingMachineCount;
-  const oilProcessingUpgradeTotalSeconds = activeUpgrade?.targetId === OIL_PROCESSING_UPGRADE_ID ? activeUpgrade.total : oilProcessingUpgradeTimeFor(basicOilMachineCount);
+   const oilProcessingUpgradeBaseSeconds = oilProcessingUpgradeTimeFor(1);
+   const oilProcessingUpgradeTotalSeconds = activeUpgrade?.targetId === OIL_PROCESSING_UPGRADE_ID ? activeUpgrade.total : upgradeDurationFor(oilProcessingUpgradeBaseSeconds, basicOilMachineCount, state.workerRobotSpeedLevel);
+   const oilProcessingUpgradeTimeReductionPercent = upgradeDurationReductionPercentFor(oilProcessingUpgradeBaseSeconds, activeUpgrade?.targetId === OIL_PROCESSING_UPGRADE_ID ? activeUpgrade.machineCount ?? basicOilMachineCount : basicOilMachineCount, state.workerRobotSpeedLevel);
   const oilProcessingPrerequisiteMet = state.research.includes('advanced-oil-processing');
   const cancelActiveUpgrade = () => {
     if (!activeUpgrade) return;
@@ -3436,10 +3448,11 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
       raw: state.raw,
       products: state.products,
       research: state.research,
-      machineVariants: { ...state.machineVariants, furnace: state.furnaceVariant },
+       machineVariants: { ...state.machineVariants, furnace: state.furnaceVariant },
       machineCounts: { assembly: electricAssemblerCount(state), mining: machineCountForUpgrade(state, { ...upgrade, machineGroup: 'mining' }), pumpjack: state.pumpjacks, chemical: chemicalPlantCountFor(state), oilRefinery: oilRefineryCountFor(state), furnace: smeltingFurnaceCountFor(state) },
       labCount: state.labs,
       labSpeedLevel: state.labSpeedLevel,
+       workerRobotSpeedLevel: state.workerRobotSpeedLevel,
       queue: state.queue,
     }, upgrade.id, jobId);
     if (!result.ok) return notice(result.message);
@@ -3562,10 +3575,10 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
       action: 'upgrade',
       target: 'Upgrade Basic Oil Processing to Advanced Oil Processing',
       targetId: OIL_PROCESSING_UPGRADE_ID,
-      seconds: oilProcessingUpgradeTimeFor(basicOilMachineCount),
-      total: oilProcessingUpgradeTimeFor(basicOilMachineCount),
+      seconds: oilProcessingUpgradeTotalSeconds,
+      total: oilProcessingUpgradeTotalSeconds,
       machineCount: basicOilMachineCount,
-      ...constructionVisualTiming(oilProcessingUpgradeTimeFor(basicOilMachineCount)),
+      ...constructionVisualTiming(oilProcessingUpgradeTotalSeconds),
     };
     setState((s) => ({ ...s, queue: [...s.queue, job] }));
     notice(`Advanced Oil Processing conversion started for ${basicOilMachineCount} refinery${basicOilMachineCount === 1 ? '' : 'ies'}`);
@@ -3623,6 +3636,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     totalCost: [],
     timePerMachine: oilProcessingUpgradeTimeFor(1),
     totalTime: oilProcessingUpgradeQueued && activeUpgrade ? activeUpgrade.total : oilProcessingUpgradeTotalSeconds,
+     timeReductionPercent: oilProcessingUpgradeTimeReductionPercent,
     status: upgradeStatus(oilProcessingUpgradeComplete, oilProcessingUpgradeQueued, oilProcessingPrerequisiteMet && basicOilMachineCount > 0 && !activeUpgrade, '', oilProcessingPrerequisiteMet, basicOilMachineCount),
     effects: ['Converts Basic Oil Processing into Advanced Oil Processing.', 'The conversion is free.', 'Advanced processing unlocks the advanced oil recipe path for the converted refineries.'],
   };
@@ -3642,6 +3656,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     totalCost: furnaceUpgradeCosts,
     timePerMachine: steelFurnaceRecipe.energyRequired,
     totalTime: furnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : furnaceUpgradeTotalSeconds,
+     timeReductionPercent: furnaceUpgradeTimeReductionPercent,
     status: upgradeStatus(furnaceUpgradeComplete, furnaceUpgradeQueued, furnaceUpgradePrerequisiteMet && furnaceCount > 0 && !furnaceUpgradeMissing && !activeUpgrade, furnaceUpgradeMissing, furnaceUpgradePrerequisiteMet, furnaceCount),
     effects: ['Converts every constructed Stone Furnace into a Steel Furnace.', 'Smelting speed becomes 2× the Stone Furnace rate.', 'Coal consumption per smelted item is reduced by half.'],
   };
@@ -3661,6 +3676,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     totalCost: electricFurnaceUpgradeCosts,
     timePerMachine: electricFurnaceUpgradeTimePerFurnace,
     totalTime: electricFurnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : electricFurnaceUpgradeTotalSeconds,
+     timeReductionPercent: electricFurnaceUpgradeTimeReductionPercent,
     status: upgradeStatus(electricFurnaceUpgradeComplete, electricFurnaceUpgradeQueued, electricFurnaceUpgradePrerequisiteMet && furnaceCount > 0 && !electricFurnaceUpgradeMissing && !activeUpgrade, electricFurnaceUpgradeMissing, electricFurnaceUpgradePrerequisiteMet, furnaceCount),
     effects: ['Converts every constructed Steel Furnace into an Electric Furnace.', 'Smelting speed remains unchanged.', 'Coal consumption is removed.', 'Each Electric Furnace draws 180 kW while operating.'],
   };
@@ -3680,6 +3696,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     totalCost: storageUpgradeCosts,
     timePerMachine: ironChestUpgradeTimeFor(1),
     totalTime: storageUpgradeQueued && activeUpgrade ? activeUpgrade.total : storageUpgradeTotalSeconds,
+     timeReductionPercent: storageUpgradeTimeReductionPercent,
     status: upgradeStatus(storageUpgradeComplete, storageUpgradeQueued, storageBoxCount > 0 && !storageUpgradeMissing && !activeUpgrade, storageUpgradeMissing, true, storageBoxCount),
     effects: [`Converts every constructed Wooden Chest into an Iron Chest.`, `Item storage capacity increases from ${fmt(storageBoxCapacity)} to ${fmt(ironStorageBoxCapacity)} per chest.`, 'Fluid storage tanks remain unchanged.'],
   };
@@ -3699,6 +3716,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
     totalCost: steelStorageUpgradeCosts,
     timePerMachine: STORAGE_STEEL_BOX_UPGRADE_TIME,
     totalTime: steelStorageUpgradeQueued && activeUpgrade ? activeUpgrade.total : steelStorageUpgradeTotalSeconds,
+     timeReductionPercent: steelStorageUpgradeTimeReductionPercent,
     status: upgradeStatus(steelStorageUpgradeComplete, steelStorageUpgradeQueued, storageUpgradeComplete && storageBoxCount > 0 && !steelStorageUpgradeMissing && !activeUpgrade, steelStorageUpgradeMissing, storageUpgradeComplete, storageBoxCount),
     effects: ['Converts every constructed Iron Chest into a Steel Chest.', `Item storage capacity increases from ${fmt(ironStorageBoxCapacity)} to ${fmt(steelStorageBoxCapacity)} per chest.`, 'Fluid storage tanks remain unchanged.'],
   };
@@ -3729,6 +3747,10 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
       const totalCosts = scaledBuildCosts(item.upgradeCostPerMachine, machineCount);
       const missing = complete || !machineCount ? '' : missingBuildMaterials(state, totalCosts);
       const conversionCount = activeUpgrade?.machineCount ?? machineCount;
+       const upgradeTotalTime = queued && activeUpgrade
+         ? activeUpgrade.total
+         : upgradeDurationFor(item.upgradeTimePerMachine, machineCount, state.workerRobotSpeedLevel);
+       const upgradeTimeReductionPercent = upgradeDurationReductionPercentFor(item.upgradeTimePerMachine, conversionCount, state.workerRobotSpeedLevel);
       const canStart = !complete && !activeUpgrade && prerequisiteMet && machineCount > 0 && !missing;
       const fromMachine = isLabSpeedUpgrade
         ? 'lab'
@@ -3824,7 +3846,8 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
         costPerItem: item.upgradeCostPerMachine,
         totalCost: totalCosts,
         timePerMachine: item.upgradeTimePerMachine,
-        totalTime: queued && activeUpgrade ? activeUpgrade.total : item.upgradeTimePerMachine * machineCount,
+         totalTime: upgradeTotalTime,
+         timeReductionPercent: upgradeTimeReductionPercent,
         status: upgradeStatus(complete, queued, canStart, missing, prerequisiteMet, machineCount),
         effects: [
           `Converts each ${item.relevantMachine} into ${item.newMachineLabel}.`,
@@ -3877,7 +3900,8 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
           costPerItem={item.upgradeCostPerMachine}
           totalCost={totalCosts}
           timePerMachine={item.upgradeTimePerMachine}
-          totalTime={queued && activeUpgrade ? activeUpgrade.total : item.upgradeTimePerMachine * machineCount}
+           totalTime={upgradeTotalTime}
+           timeReductionPercent={upgradeTimeReductionPercent}
           showCosts={!complete}
            onInfo={() => setDetailsUpgrade(detail)}
            infoId={item.id}
@@ -3902,6 +3926,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
         totalCost={[]}
         timePerMachine={oilProcessingUpgradeTimeFor(1)}
         totalTime={oilProcessingUpgradeQueued && activeUpgrade ? activeUpgrade.total : oilProcessingUpgradeTotalSeconds}
+         timeReductionPercent={oilProcessingUpgradeTimeReductionPercent}
         showCosts={!oilProcessingUpgradeComplete}
         onInfo={() => setDetailsUpgrade(oilProcessingDetail)}
         infoId={OIL_PROCESSING_UPGRADE_ID}
@@ -3925,6 +3950,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
         totalCost={furnaceUpgradeCosts}
         timePerMachine={steelFurnaceRecipe.energyRequired}
         totalTime={furnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : furnaceUpgradeTotalSeconds}
+         timeReductionPercent={furnaceUpgradeTimeReductionPercent}
          showCosts={!furnaceUpgradeComplete}
          onInfo={() => setDetailsUpgrade(steelFurnaceDetail)}
          infoId="steel-furnaces"
@@ -3949,6 +3975,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
          totalCost={electricFurnaceUpgradeCosts}
          timePerMachine={electricFurnaceUpgradeTimePerFurnace}
          totalTime={electricFurnaceUpgradeQueued && activeUpgrade ? activeUpgrade.total : electricFurnaceUpgradeTotalSeconds}
+          timeReductionPercent={electricFurnaceUpgradeTimeReductionPercent}
           showCosts={!electricFurnaceUpgradeComplete}
           onInfo={() => setDetailsUpgrade(electricFurnaceDetail)}
           infoId={ELECTRIC_FURNACE_UPGRADE_ID}
@@ -3972,6 +3999,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
         totalCost={storageUpgradeCosts}
         timePerMachine={ironChestUpgradeTimeFor(1)}
         totalTime={storageUpgradeQueued && activeUpgrade ? activeUpgrade.total : storageUpgradeTotalSeconds}
+        timeReductionPercent={storageUpgradeTimeReductionPercent}
          showCosts={!storageUpgradeComplete}
          onInfo={() => setDetailsUpgrade(ironChestDetail)}
          infoId="iron-chests"
@@ -3995,6 +4023,7 @@ function UpgradesPage({ state, setState, notice, cancelConstruction, constructio
          totalCost={steelStorageUpgradeCosts}
          timePerMachine={STORAGE_STEEL_BOX_UPGRADE_TIME}
          totalTime={steelStorageUpgradeQueued && activeUpgrade ? activeUpgrade.total : steelStorageUpgradeTotalSeconds}
+          timeReductionPercent={steelStorageUpgradeTimeReductionPercent}
           showCosts={!steelStorageUpgradeComplete}
           onInfo={() => setDetailsUpgrade(steelChestDetail)}
           infoId="steel-chests"

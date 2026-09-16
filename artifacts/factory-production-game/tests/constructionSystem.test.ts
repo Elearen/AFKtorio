@@ -5,6 +5,7 @@ import {
   constructionRequestReady,
   constructionCanBeFullyFunded,
   constructionDurationFor,
+  constructionDurationReductionPercentFor,
   constructionTickCountFor,
   constructionVisualDurationMsFor,
   constructionVisualProgressFor,
@@ -228,4 +229,11 @@ test('construction batches use worker robot speed while preserving single-buildi
   assert.equal(constructionDurationFor(10, 10, 1), 50);
   assert.equal(constructionDurationFor(10, 100, 9), 250);
   assert.equal(constructionDurationFor(10, 1, 100), 10);
+});
+
+test('worker robot speed reports the reduction in total multi-building time', () => {
+  assert.equal(constructionDurationReductionPercentFor(10, 1, 9), 0);
+  assert.equal(constructionDurationReductionPercentFor(10, 10, 1), 50);
+  assert.equal(constructionDurationReductionPercentFor(10, 100, 9), 75);
+  assert.equal(constructionDurationReductionPercentFor(10, 0, 9), 0);
 });
