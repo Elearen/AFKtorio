@@ -1,5 +1,5 @@
 export const miningPowerRatioFor = (variant: string, powerRatio: number) => {
-  if (variant !== 'electric-mining-drill' && variant !== 'electric-mining-drill-modules-1' && variant !== 'electric-mining-drill-modules-2') return 1;
+  if (variant !== 'electric-mining-drill' && variant !== 'electric-mining-drill-modules-1' && variant !== 'electric-mining-drill-modules-2' && variant !== 'electric-mining-drill-modules-3') return 1;
   return Math.max(0, Math.min(1, powerRatio));
 };
 

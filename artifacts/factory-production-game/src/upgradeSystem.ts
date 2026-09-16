@@ -1,12 +1,14 @@
 export type MachineGroup = 'assembly' | 'mining';
 export const MINING_MODULES_UPGRADE_ID = 'mining-modules-1';
 export const MINING_MODULES_2_UPGRADE_ID = 'mining-modules-2';
+export const MINING_MODULES_3_UPGRADE_ID = 'mining-modules-3';
 export type UpgradeKey =
   | 'assembly-machine-2'
   | 'assembly-machine-3'
   | 'electric-mining-drill'
   | typeof MINING_MODULES_UPGRADE_ID
   | typeof MINING_MODULES_2_UPGRADE_ID
+  | typeof MINING_MODULES_3_UPGRADE_ID
   | 'research-speed-1'
   | 'research-speed-2'
   | 'research-speed-3'
@@ -52,6 +54,7 @@ export type UpgradeDefinition = {
   newMachineMaterialCost: BuildMaterialCost[];
   newMachinePowerDraw: number;
   powerDrawIncrease?: number;
+  powerDrawChange?: number;
   previousMachinePowerDraw?: number;
   newMachineProductionSpeed: number;
   affectedRecipes?: string[];
@@ -187,6 +190,32 @@ export const upgradeData: UpgradeDefinition[] = [
     affectedRecipes: ['stone', 'coal', 'copper', 'iron', 'uranium'],
     recipeProductivityBonus: 0.02,
     recipeSpeedBonus: 0.05,
+  },
+  {
+    id: MINING_MODULES_3_UPGRADE_ID,
+    name: 'Upgrade Mining to Modules 3',
+    copy: 'Install level 3 productivity, speed, and efficiency modules in every Electric Miner.',
+    prerequisiteTechnology: 'productivity-module-3',
+    prerequisiteTechnologies: ['productivity-module-3', 'speed-module-3', 'efficiency-module-3'],
+    prerequisiteUpgrade: MINING_MODULES_2_UPGRADE_ID,
+    relevantMachine: 'Electric Miner + L2 Modules',
+    machineGroup: 'mining',
+    upgradeCostPerMachine: products([
+      ['productivity-module-3', 1],
+      ['speed-module-3', 1],
+      ['efficiency-module-3', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'electric-mining-drill-modules-3',
+    newMachineLabel: 'Electric Miner + L3 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 568,
+    powerDrawChange: -7,
+    previousMachinePowerDraw: 575,
+    newMachineProductionSpeed: 0.7,
+    affectedRecipes: ['stone', 'coal', 'copper', 'iron', 'uranium'],
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
   },
   ...([
     { level: 1, speed: 1.2, technology: 'research-speed-1', previous: undefined },
