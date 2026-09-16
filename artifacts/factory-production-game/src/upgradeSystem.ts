@@ -1,7 +1,7 @@
 import { recipeCatalog } from './recipeCatalog.js';
-import { chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames } from './productionSystem.js';
+import { chemicalPlantCraftingSpeed, chemicalPlantPowerKw, chemicalPlantRecipeNames, oilRefineryCraftingSpeed, oilRefineryPowerKw, oilRefineryRecipeNames } from './productionSystem.js';
 
-export type MachineGroup = 'assembly' | 'mining' | 'pumpjack' | 'chemical';
+export type MachineGroup = 'assembly' | 'mining' | 'pumpjack' | 'chemical' | 'oilRefinery';
 export const MINING_MODULES_UPGRADE_ID = 'mining-modules-1';
 export const MINING_MODULES_2_UPGRADE_ID = 'mining-modules-2';
 export const MINING_MODULES_3_UPGRADE_ID = 'mining-modules-3';
@@ -14,6 +14,9 @@ export const ASSEMBLY_MODULES_3_UPGRADE_ID = 'assembly-modules-3';
 export const CHEMICAL_PLANT_MODULES_UPGRADE_ID = 'chemical-plant-modules-1';
 export const CHEMICAL_PLANT_MODULES_2_UPGRADE_ID = 'chemical-plant-modules-2';
 export const CHEMICAL_PLANT_MODULES_3_UPGRADE_ID = 'chemical-plant-modules-3';
+export const OIL_REFINERY_MODULES_UPGRADE_ID = 'oil-refinery-modules-1';
+export const OIL_REFINERY_MODULES_2_UPGRADE_ID = 'oil-refinery-modules-2';
+export const OIL_REFINERY_MODULES_3_UPGRADE_ID = 'oil-refinery-modules-3';
 export type UpgradeKey =
   | 'assembly-machine-2'
   | 'assembly-machine-3'
@@ -30,6 +33,9 @@ export type UpgradeKey =
   | typeof CHEMICAL_PLANT_MODULES_UPGRADE_ID
   | typeof CHEMICAL_PLANT_MODULES_2_UPGRADE_ID
   | typeof CHEMICAL_PLANT_MODULES_3_UPGRADE_ID
+  | typeof OIL_REFINERY_MODULES_UPGRADE_ID
+  | typeof OIL_REFINERY_MODULES_2_UPGRADE_ID
+  | typeof OIL_REFINERY_MODULES_3_UPGRADE_ID
   | 'research-speed-1'
   | 'research-speed-2'
   | 'research-speed-3'
@@ -62,12 +68,14 @@ export type MachineVariants = {
   mining: string;
   pumpjack?: string;
   chemical?: string;
+  oilRefinery?: string;
 };
 export type MachineCounts = {
   assembly: number;
   mining: number;
   pumpjack?: number;
   chemical?: number;
+  oilRefinery?: number;
 };
 const assemblyMachineExcludedRecipeNames = new Set([
   'basic-oil-processing',
@@ -495,6 +503,84 @@ export const upgradeData: UpgradeDefinition[] = [
     previousMachinePowerDraw: 325,
     newMachineProductionSpeed: chemicalPlantCraftingSpeed,
     affectedRecipes: [...chemicalPlantRecipeNames],
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
+  {
+    id: OIL_REFINERY_MODULES_UPGRADE_ID,
+    name: 'Upgrade Oil Refineries to Modules 1',
+    copy: 'Install productivity, speed, and efficiency modules in every Oil Refinery.',
+    prerequisiteTechnology: 'oil-processing',
+    prerequisiteTechnologies: ['oil-processing', 'productivity-module', 'speed-module', 'efficiency-module'],
+    prerequisiteMachineVariant: 'oil-refinery',
+    relevantMachine: 'Oil Refinery',
+    machineGroup: 'oilRefinery',
+    upgradeCostPerMachine: products([
+      ['productivity-module', 1],
+      ['speed-module', 1],
+      ['efficiency-module', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'oil-refinery-modules-1',
+    newMachineLabel: 'Oil Refinery + L1 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 600,
+    powerDrawIncrease: 180,
+    previousMachinePowerDraw: oilRefineryPowerKw,
+    newMachineProductionSpeed: oilRefineryCraftingSpeed,
+    affectedRecipes: [...oilRefineryRecipeNames],
+    recipeProductivityBonus: 0.04,
+    recipeSpeedBonus: 0.15,
+  },
+  {
+    id: OIL_REFINERY_MODULES_2_UPGRADE_ID,
+    name: 'Upgrade Oil Refineries to Modules 2',
+    copy: 'Install level 2 productivity, speed, and efficiency modules in every Oil Refinery.',
+    prerequisiteTechnology: 'productivity-module-2',
+    prerequisiteTechnologies: ['productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+    prerequisiteUpgrade: OIL_REFINERY_MODULES_UPGRADE_ID,
+    relevantMachine: 'Oil Refinery + L1 Modules',
+    machineGroup: 'oilRefinery',
+    upgradeCostPerMachine: products([
+      ['productivity-module-2', 1],
+      ['speed-module-2', 1],
+      ['efficiency-module-2', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'oil-refinery-modules-2',
+    newMachineLabel: 'Oil Refinery + L2 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 650,
+    powerDrawIncrease: 50,
+    previousMachinePowerDraw: 600,
+    newMachineProductionSpeed: oilRefineryCraftingSpeed,
+    affectedRecipes: [...oilRefineryRecipeNames],
+    recipeProductivityBonus: 0.02,
+    recipeSpeedBonus: 0.05,
+  },
+  {
+    id: OIL_REFINERY_MODULES_3_UPGRADE_ID,
+    name: 'Upgrade Oil Refineries to Modules 3',
+    copy: 'Install level 3 productivity, speed, and efficiency modules in every Oil Refinery.',
+    prerequisiteTechnology: 'productivity-module-3',
+    prerequisiteTechnologies: ['productivity-module-3', 'speed-module-3', 'efficiency-module-3'],
+    prerequisiteUpgrade: OIL_REFINERY_MODULES_2_UPGRADE_ID,
+    relevantMachine: 'Oil Refinery + L2 Modules',
+    machineGroup: 'oilRefinery',
+    upgradeCostPerMachine: products([
+      ['productivity-module-3', 1],
+      ['speed-module-3', 1],
+      ['efficiency-module-3', 1],
+    ]),
+    upgradeTimePerMachine: 1,
+    newMachine: 'oil-refinery-modules-3',
+    newMachineLabel: 'Oil Refinery + L3 Modules',
+    newMachineMaterialCost: [],
+    newMachinePowerDraw: 635,
+    powerDrawChange: -15,
+    previousMachinePowerDraw: 650,
+    newMachineProductionSpeed: oilRefineryCraftingSpeed,
+    affectedRecipes: [...oilRefineryRecipeNames],
     recipeProductivityBonus: 0.04,
     recipeSpeedBonus: 0.15,
   },

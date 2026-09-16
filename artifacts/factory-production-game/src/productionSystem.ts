@@ -5,6 +5,7 @@ export const centrifugeCraftingSpeed = 1;
 export const centrifugePowerKw = 350;
 export const oilRefineryCraftingSpeed = 1;
 export const oilRefineryPowerKw = 420;
+export const oilRefineryRecipeNames = ['basic-oil-processing', 'advanced-oil-processing'] as const;
 export const chemicalPlantCraftingSpeed = 1;
 export const chemicalPlantPowerKw = 210;
 export const chemicalPlantRecipeNames = [
