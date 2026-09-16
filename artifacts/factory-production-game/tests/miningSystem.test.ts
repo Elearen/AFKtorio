@@ -13,6 +13,8 @@ test('electric mining drills scale with available electrical power', () => {
   assert.equal(miningPowerRatioFor('electric-mining-drill', 1.5), 1);
   assert.equal(miningPowerRatioFor('electric-mining-drill-modules-1', 0), 0);
   assert.equal(miningPowerRatioFor('electric-mining-drill-modules-1', 0.35), 0.35);
+  assert.equal(miningPowerRatioFor('electric-mining-drill-modules-2', 0), 0);
+  assert.equal(miningPowerRatioFor('electric-mining-drill-modules-2', 0.35), 0.35);
 });
 
 test('full no-demand burner lines do not consume shared coal fuel', () => {

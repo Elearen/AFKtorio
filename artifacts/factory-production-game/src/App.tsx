@@ -289,7 +289,6 @@ const electricMiningDrillRecipe = recipeMap['electric-mining-drill'];
 const electricMiningDrillBuildCost = upgradeMap['electric-mining-drill'].newMachineMaterialCost;
 const electricMiningDrillPowerKw = upgradeMap['electric-mining-drill'].newMachinePowerDraw;
 const electricMiningDrillProductionSpeed = upgradeMap['electric-mining-drill'].newMachineProductionSpeed;
-const miningModulesPowerSurchargeKw = upgradeMap[MINING_MODULES_UPGRADE_ID].powerDrawIncrease ?? upgradeMap[MINING_MODULES_UPGRADE_ID].newMachinePowerDraw;
 const waterPumpPerSecond = 1200;
 const waterPumpBuildSeconds = 3;
 const waterPumpBuildCost: BuildMaterialCost[] = [
@@ -406,7 +405,7 @@ const furnaceLabelFor = (state: GameState) => state.furnaceVariant === 'electric
 const furnaceBuildRecipeFor = (state: GameState) => state.furnaceVariant === 'electric-furnace' ? electricFurnaceRecipe : state.furnaceVariant === 'steel-furnace' ? steelFurnaceRecipe : stoneFurnaceRecipe;
 const productionBuildingFor = (state: GameState, recipe: Recipe) => recipe.name === 'space-science-pack' ? 'rocket-silo' : isSmeltingRecipe(recipe) ? state.furnaceVariant : isOilRefineryRecipe(recipe) ? 'oil-refinery' : isChemicalPlantRecipe(recipe) ? 'chemical-plant' : isCentrifugeRecipe(recipe) ? 'centrifuge' : state.machineVariants.assembly;
 const constructionBuildingKeyFor = (state: GameState, action: QueueItem['action'], targetId?: string) => {
-  if (action === 'miner') return state.machineVariants.mining === 'electric-mining-drill-modules-1' ? 'electric-mining-drill' : state.machineVariants.mining;
+  if (action === 'miner') return state.machineVariants.mining === 'electric-mining-drill-modules-1' || state.machineVariants.mining === 'electric-mining-drill-modules-2' ? 'electric-mining-drill' : state.machineVariants.mining;
   if (action === 'pump') return 'offshore-pump';
   if (action === 'pumpjack') return 'pumpjack';
   if (action === 'uraniumMiner') return 'electric-mining-drill';
@@ -539,7 +538,7 @@ const recipeBuildCosts = (recipe: Recipe): BuildMaterialCost[] => Object.entries
 }));
 const legacyUpgradeCostsFor = (item: QueueItem): BuildMaterialCost[] | undefined => {
   if (item.action !== 'upgrade' || item.costs?.length || !item.targetId || !item.machineCount || item.machineCount <= 0) return undefined;
-  if (item.targetId === 'assembly-machine-2' || item.targetId === 'assembly-machine-3' || item.targetId === 'electric-mining-drill' || item.targetId === MINING_MODULES_UPGRADE_ID) {
+  if (item.targetId === 'assembly-machine-2' || item.targetId === 'assembly-machine-3' || item.targetId === 'electric-mining-drill' || item.targetId === MINING_MODULES_UPGRADE_ID || item.targetId === MINING_MODULES_2_UPGRADE_ID) {
     const upgrade = upgradeMap[item.targetId];
     return scaledBuildCosts(upgrade.upgradeCostPerMachine, item.machineCount);
   }
@@ -1816,7 +1815,7 @@ function MiningBuildingIcon({ resource, machineVariant, size = 17 }: { resource:
   if (resource === 'water') return <ResourceIcon item="offshore-pump" size={size} />;
   if (resource === 'uranium') return <ResourceIcon item="electric-mining-drill" size={size} />;
   if (resource === 'crudeOil') return <ResourceIcon item="pumpjack" size={size} />;
-  if (burnerMinerKeys.includes(resource)) return <ResourceIcon item={machineVariant === 'electric-mining-drill-modules-1' ? 'electric-mining-drill' : machineVariant} size={size} />;
+  if (burnerMinerKeys.includes(resource)) return <ResourceIcon item={machineVariant === 'electric-mining-drill-modules-1' || machineVariant === 'electric-mining-drill-modules-2' ? 'electric-mining-drill' : machineVariant} size={size} />;
   return <Pickaxe size={size} />;
 }
 const miningFlowNumber = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');

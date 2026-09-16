@@ -275,6 +275,37 @@ test('mining modules upgrade uses electric and uranium miners for cost and time'
   });
 });
 
+test('mining modules 2 upgrade requires modules 1 and reserves level 2 modules', () => {
+  const result = beginUpgrade(baseState({
+    research: ['productivity-module-2', 'speed-module-2', 'efficiency-module-2'],
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'electric-mining-drill-modules-1' },
+    machineCounts: { assembly: 0, mining: 4 },
+    products: {
+      circuit: 20,
+      gear: 20,
+      steel: 10,
+      ironPlate: 30,
+      'productivity-module-2': 5,
+      'speed-module-2': 5,
+      'efficiency-module-2': 5,
+    },
+  }), 'mining-modules-2', 'upgrade-mining-modules-2');
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.job.machineCount, 4);
+  assert.equal(result.job.total, 4);
+  assert.deepEqual(result.state.products, {
+    circuit: 20,
+    gear: 20,
+    steel: 10,
+    ironPlate: 30,
+    'productivity-module-2': 1,
+    'speed-module-2': 1,
+    'efficiency-module-2': 1,
+  });
+});
+
 test('upgrade start rejects missing prerequisites, machines, materials, and competing jobs', () => {
   assert.equal(failureReason(beginUpgrade(baseState({ machineCounts: { assembly: 1, mining: 0 } }), 'assembly-machine-2', 'a')), 'prerequisite');
   assert.equal(failureReason(beginUpgrade(baseState({ research: ['automation-2'] }), 'assembly-machine-2', 'b')), 'no-machines');
@@ -315,6 +346,10 @@ test('completion switches all machines in the upgraded group and leaves other gr
   const afterMiningModules = applyUpgradeCompletion(afterMining, 'mining-modules-1');
   assert.deepEqual(afterMiningModules, { assembly: 'assembling-machine-3', mining: 'electric-mining-drill-modules-1' });
   assert.equal(upgradeInstalledFor(afterMiningModules, 'mining-modules-1'), true);
+  const afterMiningModules2 = applyUpgradeCompletion(afterMiningModules, 'mining-modules-2');
+  assert.deepEqual(afterMiningModules2, { assembly: 'assembling-machine-3', mining: 'electric-mining-drill-modules-2' });
+  assert.equal(upgradeInstalledFor(afterMiningModules2, 'mining-modules-1'), true);
+  assert.equal(upgradeInstalledFor(afterMiningModules2, 'mining-modules-2'), true);
 
   assert.equal(applyLabSpeedUpgradeCompletion(0, 'research-speed-1'), 1);
   assert.equal(applyLabSpeedUpgradeCompletion(1, 'research-speed-2'), 2);
