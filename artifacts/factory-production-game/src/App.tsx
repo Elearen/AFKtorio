@@ -33,6 +33,7 @@ import { primaryOutputFor } from './productionOutput';
 import { prioritizeDisplayOrder } from './displayOrder';
 import { sessionIdForStartTimestamp } from './sessionId';
 import { updateHistoryChangedSince, updateHistoryContent, updateHistoryVersion } from './updateHistory';
+import { normalizeRecipeProductivity, productiveOutputAmountFor, type RecipeProductivity } from './productivitySystem';
 import { saveFileTextFor, stateFromSaveFileText } from './saveFile';
 import {
   Activity, ArrowRight, ArrowUp, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
@@ -173,6 +174,7 @@ type GameState = {
   unedited: boolean;
   launchRankingEligible: boolean;
   updateHistoryVersion: string;
+  recipeProductivity: RecipeProductivity;
 };
 
 const SAVE_KEY = 'factory-production-game-save-v2';
@@ -192,6 +194,7 @@ const sourceKeyAliases: Record<string, TrackedKey> = {
 const keyForSource = (name: string) => sourceKeyAliases[name] ?? name;
 const recipeMap: Record<string, Recipe> = Object.fromEntries(recipeCatalog.map((recipe) => [recipe.name, recipe]));
 const componentKeys: ComponentKey[] = recipeCatalog.map((recipe) => recipe.name);
+const recipeKeySet = new Set<string>(componentKeys);
 const scienceRecipeKeys: Record<ScienceKey, string> = {
   automationPack: 'automation-science-pack', logisticsPack: 'logistic-science-pack',
   chemicalPack: 'chemical-science-pack', militaryPack: 'military-science-pack',
@@ -422,6 +425,11 @@ const constructionBuildingKeyFor = (state: GameState, action: QueueItem['action'
   return undefined;
 };
 const recipeOutputs = (recipe: Recipe) => recipe.results.map((material) => ({ key: keyForSource(material.name), amount: materialAmount(material), source: material }));
+const productiveRecipeOutputsFor = (state: GameState, recipe: Recipe) =>
+  recipeOutputs(recipe).map((output) => ({
+    ...output,
+    amount: productiveOutputAmountFor(output.amount, state.recipeProductivity, recipe.name),
+  }));
 const trackedKeys: TrackedKey[] = Array.from(new Set([
   ...rawKeys,
   ...recipeCatalog.flatMap((recipe) => [...recipe.ingredients, ...recipe.results].map((material) => keyForSource(material.name))),
@@ -578,7 +586,7 @@ const initialState: GameState = {
   labs: 0, boilers: 0, boilersEnabled: true, steamEngines: 0, solarPanels: 0, accumulators: 0, nuclearReactors: 0, heatExchangers: 0, steamTurbines: 0, miningProgress: Object.fromEntries(rawKeys.map((key) => [key, 0])) as Record<RawKey, number>,
   assemblyProgress: Object.fromEntries(componentKeys.map((key) => [key, 0])) as Record<ComponentKey, number>,
   labProgress: 0, handcraft: null, manualMining: null, queue: [], research: [], currentResearch: null, researchSelected: false, researchProgress: {}, autoResearch: [], autoResearchEnabled: true, researchNotifications: [], milestoneNotifications: [], unlockedMilestones: [], produced: Object.fromEntries(trackedKeys.map((key) => [key, 0])), manualOutputEvents: Object.fromEntries(trackedKeys.map((key) => [key, 0])), pausedRecipes: {}, pausedMining: Object.fromEntries(rawKeys.map((key) => [key, false])) as Record<RawKey, boolean>, constructionBatchSize: 1, rateHistory: [], machineVariants: { assembly: 'assembling-machine-1', mining: 'burner-mining-drill' }, furnaceVariant: 'stone-furnace', labSpeedLevel: 0, workerRobotSpeedLevel: 0,
-  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, launchRankingStats: null, tutorialVisible: true, welcomeSeen: false, unedited: true, launchRankingEligible: true, updateHistoryVersion,
+  totalOutput: 1642, lastSeen: initialTimestamp, gameStartTimestamp: initialTimestamp, sessionId: sessionIdForStartTimestamp(initialTimestamp), simulationSpeed: 1, rocketSiloBuilt: false, rocketPartsBuilt: 0, rocketReadyAcknowledged: false, rocketLaunched: false, gameComplete: false, completionTotalOutput: null, completionStats: null, winMetrics: null, finishTimestamp: null, launchRankingStats: null, tutorialVisible: true, welcomeSeen: false, unedited: true, launchRankingEligible: true, updateHistoryVersion, recipeProductivity: {},
 };
 
 const nav = [
@@ -1002,7 +1010,7 @@ const manualProductionRateFor = (state: GameState, key: TrackedKey) => {
 const handcraftPeakProductionRateFor = (state: GameState, key: TrackedKey) => {
   if (!state.handcraft) return 0;
   const recipe = recipeMap[state.handcraft.recipeKey];
-  const output = recipe ? recipeOutputs(recipe).find((entry) => entry.key === key) : undefined;
+  const output = recipe ? productiveRecipeOutputsFor(state, recipe).find((entry) => entry.key === key) : undefined;
   return output ? output.amount * 60 * state.simulationSpeed / recipe.energyRequired : 0;
 };
 const storageConstrainedFor = (state: GameState, key: TrackedKey) => {
@@ -1023,7 +1031,7 @@ const peakProductionRateFor = (state: GameState, key: TrackedKey) => {
   componentKeys.forEach((recipeKey) => {
     const recipe = recipeMap[recipeKey];
     const outputRate = recipeCycleRateFor(state, recipe);
-    recipeOutputs(recipe).forEach(({ key: outputKey, amount }) => {
+    productiveRecipeOutputsFor(state, recipe).forEach(({ key: outputKey, amount }) => {
       if (outputKey === key) rate += outputRate * amount;
     });
   });
@@ -1079,7 +1087,7 @@ const productionRateFor = (state: GameState, key: TrackedKey) => {
 const recipeStorageThrottleFor = (state: GameState, recipe: Recipe, machinePowerRatio: number) => {
   const peakCycleRate = recipeCycleRateFor(state, recipe) * machinePowerRatio;
   if (peakCycleRate <= 0) return 0;
-  return recipeOutputs(recipe).reduce((throttle, output) => {
+  return productiveRecipeOutputsFor(state, recipe).reduce((throttle, output) => {
     if (!storageConstrainedFor(state, output.key)) return throttle;
     const requiredRate = demandRateFor(state, output.key);
     if (requiredRate <= 0) return throttle;
@@ -1112,11 +1120,11 @@ const recipeAutoStartStopConditionFor = (state: GameState, recipe: Recipe) => {
   return { met: true, label: '' };
 };
 const furnaceCoalPerItemFor = (state: GameState, recipe: Recipe) => {
-  const output = recipeOutputs(recipe)[0];
+  const output = productiveRecipeOutputsFor(state, recipe)[0];
   return recipe.fuel && output ? materialAmount(recipe.fuel) * furnaceFuelMultiplierFor(state) / Math.max(0.01, output.amount) : 0;
 };
 const furnaceCoalUsageFor = (state: GameState, recipe: Recipe, peak = false) => {
-  const output = recipeOutputs(recipe)[0];
+  const output = productiveRecipeOutputsFor(state, recipe)[0];
   if (!recipe.fuel || !output) return 0;
   const outputRate = peak ? recipeCycleRateFor(state, recipe) * output.amount : recipeProductionRateFor(state, recipe);
   return outputRate * furnaceCoalPerItemFor(state, recipe);
@@ -1263,7 +1271,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     let cycles = 0;
     let blocked = false;
     while (state.assemblyProgress[key] >= 1 && cycles < cycleBudget) {
-      const outputs = recipeOutputs(recipe);
+       const outputs = productiveRecipeOutputsFor(state, recipe);
        if (!hasInputs(state, automatedRecipeInputsFor(state, recipe)) || outputs.some(({ key: outputKey, amount }) => quantityFor(state, outputKey) + amount > capFor(state, outputKey))) {
         blocked = true;
         break;
@@ -1278,7 +1286,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     state.handcraft.seconds = Math.max(0, state.handcraft.seconds - seconds * speed);
     if (state.handcraft.seconds <= 0) {
       const recipe = recipeMap[state.handcraft.recipeKey];
-      const outputs = recipeOutputs(recipe);
+       const outputs = productiveRecipeOutputsFor(state, recipe);
        outputs.forEach(({ key: outputKey, amount }) => {
          addTracked(state, outputKey, amount, true);
          recordProduction(state, outputKey, amount, liveProduction, liveManualProduction);
@@ -1477,6 +1485,7 @@ function loadState() {
       return total + (typeof count === 'number' && Number.isFinite(count) ? Math.max(0, count) : 0);
     }, 0);
     const normalizedResearch = Array.from(new Set((parsed.research ?? initialState.research).map((key) => normalizeResearchKey(String(key)))));
+    const normalizedRecipeProductivity = normalizeRecipeProductivity(parsed.recipeProductivity, recipeKeySet);
     const normalizedAutoResearch = Array.from(new Set(
       (Array.isArray(parsed.autoResearch) ? parsed.autoResearch : [])
         .map((key) => normalizeResearchKey(String(key)))
@@ -1599,6 +1608,7 @@ function loadState() {
       unedited: parsed.unedited !== false,
       launchRankingEligible: parsed.launchRankingEligible !== false,
        updateHistoryVersion,
+       recipeProductivity: normalizedRecipeProductivity,
     } as GameState;
     if (state.rocketLaunched && state.finishTimestamp === null && state.winMetrics) {
       state.finishTimestamp = state.winMetrics.timestamp;

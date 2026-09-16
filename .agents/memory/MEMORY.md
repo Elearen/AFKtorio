@@ -12,3 +12,4 @@
 - [Storage chest tiers](storage-chest-tiers.md) — item-storage chest material is a global tier; fluid tanks remain independent and are never affected by chest upgrades.
 - [Furnace conversion](furnace-upgrade.md) — Steel Furnaces convert existing smelters globally; new construction follows the active furnace recipe.
 - [Milestone migration](milestone-migration.md) — missing milestone metadata means no notification was explicitly viewed; preserve progress and surface earned thresholds once.
+- [Recipe productivity](recipe-productivity.md) — productivity is per-recipe output-only; actual input consumption per machine cycle remains unchanged.
