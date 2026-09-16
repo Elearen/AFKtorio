@@ -531,12 +531,6 @@ const recipeIsUnlocked = (recipe: Recipe, state: GameState) => recipe.name === '
     : recipe.name === 'space-science-pack'
       ? state.research.includes('space-science-pack')
     : recipe.enabled || (recipeUnlockResearch[recipe.name] ?? []).some((technology) => state.research.includes(technology));
-const moduleRecipeNamesFor = (state: GameState) => new Set(
-  upgradeData
-    .filter((upgrade) => upgrade.recipeProductivityBonus !== undefined
-      && (upgrade.prerequisiteTechnologies ?? [upgrade.prerequisiteTechnology]).every((technology) => state.research.includes(technology)))
-    .flatMap((upgrade) => upgrade.affectedRecipes ?? []),
-);
 const unlockedProductKeys = (state: GameState) => new Set([
   ...rawKeys.filter((key) => rawProductIsUnlocked(key, state)),
   ...recipeCatalog.filter((recipe) => recipeIsUnlocked(recipe, state)).flatMap((recipe) => recipeOutputs(recipe).map((output) => output.key)),
@@ -2826,15 +2820,16 @@ function ProductionPage({ state, setState, enqueue, notice, cancelConstruction, 
   const currentFurnaceLabel = furnaceLabelFor(state);
   const spaceScienceUnlocked = spaceScienceUnlockedFor(state);
   const categories = useMemo(() => Array.from(new Set(recipeCatalog.map((recipe) => recipe.category))).sort(), []);
-  const moduleRecipeNames = useMemo(() => moduleRecipeNamesFor(state), [state.research]);
   const visibleRecipes = useMemo(() => orderedRecipeCatalog.filter((recipe) => !['pumpjack', 'rocket-silo', 'rocket-part', ...nuclearRecipeNames].includes(recipe.name) && recipeIsUnlocked(recipe, state)).filter((recipe) => {
-    const matchesQuery = !query.trim() || `${recipe.name} ${recipe.category}`.toLowerCase().includes(query.trim().toLowerCase());
-     const matchesScienceFilter = scienceFilter === 'all'
-       || (scienceFilter === 'Module'
-         ? moduleRecipeNames.has(recipe.name)
-         : focusTarget === `production-${recipe.name}` || recipeScienceChainFor(recipe, spaceScienceUnlocked) === scienceFilter);
+    const searchableText = `${recipe.name} ${recipe.category}`.toLowerCase();
+    const queryText = query.trim().toLowerCase();
+    const matchesQuery = scienceFilter === 'Module'
+      ? ['module', queryText].filter(Boolean).every((term) => searchableText.includes(term))
+      : !queryText || searchableText.includes(queryText);
+     const matchesScienceFilter = scienceFilter === 'all' || scienceFilter === 'Module'
+       || focusTarget === `production-${recipe.name}` || recipeScienceChainFor(recipe, spaceScienceUnlocked) === scienceFilter;
      return matchesQuery && (category === 'all' || recipe.category === category) && matchesScienceFilter;
-   }), [category, focusTarget, moduleRecipeNames, query, scienceFilter, state, spaceScienceUnlocked]);
+    }), [category, focusTarget, query, scienceFilter, state, spaceScienceUnlocked]);
   const amountLabel = (amount: number) => Number.isInteger(amount) ? fmt(amount) : amount.toFixed(2);
   const handcraft = (key: ComponentKey) => {
     const recipe = recipeMap[key];
