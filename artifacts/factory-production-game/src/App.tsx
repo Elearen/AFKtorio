@@ -1010,7 +1010,7 @@ const manualProductionRateFor = (state: GameState, key: TrackedKey) => {
 const handcraftPeakProductionRateFor = (state: GameState, key: TrackedKey) => {
   if (!state.handcraft) return 0;
   const recipe = recipeMap[state.handcraft.recipeKey];
-  const output = recipe ? productiveRecipeOutputsFor(state, recipe).find((entry) => entry.key === key) : undefined;
+  const output = recipe ? recipeOutputs(recipe).find((entry) => entry.key === key) : undefined;
   return output ? output.amount * 60 * state.simulationSpeed / recipe.energyRequired : 0;
 };
 const storageConstrainedFor = (state: GameState, key: TrackedKey) => {
@@ -1286,7 +1286,7 @@ function simulate(previous: GameState, seconds: number, tickTimestamp = Date.now
     state.handcraft.seconds = Math.max(0, state.handcraft.seconds - seconds * speed);
     if (state.handcraft.seconds <= 0) {
       const recipe = recipeMap[state.handcraft.recipeKey];
-       const outputs = productiveRecipeOutputsFor(state, recipe);
+        const outputs = recipeOutputs(recipe);
        outputs.forEach(({ key: outputKey, amount }) => {
          addTracked(state, outputKey, amount, true);
          recordProduction(state, outputKey, amount, liveProduction, liveManualProduction);
