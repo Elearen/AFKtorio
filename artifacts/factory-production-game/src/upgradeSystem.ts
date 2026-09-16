@@ -349,6 +349,7 @@ const machineVariantRank: Record<MachineGroup, Record<string, number>> = {
     'electric-mining-drill': 2,
     'electric-mining-drill-modules-1': 3,
     'electric-mining-drill-modules-2': 4,
+    'electric-mining-drill-modules-3': 5,
   },
 };
 
@@ -382,11 +383,13 @@ export const migrateMachineUpgradeState = (saved: unknown): { machineVariants: M
       : savedVariants.assembly === 'assembling-machine-2'
         ? 'assembling-machine-2'
         : 'assembling-machine-1',
-    mining: savedVariants.mining === 'electric-mining-drill-modules-2'
-      ? 'electric-mining-drill-modules-2'
-      : savedVariants.mining === 'electric-mining-drill-modules-1'
-        ? 'electric-mining-drill-modules-1'
-        : savedVariants.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
+    mining: savedVariants.mining === 'electric-mining-drill-modules-3'
+      ? 'electric-mining-drill-modules-3'
+      : savedVariants.mining === 'electric-mining-drill-modules-2'
+        ? 'electric-mining-drill-modules-2'
+        : savedVariants.mining === 'electric-mining-drill-modules-1'
+          ? 'electric-mining-drill-modules-1'
+          : savedVariants.mining === 'electric-mining-drill' ? 'electric-mining-drill' : 'burner-mining-drill',
   };
   const savedLabSpeedLevel = typeof record.labSpeedLevel === 'number' && Number.isFinite(record.labSpeedLevel)
     ? record.labSpeedLevel

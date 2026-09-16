@@ -152,6 +152,25 @@ test('upgrade catalog keeps the requested machine costs, timing, and stats', () 
   assert.equal(miningModules2.recipeProductivityBonus, 0.02);
   assert.equal(miningModules2.recipeSpeedBonus, 0.05);
   assert.deepEqual(miningModules2.affectedRecipes, ['stone', 'coal', 'copper', 'iron', 'uranium']);
+
+  const miningModules3 = upgradeMap['mining-modules-3'];
+  assert.equal(miningModules3.name, 'Upgrade Mining to Modules 3');
+  assert.equal(miningModules3.prerequisiteUpgrade, 'mining-modules-2');
+  assert.deepEqual(miningModules3.prerequisiteTechnologies, ['productivity-module-3', 'speed-module-3', 'efficiency-module-3']);
+  assert.deepEqual(miningModules3.upgradeCostPerMachine, [
+    { key: 'productivity-module-3', amount: 1, source: 'products' },
+    { key: 'speed-module-3', amount: 1, source: 'products' },
+    { key: 'efficiency-module-3', amount: 1, source: 'products' },
+  ]);
+  assert.equal(miningModules3.upgradeTimePerMachine, 1);
+  assert.equal(miningModules3.newMachine, 'electric-mining-drill-modules-3');
+  assert.equal(miningModules3.newMachineLabel, 'Electric Miner + L3 Modules');
+  assert.equal(miningModules3.newMachinePowerDraw, 568);
+  assert.equal(miningModules3.powerDrawChange, -7);
+  assert.equal(miningModules3.previousMachinePowerDraw, 575);
+  assert.equal(miningModules3.recipeProductivityBonus, 0.04);
+  assert.equal(miningModules3.recipeSpeedBonus, 0.15);
+  assert.deepEqual(miningModules3.affectedRecipes, ['stone', 'coal', 'copper', 'iron', 'uranium']);
 });
 
 test('Steel Furnaces require Advanced Material Processing research', () => {
@@ -306,6 +325,37 @@ test('mining modules 2 upgrade requires modules 1 and reserves level 2 modules',
   });
 });
 
+test('mining modules 3 upgrade requires modules 2 and reserves level 3 modules', () => {
+  const result = beginUpgrade(baseState({
+    research: ['productivity-module-3', 'speed-module-3', 'efficiency-module-3'],
+    machineVariants: { assembly: 'assembling-machine-1', mining: 'electric-mining-drill-modules-2' },
+    machineCounts: { assembly: 0, mining: 3 },
+    products: {
+      circuit: 20,
+      gear: 20,
+      steel: 10,
+      ironPlate: 30,
+      'productivity-module-3': 5,
+      'speed-module-3': 5,
+      'efficiency-module-3': 5,
+    },
+  }), 'mining-modules-3', 'upgrade-mining-modules-3');
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.job.machineCount, 3);
+  assert.equal(result.job.total, 3);
+  assert.deepEqual(result.state.products, {
+    circuit: 20,
+    gear: 20,
+    steel: 10,
+    ironPlate: 30,
+    'productivity-module-3': 2,
+    'speed-module-3': 2,
+    'efficiency-module-3': 2,
+  });
+});
+
 test('upgrade start rejects missing prerequisites, machines, materials, and competing jobs', () => {
   assert.equal(failureReason(beginUpgrade(baseState({ machineCounts: { assembly: 1, mining: 0 } }), 'assembly-machine-2', 'a')), 'prerequisite');
   assert.equal(failureReason(beginUpgrade(baseState({ research: ['automation-2'] }), 'assembly-machine-2', 'b')), 'no-machines');
@@ -350,6 +400,9 @@ test('completion switches all machines in the upgraded group and leaves other gr
   assert.deepEqual(afterMiningModules2, { assembly: 'assembling-machine-3', mining: 'electric-mining-drill-modules-2' });
   assert.equal(upgradeInstalledFor(afterMiningModules2, 'mining-modules-1'), true);
   assert.equal(upgradeInstalledFor(afterMiningModules2, 'mining-modules-2'), true);
+  const afterMiningModules3 = applyUpgradeCompletion(afterMiningModules2, 'mining-modules-3');
+  assert.deepEqual(afterMiningModules3, { assembly: 'assembling-machine-3', mining: 'electric-mining-drill-modules-3' });
+  assert.equal(upgradeInstalledFor(afterMiningModules3, 'mining-modules-3'), true);
 
   assert.equal(applyLabSpeedUpgradeCompletion(0, 'research-speed-1'), 1);
   assert.equal(applyLabSpeedUpgradeCompletion(1, 'research-speed-2'), 2);
