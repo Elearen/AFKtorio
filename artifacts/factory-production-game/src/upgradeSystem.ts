@@ -94,6 +94,10 @@ export type MachineCounts = {
   furnace?: number;
   rocketSilo?: number;
 };
+export const upgradeProgressLabelFor = (relevantMachine: string, count: number) => {
+  const canonicalLabel = relevantMachine.endsWith('Modules') ? relevantMachine : relevantMachine.toLowerCase();
+  return `${canonicalLabel}${count === 1 || relevantMachine.endsWith('Modules') ? '' : 's'}`;
+};
 const assemblyMachineExcludedRecipeNames = new Set([
   'basic-oil-processing',
   'advanced-oil-processing',

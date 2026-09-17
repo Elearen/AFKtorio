@@ -25,6 +25,7 @@ import {
   assemblyMachineRecipeKeys,
   upgradeMap,
   upgradeInstalledFor,
+  upgradeProgressLabelFor,
   type UpgradeStartState,
 } from '../src/upgradeSystem.js';
 import {
