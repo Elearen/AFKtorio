@@ -94,3 +94,34 @@ test('technology upgrade science costs use the correct pack types and scaled qua
     }
   }
 });
+
+test('worker robot speed levels 6 through 10 preserve level 6 and extend with all science packs', () => {
+  const levelSixCosts = [
+    { pack: 'automation-science-pack', amount: 1 },
+    { pack: 'logistic-science-pack', amount: 1 },
+    { pack: 'chemical-science-pack', amount: 1 },
+    { pack: 'production-science-pack', amount: 1 },
+    { pack: 'utility-science-pack', amount: 1 },
+    { pack: 'space-science-pack', amount: 1 },
+  ];
+  const laterLevelCosts = [
+    ...levelSixCosts.slice(0, 3),
+    { pack: 'military-science-pack', amount: 1 },
+    ...levelSixCosts.slice(3),
+  ];
+  const expectedCounts = [1000, 2000, 4000, 8000, 16000];
+
+  for (let level = 6; level <= 10; level += 1) {
+    const technology = technologyCatalog.find((entry) => entry.name === `worker-robots-speed-${level}`);
+
+    assert.ok(technology, `missing worker-robots-speed-${level}`);
+    assert.deepEqual(technology.scienceCosts, level === 6 ? levelSixCosts : laterLevelCosts, `worker-robots-speed-${level} science packs`);
+    assert.equal(technology.count ?? technology.countFormula, expectedCounts[level - 6], `worker-robots-speed-${level} research count`);
+    assert.deepEqual(
+      technology.prerequisites,
+      level === 6 ? ['worker-robots-speed-5', 'space-science-pack'] : [`worker-robots-speed-${level - 1}`],
+      `worker-robots-speed-${level} prerequisites`,
+    );
+    assert.deepEqual(technology.effects, [{ type: 'worker-robot-speed', modifier: 0.65 }], `worker-robots-speed-${level} effect`);
+  }
+});

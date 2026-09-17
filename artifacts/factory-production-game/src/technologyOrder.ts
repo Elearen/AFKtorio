@@ -19,5 +19,5 @@ export const technologyOrder = [
   'braking-force-6', 'fission-reactor-equipment', 'inserter-capacity-bonus-6', 'laser-shooting-speed-5', 'laser-weapons-damage-5', 'logistic-system', 'military-4', 'mining-productivity-3', 'personal-roboport-equipment', 'physical-projectile-damage-6', 'refined-flammables-4', 'research-speed-6', 'rocket-silo', 'stronger-explosives-4', 'weapon-shooting-speed-6', 'worker-robots-speed-2', 'worker-robots-storage-2',
   'artillery', 'atomic-bomb', 'braking-force-7', 'destroyer', 'inserter-capacity-bonus-7', 'laser-shooting-speed-6', 'laser-weapons-damage-6', 'personal-roboport-mk2-equipment', 'power-armor-mk2', 'refined-flammables-5', 'space-science-pack', 'spidertron', 'stronger-explosives-5', 'uranium-ammo', 'worker-robots-speed-3', 'worker-robots-storage-3',
   'follower-robot-count-4', 'laser-shooting-speed-7', 'refined-flammables-6', 'stronger-explosives-6', 'worker-robots-speed-4',
-  'worker-robots-speed-5', 'ai-powered-infinite-research',
+  'worker-robots-speed-5', 'worker-robots-speed-6', 'worker-robots-speed-7', 'worker-robots-speed-8', 'worker-robots-speed-9', 'worker-robots-speed-10', 'ai-powered-infinite-research',
 ] as const;

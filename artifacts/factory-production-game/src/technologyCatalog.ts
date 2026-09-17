@@ -5196,7 +5196,7 @@ const rawTechnologyCatalog: TechnologyDefinition[] = [
         "amount": 1
       }
     ],
-    "countFormula": "2^(L-6)*1000",
+    "count": 1000,
     "time": 60,
     "effects": [
       {
@@ -5206,8 +5206,195 @@ const rawTechnologyCatalog: TechnologyDefinition[] = [
     ],
     "iconPath": "__base__/graphics/technology/worker-robots-speed.png",
     "upgrade": true,
-    "essential": false,
-    "maxLevel": "infinite"
+    "essential": false
+  },
+  {
+    "name": "worker-robots-speed-7",
+    "prerequisites": [
+      "worker-robots-speed-6"
+    ],
+    "scienceCosts": [
+      {
+        "pack": "automation-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "logistic-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "chemical-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "military-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "production-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "utility-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "space-science-pack",
+        "amount": 1
+      }
+    ],
+    "count": 2000,
+    "time": 60,
+    "effects": [
+      {
+        "type": "worker-robot-speed",
+        "modifier": 0.65
+      }
+    ],
+    "iconPath": "__base__/graphics/technology/worker-robots-speed.png",
+    "upgrade": true,
+    "essential": false
+  },
+  {
+    "name": "worker-robots-speed-8",
+    "prerequisites": [
+      "worker-robots-speed-7"
+    ],
+    "scienceCosts": [
+      {
+        "pack": "automation-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "logistic-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "chemical-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "military-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "production-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "utility-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "space-science-pack",
+        "amount": 1
+      }
+    ],
+    "count": 4000,
+    "time": 60,
+    "effects": [
+      {
+        "type": "worker-robot-speed",
+        "modifier": 0.65
+      }
+    ],
+    "iconPath": "__base__/graphics/technology/worker-robots-speed.png",
+    "upgrade": true,
+    "essential": false
+  },
+  {
+    "name": "worker-robots-speed-9",
+    "prerequisites": [
+      "worker-robots-speed-8"
+    ],
+    "scienceCosts": [
+      {
+        "pack": "automation-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "logistic-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "chemical-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "military-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "production-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "utility-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "space-science-pack",
+        "amount": 1
+      }
+    ],
+    "count": 8000,
+    "time": 60,
+    "effects": [
+      {
+        "type": "worker-robot-speed",
+        "modifier": 0.65
+      }
+    ],
+    "iconPath": "__base__/graphics/technology/worker-robots-speed.png",
+    "upgrade": true,
+    "essential": false
+  },
+  {
+    "name": "worker-robots-speed-10",
+    "prerequisites": [
+      "worker-robots-speed-9"
+    ],
+    "scienceCosts": [
+      {
+        "pack": "automation-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "logistic-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "chemical-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "military-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "production-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "utility-science-pack",
+        "amount": 1
+      },
+      {
+        "pack": "space-science-pack",
+        "amount": 1
+      }
+    ],
+    "count": 16000,
+    "time": 60,
+    "effects": [
+      {
+        "type": "worker-robot-speed",
+        "modifier": 0.65
+      }
+    ],
+    "iconPath": "__base__/graphics/technology/worker-robots-speed.png",
+    "upgrade": true,
+    "essential": false
   },
   {
     "name": "worker-robots-storage-1",
