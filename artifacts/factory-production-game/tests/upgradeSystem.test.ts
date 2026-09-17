@@ -28,6 +28,7 @@ import {
   upgradeProgressLabelFor,
   type UpgradeStartState,
 } from '../src/upgradeSystem.js';
+
 import {
   assemblyMachineOneCraftingSpeed,
   chemicalPlantCraftingSpeed,
@@ -59,6 +60,12 @@ const failureReason = (result: ReturnType<typeof beginUpgrade>) => {
   if (result.ok) throw new Error('expected upgrade start to fail');
   return result.reason;
 };
+
+test('module upgrade progress labels preserve tier capitalization and pluralization', () => {
+  assert.equal(upgradeProgressLabelFor('Assembly Machine 3 + L1 Modules', 1), 'Assembly Machine 3 + L1 Modules');
+  assert.equal(upgradeProgressLabelFor('Assembly Machine 3 + L2 Modules', 3), 'Assembly Machine 3 + L2 Modules');
+  assert.equal(upgradeProgressLabelFor('Assembly Machine 3 + L3 Modules', 5), 'Assembly Machine 3 + L3 Modules');
+});
 
 test('upgrade catalog keeps the requested machine costs, timing, and stats', () => {
   const production = upgradeMap['assembly-machine-2'];
