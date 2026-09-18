@@ -35,6 +35,7 @@ import { sessionIdForStartTimestamp } from './sessionId';
 import { updateHistoryChangedSince, updateHistoryContent, updateHistoryVersion } from './updateHistory';
 import { effectiveRecipeSecondsFor, miningProductivityMultiplierFor, normalizeRecipeProductivity, normalizeRecipeSpeed, productiveOutputAmountFor, recipeProductivityMultiplierFor, recipeSpeedMultiplierFor, type RecipeProductivity, type RecipeSpeed } from './productivitySystem';
 import { saveFileTextFor, stateFromSaveFileText } from './saveFile';
+import { tutorialGoalsFor as starterTutorialGoalsFor, type TutorialGoal } from './tutorialSystem';
 import {
   Activity, ArrowRight, ArrowUp, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -2557,19 +2558,17 @@ function RocketEndgameCard({ state, enqueue, notice, cancelConstruction }: Pick<
   </article>;
 }
 
-type TutorialGoal = { id: string; label: string; complete: boolean };
-
 function tutorialGoalsFor(state: GameState): TutorialGoal[] {
-  const furnaceBuilt = Array.from(smeltingRecipeKeys).some((recipeKey) => (state.assemblers[recipeKey] ?? 0) > 0);
   return [
-    { id: 'mine-iron', label: 'Mine your first iron', complete: (state.produced.iron ?? 0) > 0 },
-    { id: 'chop-tree', label: 'Chop down a tree', complete: (state.produced.wood ?? 0) > 0 },
-    { id: 'build-furnace', label: 'Build your first furnace', complete: furnaceBuilt },
-    { id: 'smelt-metal', label: 'Smelt your first metal (iron or copper)', complete: (state.produced.ironPlate ?? 0) > 0 || (state.produced.copperPlate ?? 0) > 0 },
-    { id: 'craft-gear', label: 'Craft your first iron gear', complete: (state.produced.gear ?? 0) > 0 },
-    { id: 'automate-mining', label: 'Automate mining for iron, copper, stone and coal', complete: (['iron', 'copper', 'stone', 'coal'] as RawKey[]).every((key) => state.miners[key] > 0) },
-    { id: 'produce-electricity', label: 'Turn the lights on (produce electricity)', complete: powerProductionFor(state) > 0 },
-    { id: 'build-lab', label: 'Build your first lab', complete: state.labs > 0 },
+    ...starterTutorialGoalsFor({
+      miners: state.miners,
+      assemblers: state.assemblers,
+      boilers: state.boilers,
+      steamEngines: state.steamEngines,
+      pumps: state.pumps,
+      labs: state.labs,
+      manualOutputEvents: state.manualOutputEvents,
+    }),
     { id: 'research-automation', label: 'Research automation', complete: state.research.includes('automation') },
     { id: 'automate-early-production', label: 'Automate production of gears and automation science packs', complete: (state.assemblers['iron-gear-wheel'] ?? 0) > 0 && (state.assemblers['automation-science-pack'] ?? 0) > 0 },
     { id: 'unlock-logistics-science', label: 'Unlock logistics science', complete: state.research.includes('logistic-science-pack') },
