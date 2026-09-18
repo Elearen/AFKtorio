@@ -36,6 +36,7 @@ import { updateHistoryChangedSince, updateHistoryContent, updateHistoryVersion }
 import { effectiveRecipeSecondsFor, miningProductivityMultiplierFor, normalizeRecipeProductivity, normalizeRecipeSpeed, productiveOutputAmountFor, recipeProductivityMultiplierFor, recipeSpeedMultiplierFor, type RecipeProductivity, type RecipeSpeed } from './productivitySystem';
 import { saveFileTextFor, stateFromSaveFileText } from './saveFile';
 import { tutorialGoalsFor as starterTutorialGoalsFor, type TutorialGoal } from './tutorialSystem';
+import { offlineElapsedSecondsFor, OFFLINE_RECONCILIATION_THRESHOLD_SECONDS } from './offlineRecovery';
 import {
   Activity, ArrowRight, ArrowUp, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -1814,7 +1815,7 @@ function loadState() {
       state.launchRankingStats = launchStatsSnapshotFor(state.sessionId, state.gameStartTimestamp, state.finishTimestamp, state.winMetrics);
     }
     delete (state as GameState & { upgrades?: unknown }).upgrades;
-    const away = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSeen) / 1000));
+    const away = offlineElapsedSecondsFor(state.lastSeen, Date.now());
     const before = state.totalOutput;
     const recovered = simulate(state, away, Date.now(), { offline: true });
     return { state: recovered, away, recovered: recovered.totalOutput - before, newGame: false, updateHistoryMigration };
@@ -4897,26 +4898,69 @@ const registerGameSessionInBackground = (state: Pick<GameState, 'sessionId' | 'g
 function Game() {
   const initial = useMemo(loadState, []);
   const [state, setState] = useState<GameState>(initial.state);
+  const stateRef = useRef(initial.state);
   const nextSimulationAtRef = useRef(Date.now() + 1000);
-  const [away] = useState(initial.away);
-  const [recovered] = useState(initial.recovered);
+  const hiddenSinceRef = useRef<number | null>(document.visibilityState === 'hidden' ? Date.now() : null);
+  const [away, setAway] = useState(initial.away);
+  const [recovered, setRecovered] = useState(initial.recovered);
   const [offlineReportVisible, setOfflineReportVisible] = useState(initial.away >= 60 && initial.recovered > 0);
   const [updateHistoryOpen, setUpdateHistoryOpen] = useState(initial.updateHistoryMigration);
   const [toast, setToast] = useState('');
   const [endgameModal, setEndgameModal] = useState<'rocket-ready' | 'game-complete' | null>(null);
   const [replayMilestone, setReplayMilestone] = useState<MilestoneKey | null>(null);
   const [location, navigate] = useLocation();
+  stateRef.current = state;
   const notice = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 1800); };
+  const advanceSimulation = (seconds: number, tickTimestamp: number, offline: boolean) => {
+    const current = stateRef.current;
+    if (seconds <= 0) return { away: 0, recovered: 0 };
+    const next = simulate(current, seconds, tickTimestamp, { offline });
+    stateRef.current = next;
+    setState(next);
+    return { away: seconds, recovered: Math.max(0, next.totalOutput - current.totalOutput) };
+  };
+  const showOfflineRecovery = (result: { away: number; recovered: number }) => {
+    if (result.away >= 60 && result.recovered > 0) {
+      setAway(result.away);
+      setRecovered(result.recovered);
+      setOfflineReportVisible(true);
+    }
+  };
   useEffect(() => {
     if (initial.newGame) registerGameSessionInBackground(initial.state);
   }, [initial]);
   useEffect(() => {
     const timer = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
       const tickTimestamp = Date.now();
       nextSimulationAtRef.current = tickTimestamp + 1000;
-      setState((s) => simulate(s, 1, tickTimestamp));
+      const elapsed = offlineElapsedSecondsFor(stateRef.current.lastSeen, tickTimestamp);
+      const simulationSeconds = Math.max(1, elapsed);
+      const isOfflineGap = elapsed >= OFFLINE_RECONCILIATION_THRESHOLD_SECONDS;
+      const result = advanceSimulation(simulationSeconds, tickTimestamp, isOfflineGap);
+      if (isOfflineGap) showOfflineRecovery(result);
     }, 1000);
     return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenSinceRef.current = Date.now();
+        return;
+      }
+      const tickTimestamp = Date.now();
+      const hiddenSince = hiddenSinceRef.current;
+      hiddenSinceRef.current = null;
+      nextSimulationAtRef.current = tickTimestamp + 1000;
+      const elapsedSinceLastTick = offlineElapsedSecondsFor(stateRef.current.lastSeen, tickTimestamp);
+      const elapsedWhileHidden = hiddenSince === null ? 0 : offlineElapsedSecondsFor(hiddenSince, tickTimestamp);
+      const elapsed = Math.max(elapsedSinceLastTick, elapsedWhileHidden);
+      if (elapsed <= 0) return;
+      const result = advanceSimulation(elapsed, tickTimestamp, true);
+      showOfflineRecovery(result);
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
   useEffect(() => { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }, [state]);
   useEffect(() => {
