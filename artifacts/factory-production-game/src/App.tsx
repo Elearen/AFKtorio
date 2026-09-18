@@ -36,7 +36,7 @@ import { updateHistoryChangedSince, updateHistoryContent, updateHistoryVersion }
 import { effectiveRecipeSecondsFor, miningProductivityMultiplierFor, normalizeRecipeProductivity, normalizeRecipeSpeed, productiveOutputAmountFor, recipeProductivityMultiplierFor, recipeSpeedMultiplierFor, type RecipeProductivity, type RecipeSpeed } from './productivitySystem';
 import { saveFileTextFor, stateFromSaveFileText } from './saveFile';
 import { tutorialGoalsFor as starterTutorialGoalsFor, type TutorialGoal } from './tutorialSystem';
-import { offlineElapsedSecondsFor, OFFLINE_RECONCILIATION_THRESHOLD_SECONDS } from './offlineRecovery';
+import { offlineElapsedSecondsFor, OFFLINE_RECONCILIATION_THRESHOLD_SECONDS, shouldShowOfflineRecoveryReport } from './offlineRecovery';
 import {
   Activity, ArrowRight, ArrowUp, BatteryCharging, Box, Check, ChevronRight, CircleHelp, Clock3,
   Cog, MoveRight, Cpu, FlaskConical, Gauge, Hammer,
@@ -4903,7 +4903,7 @@ function Game() {
   const hiddenSinceRef = useRef<number | null>(document.visibilityState === 'hidden' ? Date.now() : null);
   const [away, setAway] = useState(initial.away);
   const [recovered, setRecovered] = useState(initial.recovered);
-  const [offlineReportVisible, setOfflineReportVisible] = useState(initial.away >= 60 && initial.recovered > 0);
+  const [offlineReportVisible, setOfflineReportVisible] = useState(shouldShowOfflineRecoveryReport(initial.away, initial.recovered));
   const [updateHistoryOpen, setUpdateHistoryOpen] = useState(initial.updateHistoryMigration);
   const [toast, setToast] = useState('');
   const [endgameModal, setEndgameModal] = useState<'rocket-ready' | 'game-complete' | null>(null);
@@ -4920,7 +4920,7 @@ function Game() {
     return { away: seconds, recovered: Math.max(0, next.totalOutput - current.totalOutput) };
   };
   const showOfflineRecovery = (result: { away: number; recovered: number }) => {
-    if (result.away >= 60 && result.recovered > 0) {
+    if (shouldShowOfflineRecoveryReport(result.away, result.recovered)) {
       setAway(result.away);
       setRecovered(result.recovered);
       setOfflineReportVisible(true);

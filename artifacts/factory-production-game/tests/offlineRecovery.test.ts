@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   MAX_OFFLINE_SECONDS,
   OFFLINE_RECONCILIATION_THRESHOLD_SECONDS,
+  OFFLINE_REPORT_THRESHOLD_SECONDS,
   offlineElapsedSecondsFor,
+  shouldShowOfflineRecoveryReport,
 } from '../src/offlineRecovery.js';
 
 test('offline elapsed time is calculated from wall-clock timestamps and capped', () => {
@@ -16,4 +18,11 @@ test('offline elapsed time is calculated from wall-clock timestamps and capped',
 test('offline reconciliation uses a threshold above normal timer jitter', () => {
   assert.equal(OFFLINE_RECONCILIATION_THRESHOLD_SECONDS > 1, true);
   assert.equal(OFFLINE_RECONCILIATION_THRESHOLD_SECONDS < 10, true);
+});
+
+test('short offline gaps recover silently without showing the report', () => {
+  assert.equal(OFFLINE_REPORT_THRESHOLD_SECONDS, 60);
+  assert.equal(shouldShowOfflineRecoveryReport(59.999, 100), false);
+  assert.equal(shouldShowOfflineRecoveryReport(60, 100), true);
+  assert.equal(shouldShowOfflineRecoveryReport(60, 0), false);
 });
