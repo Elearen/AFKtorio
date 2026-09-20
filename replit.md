@@ -36,7 +36,6 @@ A mobile-first incremental factory simulator where players grow a self-funded pr
 - Recipe simulation uses the attached catalog's generic item/fluid inputs and multi-output results; legacy starter resources remain connected through explicit source-name aliases.
 - Production recipes and storage rows share the imported product-tier ordering; tracked materials not present in the reference are retained after the tiered entries.
 - Research uses the official Factorio technology identifiers as stable dependency keys, with the source helper for follower-robot upgrades expanded into four concrete entries. Legacy custom research identifiers are migrated when local saves load.
-- Resource visuals are original inline illustrations; Factorio is used as a mechanical vocabulary reference, not as a source for copied artwork or interface assets.
 
 ## Product
 
@@ -48,7 +47,7 @@ A mobile-first incremental factory simulator where players grow a self-funded pr
 
 ## User preferences
 
-- Use vanilla Factorio as inspiration for resource vocabulary, recipe logic, and production progression while keeping visuals original.
+- Use vanilla Factorio as inspiration for resource vocabulary, recipe logic, and production progression while keeping idle mechanics original.
 
 ## Gotchas
 
